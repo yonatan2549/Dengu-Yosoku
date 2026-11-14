@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert source CSV/GeoJSON files into browser-readable JSON for DengueGuard.
+"""Convert source CSV/GeoJSON files into browser-readable JSON for DengueYosoku.
 
 Expected source files are stored under source-data/data and source-data/questionnaire.
 Run from the project root: python scripts/convert_data.py

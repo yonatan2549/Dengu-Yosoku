@@ -1,6 +1,6 @@
-# DengueGuard — Next.js + Vercel
+# DengueYosoku — Next.js + Vercel
 
-เว็บเวอร์ชันใหม่ของ **DengueGuard: Proactive Dengue Prevention and Early Warning System** ที่ย้ายการแสดงผลจาก Streamlit มาเป็น Next.js (App Router) และเตรียม Deploy บน Vercel
+เว็บเวอร์ชันใหม่ของ **DengueYosoku: Proactive Dengue Prevention and Early Warning System** ที่ย้ายการแสดงผลจาก Streamlit มาเป็น Next.js (App Router) และเตรียม Deploy บน Vercel
 
 ## ระบบที่อยู่ในเวอร์ชันเริ่มต้น
 
@@ -35,7 +35,7 @@
 ## โครงสร้างโฟลเดอร์
 
 ```text
-dengueguard/
+DengueYosoku/
 ├── app/
 │   ├── dashboard/page.tsx
 │   ├── prevention/page.tsx
@@ -79,7 +79,7 @@ npm run build
 
 ## Deploy บน Vercel
 
-1. แตก ZIP นี้เป็นโฟลเดอร์โปรเจกต์ `dengueguard`
+1. แตก ZIP นี้เป็นโฟลเดอร์โปรเจกต์ `DengueYosoku`
 2. สร้าง GitHub repository (แนะนำ Private) แล้วอัปโหลดไฟล์/โฟลเดอร์ทั้งหมดในโปรเจกต์ โดยไม่ต้องอัปโหลด `node_modules` หรือ `.next`
 3. เข้า Vercel แล้วเลือก **Add New → Project** จากนั้น Import GitHub repository
 4. เลือก Framework Preset เป็น **Next.js**; Build Command ใช้ `npm run build` และ Output Directory ให้ Vercel จัดการอัตโนมัติ

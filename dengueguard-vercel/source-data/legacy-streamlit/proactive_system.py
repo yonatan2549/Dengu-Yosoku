@@ -1,4 +1,4 @@
-"""DengueGuard proactive prevention and early-warning panel.
+"""DengueYosoku proactive prevention and early-warning panel.
 
 This module uses the existing forecast output (pred, thr_watch, thr_alert, level)
 and displays a province-level, in-app early warning plus prevention actions.

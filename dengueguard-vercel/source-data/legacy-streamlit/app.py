@@ -148,7 +148,7 @@ def format_map_value(value, digits=1):
 try:
     df, geo, meta = load()
 except Exception as exc:
-    st.title("DengueGuard: Dashboard")
+    st.title("DengueYosoku: Dashboard")
     st.error("โหลดข้อมูล Dashboard ไม่สำเร็จ กรุณาตรวจสอบข้อความผิดพลาดด้านล่าง")
     st.exception(exc)
     st.info(
@@ -181,7 +181,7 @@ with st.sidebar:
             f"ให้ใช้ปี {meta['test_year']} ในการประเมิน"
         )
 
-st.title("DengueGuard: Proactive Dengue Prevention and Early Warning System")
+st.title("DengueYosoku: Proactive Dengue Prevention and Early Warning System")
 origin = week - pd.Timedelta(weeks=meta["horizon_weeks"])
 st.caption(
     f"พื้นที่ สคร.4 สระบุรี 8 จังหวัด | สัปดาห์ที่พยากรณ์ {week:%d/%m/%Y} "

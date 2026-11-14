@@ -49,7 +49,7 @@ export default function HealthAssistantPage() {
         <div className="dg-chat-head">
           <div className="dg-chat-avatar"><Bot size={22} /></div>
           <div style={{ flex: 1 }}>
-            <strong style={{ display: "block", color: "#1d3c43", fontSize: 13 }}>DengueGuard AI</strong>
+            <strong style={{ display: "block", color: "#1d3c43", fontSize: 13 }}>DengueYosoku AI</strong>
             <span style={{ color: "#708783", fontSize: 10 }}>Dengue-focused health education assistant</span>
           </div>
           <span className="dg-pill dg-pill-muted">Preview</span>

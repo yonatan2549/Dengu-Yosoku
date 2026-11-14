@@ -1,1 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3184db"/><stop offset="1" stop-color="#1d5b9d"/></linearGradient></defs><rect width="64" height="64" rx="18" fill="url(#g)"/><path d="M31 12c-9 0-16 7-16 16 0 12 17 25 17 25s17-13 17-25c0-9-7-16-16-16h-2zm1 9a7 7 0 1 1 0 14 7 7 0 0 1 0-14z" fill="#fff"/><path d="M32 24v8m-4-4h8" stroke="#3184db" stroke-width="2.5" stroke-linecap="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#3184db"/>
+      <stop offset="1" stop-color="#1d5b9d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="18" fill="url(#g)"/>
+
+  <text
+    x="32"
+    y="42"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="25"
+    font-weight="700"
+    letter-spacing="-1.5"
+    fill="#ffffff"
+  >DY</text>
+</svg>

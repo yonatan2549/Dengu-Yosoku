@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useDengueData } from "@/components/DataProvider";
 import { formatCases, formatNumber, getRegionalSummary } from "@/lib/utils";
 
-const STORAGE_KEY = "dengueguard-supporting-popup-dismissed-v1";
+const STORAGE_KEY = "DengueYosoku-supporting-popup-dismissed-v1";
 
 export function SupportingPopup() {
   const { data, loading } = useDengueData();
@@ -71,9 +71,9 @@ export function SupportingPopup() {
         }}>
           <section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
             <div className="modal-topline">
-              <div className="brand-mark small-mark">DG</div>
+              <div className="brand-mark small-mark">DY</div>
               <div className="modal-heading">
-                <span className="eyebrow">DENGUEGUARD · REGIONAL OVERVIEW</span>
+                <span className="eyebrow">DengueYosoku · REGIONAL OVERVIEW</span>
                 <h2 id="support-modal-title">สถานการณ์ความเสี่ยงโรคไข้เลือดออก</h2>
                 <p>ภาพรวมพื้นที่ 8 จังหวัด · สัปดาห์เป้าหมาย {weekLabel}</p>
               </div>

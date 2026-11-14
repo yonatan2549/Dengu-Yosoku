@@ -39,7 +39,7 @@ const navigationGroups = [
   {
     title: "INFORMATION",
     items: [
-      { href: "/about", label: "About DengueGuard", sub: "Project & methodology", icon: Info },
+      { href: "/about", label: "About DengueYosoku", sub: "Project & methodology", icon: Info },
       { href: "/references", label: "References & Sources", sub: "Trusted health resources", icon: FileText },
     ],
   },
@@ -60,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
   const latestDate = data?.predictions.map((row) => row.target_week_start).sort().at(-1);
   const pageLabel =
-    currentPage?.label ?? (pathname === "/" ? "ภาพรวมสถานการณ์" : "DengueGuard");
+    currentPage?.label ?? (pathname === "/" ? "ภาพรวมสถานการณ์" : "DengueYosoku");
 
   return (
     <div className="app-frame">
@@ -77,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Link href="/dashboard" className="brand-lockup" onClick={() => setMobileOpen(false)}>
           <div className="brand-mark">DG</div>
           <div className="brand-text">
-            <strong>DengueGuard</strong>
+            <strong>DengueYosoku</strong>
             <span>INTELLIGENT HEALTH PLATFORM</span>
           </div>
         </Link>
@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
         <div className="sidebar-footer">
-          <span className="status-dot" /> DengueGuard · สคร.4
+          <span className="status-dot" /> DengueYosoku · สคร.4
         </div>
       </aside>
 
@@ -143,10 +143,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
           <div className="mobile-brand">
             <div className="brand-mark small-mark">DG</div>
-            <strong>DengueGuard</strong>
+            <strong>DengueYosoku</strong>
           </div>
           <div className="breadcrumb">
-            <span>DengueGuard</span>
+            <span>DengueYosoku</span>
             <ChevronRight size={14} />
             <strong>{pageLabel}</strong>
           </div>
@@ -166,7 +166,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <main className="main-content">
             <div className="loading-card">
               <div className="spinner" />
-              <strong>กำลังโหลดข้อมูล DengueGuard</strong>
+              <strong>กำลังโหลดข้อมูล DengueYosoku</strong>
               <span>กำลังเตรียมข้อมูลพยากรณ์ สภาพอากาศ และแบบประเมิน</span>
             </div>
           </main>
@@ -175,7 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <footer className="site-footer">
-          <span><Activity size={14} /> DengueGuard · Proactive Dengue Health Platform</span>
+          <span><Activity size={14} /> DengueYosoku · Proactive Dengue Health Platform</span>
           <span>
             {isDataRoute && latestDate
               ? "ข้อมูลพยากรณ์ล่าสุดในชุดข้อมูล: " +

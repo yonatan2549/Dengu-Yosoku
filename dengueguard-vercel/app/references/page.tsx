@@ -40,7 +40,7 @@ export default function ReferencesPage() {
             <span className="dg-eyebrow"><BookOpen size={14} /> SOURCES & TRANSPARENCY</span>
             <h1>References & Sources</h1>
             <p className="dg-lede">
-              รวมแหล่งข้อมูลทางการแพทย์และสาธารณสุขที่ใช้ประกอบการจัดทำเนื้อหา DengueGuard
+              รวมแหล่งข้อมูลทางการแพทย์และสาธารณสุขที่ใช้ประกอบการจัดทำเนื้อหา DengueYosoku
               เพื่อให้ผู้ใช้งานตรวจสอบเอกสารต้นทางและบริบทของข้อมูลได้ด้วยตนเอง
             </p>
           </div>

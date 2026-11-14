@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  ArrowUpRight,
   Activity,
   BrainCircuit,
   LineChart,
@@ -36,9 +37,9 @@ export default function AboutPage() {
         <div className="dg-hero-grid">
           <div>
             <span className="dg-eyebrow"><HeartHandshake size={14} /> ABOUT THE PROJECT</span>
-            <h1>About DengueGuard</h1>
+            <h1>About DengueYosoku</h1>
             <p className="dg-lede">
-              DengueGuard เป็นแพลตฟอร์มต้นแบบด้านสุขภาพดิจิทัลที่มุ่งสนับสนุนการเฝ้าระวัง
+              DengueYosoku เป็นแพลตฟอร์มต้นแบบด้านสุขภาพดิจิทัลที่มุ่งสนับสนุนการเฝ้าระวัง
               การป้องกัน การคัดกรองเบื้องต้น และการเรียนรู้เกี่ยวกับโรคไข้เลือดออก
               โดยผสานข้อมูล เทคโนโลยีเว็บ และแนวคิดการใช้ AI อย่างรับผิดชอบ
             </p>

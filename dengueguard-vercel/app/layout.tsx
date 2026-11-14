@@ -6,7 +6,7 @@ import { DataProvider } from "@/components/DataProvider";
 import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "DengueGuard | Intelligent Dengue Health Platform",
+  title: "DengueYosoku | Intelligent Dengue Health Platform",
   description:
     "แพลตฟอร์มสุขภาพดิจิทัลด้านไข้เลือดออก ครอบคลุมการเฝ้าระวัง การป้องกัน การคัดกรอง และการเรียนรู้",
   icons: { icon: "/favicon.svg" },
