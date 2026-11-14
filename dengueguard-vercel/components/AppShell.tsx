@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Activity,
   BellRing,
@@ -14,7 +14,9 @@ import {
   Info,
   LayoutDashboard,
   Menu,
+  Moon,
   ShieldCheck,
+  Sun,
   X,
 } from "lucide-react";
 import { SupportingPopup } from "@/components/SupportingPopup";
@@ -47,10 +49,43 @@ const navigationGroups = [
 
 const allNavigation = navigationGroups.flatMap((group) => group.items);
 const dataRoutes = ["/", "/dashboard", "/prevention", "/symptom-checker"];
+type Theme = "light" | "dark";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>("light");
+
+  useEffect(() => {
+    let initialTheme: Theme = "light";
+    try {
+      const savedTheme = window.localStorage.getItem("dengueyosoku-theme");
+      if (savedTheme === "light" || savedTheme === "dark") {
+        initialTheme = savedTheme;
+      } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        initialTheme = "dark";
+      }
+    } catch {
+      // Continue with the light theme if browser storage is unavailable.
+    }
+
+    document.documentElement.dataset.theme = initialTheme;
+    setTheme(initialTheme);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => {
+      const nextTheme: Theme = currentTheme === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = nextTheme;
+      try {
+        window.localStorage.setItem("dengueyosoku-theme", nextTheme);
+      } catch {
+        // The theme still changes for the current session if storage is unavailable.
+      }
+      return nextTheme;
+    });
+  };
+
   const { data, loading, error } = useDengueData();
   const currentPage = allNavigation.find(
     (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
@@ -75,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <aside className={"sidebar" + (mobileOpen ? " sidebar-open" : "")}>
         <Link href="/dashboard" className="brand-lockup" onClick={() => setMobileOpen(false)}>
-          <div className="brand-mark">DG</div>
+          <div className="brand-mark">DY</div>
           <div className="brand-text">
             <strong>DengueYosoku</strong>
             <span>INTELLIGENT HEALTH PLATFORM</span>
@@ -142,7 +177,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {mobileOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
           <div className="mobile-brand">
-            <div className="brand-mark small-mark">DG</div>
+            <div className="brand-mark small-mark">DY</div>
             <strong>DengueYosoku</strong>
           </div>
           <div className="breadcrumb">
@@ -151,6 +186,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <strong>{pageLabel}</strong>
           </div>
           <div className="topbar-right">
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+              aria-pressed={theme === "dark"}
+              title={theme === "dark" ? "เปลี่ยนเป็นโหมดสว่าง" : "เปลี่ยนเป็นโหมดมืด"}
+            >
+              {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+              <span>{theme === "dark" ? "Light" : "Dark"}</span>
+            </button>
             <span className="topbar-status"><span className="status-dot" /> ระบบพร้อมใช้งาน</span>
             <span className="topbar-region">สคร.4 · 8 จังหวัด</span>
           </div>
