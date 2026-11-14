@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "./globals.css";
+import "./platform.css";
 import { DataProvider } from "@/components/DataProvider";
 import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "DengueGuard | ระบบเฝ้าระวังและป้องกันโรคไข้เลือดออก",
+  title: "DengueGuard | Intelligent Dengue Health Platform",
   description:
-    "ระบบพยากรณ์ความเสี่ยงโรคไข้เลือดออก ระบบป้องกันเชิงรุก และแบบคัดกรองอาการเบื้องต้น สำหรับพื้นที่ สคร.4",
+    "แพลตฟอร์มสุขภาพดิจิทัลด้านไข้เลือดออก ครอบคลุมการเฝ้าระวัง การป้องกัน การคัดกรอง และการเรียนรู้",
   icons: { icon: "/favicon.svg" },
 };
 
