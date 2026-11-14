@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   Activity,
   BrainCircuit,
-  ChartNoAxesCombined,
+  LineChart,
   Code2,
   Database,
   FileCheck2,
