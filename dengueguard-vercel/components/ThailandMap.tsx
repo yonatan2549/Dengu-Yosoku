@@ -7,6 +7,20 @@ import type { Feature, FeatureCollection } from "geojson";
 import type { ForecastRow, GeoJsonData } from "@/lib/types";
 import { normalizeProvince, RISK_COLORS } from "@/lib/utils";
 
+// เขตสุขภาพที่ 4 (สคร.4): 8 จังหวัด
+const ODPC4_PROVINCES = new Set(
+  [
+    "นนทบุรี",
+    "ปทุมธานี",
+    "พระนครศรีอยุธยา",
+    "อ่างทอง",
+    "ลพบุรี",
+    "สิงห์บุรี",
+    "สระบุรี",
+    "นครนายก",
+  ].map(normalizeProvince),
+);
+
 function FitThailand() {
   const map = useMap();
   useEffect(() => {
@@ -38,8 +52,6 @@ export function ThailandMap({
   currentRows: ForecastRow[];
 }) {
   const [zoom, setZoom] = useState(5.4);
-  // Keep the overview uncluttered; show Thai labels for forecast provinces
-  // only after the user zooms in. Hover tooltips remain available at every zoom.
   const showProvinceLabels = zoom >= 6.5;
 
   const byProvince = useMemo(() => {
@@ -65,23 +77,40 @@ export function ThailandMap({
 
   const onEachFeature = (feature: Feature, layer: L.Layer) => {
     const name = String(feature.properties?.pro_th ?? "ไม่ทราบจังหวัด");
-    const row = byProvince.get(normalizeProvince(name));
-    const isPermanentLabel = Boolean(row && showProvinceLabels);
-    const label = isPermanentLabel
-      ? name
-      : row
-        ? `${name} · ${row.level} · คาดการณ์ ${Number(row.pred).toFixed(1)} ราย`
-        : `${name} · ไม่มีข้อมูลพยากรณ์ในชุดข้อมูลนี้`;
+    const normalizedName = normalizeProvince(name);
+    const row = byProvince.get(normalizedName);
+    const isOdpc4Province = ODPC4_PROVINCES.has(normalizedName);
+    const isPermanentLabel = isOdpc4Province && showProvinceLabels;
 
-    // Province names come from the project's Thai GeoJSON properties.
-    (layer as L.Layer & { bindTooltip: (content: string, options?: object) => unknown })
-      .bindTooltip(label, {
-        permanent: isPermanentLabel,
-        sticky: !isPermanentLabel,
-        direction: isPermanentLabel ? "center" : "auto",
-        className: isPermanentLabel ? "province-name-label" : "province-hover-tooltip",
-        opacity: 1,
+    const detail = row
+      ? `${name} · ${row.level} · คาดการณ์ ${Number(row.pred).toFixed(1)} ราย`
+      : `${name} · ไม่มีข้อมูลพยากรณ์ในชุดข้อมูลนี้`;
+
+    const tooltipLayer = layer as L.Layer & {
+      bindTooltip: (content: string, options?: L.TooltipOptions) => unknown;
+      setTooltipContent: (content: string) => unknown;
+      openTooltip: () => unknown;
+    };
+
+    // แสดงชื่อถาวรเฉพาะ 8 จังหวัด สคร.4 เมื่อซูมถึงระดับที่กำหนด
+    // จังหวัดอื่นยังแสดงชื่อและข้อมูลเมื่อเลื่อนเมาส์ไปชี้
+    tooltipLayer.bindTooltip(isPermanentLabel ? name : detail, {
+      permanent: isPermanentLabel,
+      sticky: !isPermanentLabel,
+      direction: isPermanentLabel ? "center" : "auto",
+      className: isPermanentLabel ? "province-name-label" : "province-hover-tooltip",
+      opacity: 1,
+    });
+
+    if (isPermanentLabel) {
+      layer.on("mouseover", () => {
+        tooltipLayer.setTooltipContent(detail);
+        tooltipLayer.openTooltip();
       });
+      layer.on("mouseout", () => {
+        tooltipLayer.setTooltipContent(name);
+      });
+    }
   };
 
   const mapKey = currentRows
