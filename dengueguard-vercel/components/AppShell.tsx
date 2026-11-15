@@ -74,16 +74,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleTheme = () => {
-    setTheme((currentTheme) => {
-      const nextTheme: Theme = currentTheme === "dark" ? "light" : "dark";
-      document.documentElement.dataset.theme = nextTheme;
-      try {
-        window.localStorage.setItem("dengueyosoku-theme", nextTheme);
-      } catch {
-        // The theme still changes for the current session if storage is unavailable.
-      }
-      return nextTheme;
-    });
+    const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    setTheme(nextTheme);
+
+    try {
+      window.localStorage.setItem("dengueyosoku-theme", nextTheme);
+    } catch {
+      // The theme still changes for the current session if storage is unavailable.
+    }
   };
 
   const { data, loading, error } = useDengueData();
