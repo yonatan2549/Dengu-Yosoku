@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
-import { compareProvinceWeek, formatCases, formatNumber, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear } from "@/lib/utils";
+import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 
 function RiskPill({ level }: { level: string }) {
   const cls = level === "เตือนระบาด" ? "risk-high" : level === "เฝ้าระวัง" ? "risk-watch" : "risk-normal";
@@ -130,7 +130,9 @@ function ModelPreventionPage() {
   if (!model) return null;
 
   const forecastWeek = model.coverage.forecast_week;
-  const stale = forecastWeek <= model.generated_at_utc.slice(0, 10);
+  const currentEpiWeekStart = getCurrentEpiWeekStart();
+  const forecastLagWeeks = getEpiWeekLagWeeks(forecastWeek, currentEpiWeekStart);
+  const stale = forecastWeek < currentEpiWeekStart;
   const total = rows.reduce((sum, row) => sum + row.prediction, 0);
 
   return (
@@ -157,9 +159,9 @@ function ModelPreventionPage() {
         <div className="historical-notice">
           <Info size={17} />
           <span>
-            ผลพยากรณ์ชุดนี้กำหนดสัปดาห์เป้าหมาย {new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}
-            {" "}และถูกแปลงข้อมูลเมื่อ {new Date(model.generated_at_utc).toLocaleDateString("th-TH")}
-            จึงไม่ใช่สถานการณ์ปัจจุบัน ต้องอัปเดตข้อมูลต้นทางและสร้างผลพยากรณ์ใหม่ก่อนใช้งานจริง
+            ผลพยากรณ์ชุดนี้กำหนดสัปดาห์ {new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}
+            ซึ่งเก่ากว่าสัปดาห์ระบาดวิทยาปัจจุบันที่เริ่ม {new Date(currentEpiWeekStart + "T00:00:00").toLocaleDateString("th-TH")}
+            อยู่ {forecastLagWeeks} สัปดาห์ จึงไม่ใช่สถานการณ์ปัจจุบัน ต้องอัปเดตข้อมูลต้นทางและสร้างผลพยากรณ์ใหม่
           </span>
         </div>
       )}
@@ -180,6 +182,37 @@ function ModelPreventionPage() {
           <strong>{new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}</strong>
           <small>วันที่เริ่มต้นสัปดาห์ตามชุดข้อมูลโมเดล</small>
         </article>
+      </section>
+
+      <section className="panel alert-performance-panel">
+        <div className="panel-heading">
+          <div><h2>ที่มาและการตรวจสอบข้อมูล</h2><p>ตรวจสอบแหล่งที่มาของผลพยากรณ์ก่อนนำไปใช้</p></div>
+        </div>
+        <div className="panel-note">
+          <strong>Model Repository:</strong>{" "}
+          <a href={model.source_repository} target="_blank" rel="noreferrer">DenguYosoku</a>
+          <br />
+          <strong>Model commit:</strong>{" "}
+          {model.model_revision ? (
+            <a href={model.source_repository + "/commit/" + model.model_revision} target="_blank" rel="noreferrer">
+              {model.model_revision.slice(0, 12)}
+            </a>
+          ) : "ไม่มี SHA สำหรับยืนยันรุ่นโมเดล"}
+          <br />
+          <strong>ข้อมูล Holdout ถึง:</strong>{" "}
+          {new Date(model.coverage.history_end_week + "T00:00:00").toLocaleDateString("th-TH")}
+          <br />
+          <strong>ดึงไฟล์ต้นทางเมื่อ:</strong>{" "}
+          {model.freshness?.source_retrieved_at_utc
+            ? new Date(model.freshness.source_retrieved_at_utc).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })
+            : "ไม่มีข้อมูล"}
+          <br />
+          <strong>สร้างไฟล์ JSON เมื่อ:</strong>{" "}
+          {new Date(model.freshness?.converted_at_utc ?? model.generated_at_utc).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}
+          <br />
+          <strong>สถานะความใหม่:</strong>{" "}
+          {stale ? `ล้าหลัง ${forecastLagWeeks} สัปดาห์` : "สัปดาห์ปัจจุบันหรืออนาคต"}
+        </div>
       </section>
 
       <section className="panel province-table-panel">
