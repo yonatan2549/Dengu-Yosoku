@@ -55,6 +55,14 @@ async function readOptionalJson<T>(path: string): Promise<OptionalJsonResult<T>>
   }
 }
 
+function isSundayWeek(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const date = new Date(value + "T00:00:00Z");
+  return Number.isFinite(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value &&
+    date.getUTCDay() === 0;
+}
+
 function inspectModelPayload(
   predictions: ModelPredictionsPayload | null,
   metrics: ModelMetricsPayload | null,
@@ -108,6 +116,10 @@ function inspectModelPayload(
       }
       forecastProvinces.add(row.province);
       forecastWeeks.add(row.week_start);
+      if (!isSundayWeek(row.week_start)) {
+        problems.push("วันเริ่มสัปดาห์พยากรณ์ต้องเป็นวันอาทิตย์ในรูปแบบ YYYY-MM-DD");
+        break;
+      }
       if (typeof row.prediction !== "number" || !Number.isFinite(row.prediction) || row.prediction < 0) {
         problems.push("พบค่าพยากรณ์ที่ไม่ใช่ตัวเลขที่ถูกต้อง");
         break;
@@ -140,6 +152,10 @@ function inspectModelPayload(
         break;
       }
       seen.add(key);
+      if (!isSundayWeek(row.week_start)) {
+        problems.push("วันเริ่มสัปดาห์ Holdout ต้องเป็นวันอาทิตย์ในรูปแบบ YYYY-MM-DD");
+        break;
+      }
       historyWeeks.add(row.week_start);
       const provinces = weekProvinces.get(row.week_start) ?? new Set<string>();
       provinces.add(row.province);
@@ -161,8 +177,13 @@ function inspectModelPayload(
     }
     const forecastWeek = predictions.coverage?.forecast_week ?? "";
     const historyEnd = predictions.coverage?.history_end_week ?? "";
-    if (!predictions.coverage?.forecast_is_after_history || forecastWeek <= historyEnd) {
-      problems.push("สัปดาห์พยากรณ์ต้องอยู่หลังสัปดาห์สุดท้ายของ Holdout");
+    if (
+      !isSundayWeek(forecastWeek) ||
+      !isSundayWeek(historyEnd) ||
+      !predictions.coverage?.forecast_is_after_history ||
+      forecastWeek <= historyEnd
+    ) {
+      problems.push("สัปดาห์พยากรณ์ต้องเป็นวันอาทิตย์และอยู่หลังสัปดาห์สุดท้ายของ Holdout");
     }
   }
 
@@ -183,40 +204,43 @@ function inspectModelPayload(
     };
   }
 
-  if (metrics && metrics.model_revision !== predictions.model_revision) {
-    return {
-      predictions,
-      metrics: null,
-      warning: "Model Commit ของไฟล์ Metrics ไม่ตรงกับไฟล์ผลพยากรณ์ จึงซ่อน Metrics ไว้จนกว่าจะสร้างไฟล์จาก Commit เดียวกัน",
-    };
-  }
-
-  if (
-    metrics &&
-    (
-      !metrics.metrics ||
-      typeof metrics.metrics !== "object" ||
-      typeof metrics.metrics.mae !== "number" ||
-      !Number.isFinite(metrics.metrics.mae) ||
-      metrics.metrics.mae < 0 ||
-      typeof metrics.metrics.rmse !== "number" ||
-      !Number.isFinite(metrics.metrics.rmse) ||
-      metrics.metrics.rmse < 0 ||
-      typeof metrics.metrics.eval_cutoff !== "string"
-    )
-  ) {
-    return {
-      predictions,
-      metrics: null,
-      warning: "ไฟล์ Metrics มีค่า MAE, RMSE หรือ eval_cutoff ที่ไม่ถูกต้อง จึงซ่อนตัวชี้วัดไว้",
-    };
-  }
-
   if (!metrics || !metrics.metrics || typeof metrics.metrics !== "object") {
     return {
       predictions,
       metrics: null,
       warning: "ผลพยากรณ์ผ่านการตรวจสอบ แต่ไม่พบ Metrics ที่อ่านได้จาก Model Repository",
+    };
+  }
+
+  if (
+    metrics.model_revision !== predictions.model_revision ||
+    metrics.source_repository !== predictions.source_repository
+  ) {
+    return {
+      predictions,
+      metrics: null,
+      warning: "ไฟล์ Metrics มาจาก Model Commit หรือ Repository คนละชุดกับผลพยากรณ์ จึงซ่อนตัวชี้วัดไว้",
+    };
+  }
+
+  const metricValues = metrics.metrics;
+  const evalCutoff = metricValues.eval_cutoff;
+  if (
+    typeof metricValues.mae !== "number" ||
+    !Number.isFinite(metricValues.mae) ||
+    metricValues.mae < 0 ||
+    typeof metricValues.rmse !== "number" ||
+    !Number.isFinite(metricValues.rmse) ||
+    metricValues.rmse < 0 ||
+    typeof evalCutoff !== "string" ||
+    !/^\\d{4}-\\d{2}-\\d{2}$/.test(evalCutoff) ||
+    evalCutoff < predictions.coverage.history_end_week ||
+    (metricValues.n_test !== undefined && metricValues.n_test !== predictions.coverage.history_rows)
+  ) {
+    return {
+      predictions,
+      metrics: null,
+      warning: "ไฟล์ Metrics มีค่า MAE, RMSE, eval_cutoff หรือจำนวนตัวอย่างที่ไม่สอดคล้องกับ Holdout จึงซ่อนตัวชี้วัดไว้",
     };
   }
 
