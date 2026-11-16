@@ -84,3 +84,13 @@ test("blocks incomplete forecast coverage", () => {
   assert.equal(result.forecastProvinceCount, 76);
   assert.equal(result.candidateEvents.length, 0);
 });
+
+test("refuses any rule profile that attempts to enable external notifications", () => {
+  const profile = createApprovedProfile();
+  profile.externalNotificationsEnabled = true;
+  const result = evaluateAlertDryRun(createModel(), profile, "2026-10-25");
+  assert.equal(result.status, "blocked");
+  assert.equal(result.candidateEvents.length, 0);
+  assert.equal(result.externalNotificationsEnabled, false);
+  assert.ok(result.blockedReasons.some((reason) => reason.includes("Profile")));
+});
