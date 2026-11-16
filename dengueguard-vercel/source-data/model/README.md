@@ -34,10 +34,25 @@ It then generates:
 - `public/data/model_predictions.json`
 - `public/data/model_metrics.json`
 
-The schema intentionally keeps holdout history and the latest forecast
-separate. It does not invent `thr_watch`, `thr_alert`, `level`, or a
-four-week rolling average. Those require a separately reviewed methodology.
+The schema (version 2) keeps holdout history and the latest forecast
+separate. The converter requires the source manifest, verifies the model
+commit and SHA-256 hashes, checks that the forecast week follows the final
+holdout week, and checks that the metrics row count and evaluation cutoff
+agree with the holdout data.
+
+Freshness is measured using Sunday-start epidemiological weeks in
+`Asia/Bangkok`, not by comparing a week-start date to the file-conversion
+timestamp. The output records the source retrieval time, JSON conversion time,
+current epidemiological week at conversion, and forecast lag in weeks. The
+website also validates the 77-province coverage and verifies that prediction
+and metrics files refer to the same model commit before displaying them.
+
+The adapter intentionally does not invent `thr_watch`, `thr_alert`, `level`,
+or a four-week rolling average. Those require a separately reviewed
+methodology. Map shading represents relative predicted case counts only; it
+must not be described as an outbreak risk category.
 
 The sample forecast currently published by the model repository targets
-2026-10-25. As of 2026-11-16 this is a past week, so it must be regenerated
-from refreshed source data before it is described as a current forecast.
+2026-10-25. As of 2026-11-16 this is behind the current epidemiological week
+and must be regenerated from refreshed source data before it is described as
+a current forecast.
