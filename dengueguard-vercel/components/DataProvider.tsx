@@ -1,7 +1,11 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { DengueData } from "@/lib/types";
+import type {
+  DengueData,
+  ModelMetricsPayload,
+  ModelPredictionsPayload,
+} from "@/lib/types";
 
 interface DataContextValue {
   data: DengueData | null;
@@ -13,6 +17,15 @@ const DataContext = createContext<DataContextValue>({ data: null, loading: true,
 
 async function readJson<T>(path: string): Promise<T> {
   const response = await fetch(path, { cache: "force-cache" });
+  if (!response.ok) throw new Error(`โหลดข้อมูล ${path} ไม่สำเร็จ (${response.status})`);
+  return response.json() as Promise<T>;
+}
+
+// The new model export is optional while the old website data remains in use.
+// A missing model JSON must not prevent the existing pages from loading.
+async function readOptionalJson<T>(path: string): Promise<T | null> {
+  const response = await fetch(path, { cache: "force-cache" });
+  if (response.status === 404) return null;
   if (!response.ok) throw new Error(`โหลดข้อมูล ${path} ไม่สำเร็จ (${response.status})`);
   return response.json() as Promise<T>;
 }
@@ -35,7 +48,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       readJson("/data/meta.json"),
       readJson("/data/thailand_provinces.geojson"),
       readJson("/data/provinces_odpc4.geojson"),
-    ]).then(([predictions, weather, preventionActions, questions, options, rules, recommendations, meta, thailandGeo, odpcGeo]) => {
+      readOptionalJson<ModelPredictionsPayload>("/data/model_predictions.json"),
+      readOptionalJson<ModelMetricsPayload>("/data/model_metrics.json"),
+    ]).then(([
+      predictions,
+      weather,
+      preventionActions,
+      questions,
+      options,
+      rules,
+      recommendations,
+      meta,
+      thailandGeo,
+      odpcGeo,
+      modelPredictions,
+      modelMetrics,
+    ]) => {
       if (!active) return;
       setData({
         predictions: predictions as DengueData["predictions"],
@@ -48,6 +76,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         meta: meta as DengueData["meta"],
         thailandGeo: thailandGeo as DengueData["thailandGeo"],
         odpcGeo: odpcGeo as DengueData["odpcGeo"],
+        modelPredictions,
+        modelMetrics,
       });
       setLoading(false);
     }).catch((cause: unknown) => {
