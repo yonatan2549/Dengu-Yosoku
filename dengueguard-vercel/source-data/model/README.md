@@ -52,7 +52,17 @@ or a four-week rolling average. Those require a separately reviewed
 methodology. Map shading represents relative predicted case counts only; it
 must not be described as an outbreak risk category.
 
-The sample forecast currently published by the model repository targets
-2026-10-25. As of 2026-11-16 this is behind the current epidemiological week
-and must be regenerated from refreshed source data before it is described as
-a current forecast.
+The forecast artifact currently published by the model repository targets
+2026-10-25, one week after the final Holdout week (2026-10-18). Treat it as a
+one-week-ahead forecast snapshot from that model run, not as a continuously
+updated forecast for the present week. The forecast export contains predictions
+only; it does not contain observed actual cases for its target week. Keep this
+forecast separate from the sealed Holdout and never add target-week outcomes to
+features or model inputs when producing the prediction.
+
+As of the current epidemiological week beginning 2026-11-15, this snapshot is
+three weeks behind. It may be used to inspect the model output and the handoff
+pipeline, but it must not be presented as the current dengue situation. A
+current operational forecast requires the model owner to run a new forecast
+with the latest eligible inputs, while preserving the train/holdout boundary
+and the no-target-week-feature rule.
