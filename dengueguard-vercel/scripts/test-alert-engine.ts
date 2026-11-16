@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { evaluateAlertDryRun } from "../lib/alerting/engine";
 import { ALERT_RULE_PROFILE } from "../lib/alerting/profile";
+import {
+  ALERT_AUDIT_MAX_RECORDS,
+  appendAlertAuditRecord,
+  createAlertAuditRecord,
+  readAlertAuditRecords,
+  writeAlertAuditRecords,
+  type AlertAuditStorage,
+} from "../lib/alerting/audit";
 import type { AlertModelSnapshot, AlertRuleProfile } from "../lib/alerting/types";
 
 const provinceNames = Array.from({ length: 77 }, (_, index) => `จังหวัดทดสอบ${index + 1}`);
@@ -9,6 +17,8 @@ const provinceNames = Array.from({ length: 77 }, (_, index) => `จังหว�
 function createModel(): AlertModelSnapshot {
   return {
     model_revision: "a".repeat(40),
+    generated_at_utc: "2026-10-26T02:00:00.000Z",
+    source_retrieved_at_utc: "2026-10-26T01:30:00.000Z",
     source_repository: "https://github.com/johnlovepizza/DenguYosoku",
     province_count: 77,
     provinces: [...provinceNames],
@@ -93,4 +103,76 @@ test("refuses any rule profile that attempts to enable external notifications", 
   assert.equal(result.candidateEvents.length, 0);
   assert.equal(result.externalNotificationsEnabled, false);
   assert.ok(result.blockedReasons.some((reason) => reason.includes("Profile")));
+});
+
+
+function createAuditRecord(evaluatedAt = new Date("2026-11-17T03:00:00.000Z")) {
+  const model = createModel();
+  const result = evaluateAlertDryRun(model, ALERT_RULE_PROFILE, "2026-11-15");
+  return createAlertAuditRecord(model, ALERT_RULE_PROFILE, result, evaluatedAt);
+}
+
+class MemoryAuditStorage implements AlertAuditStorage {
+  value: string | null = null;
+
+  getItem() {
+    return this.value;
+  }
+
+  setItem(_key: string, value: string) {
+    this.value = value;
+  }
+}
+
+test("audit record captures model provenance, profile rules, and dry-run outcome", () => {
+  const record = createAuditRecord();
+  assert.equal(record.modelRevision, "a".repeat(40));
+  assert.equal(record.modelGeneratedAtUtc, "2026-10-26T02:00:00.000Z");
+  assert.equal(record.sourceRetrievedAtUtc, "2026-10-26T01:30:00.000Z");
+  assert.equal(record.historyEndWeek, "2026-10-18");
+  assert.equal(record.ruleProfileStatus, "draft");
+  assert.equal(record.thresholdsByProvince && Object.keys(record.thresholdsByProvince).length, 0);
+  assert.equal(record.status, "blocked");
+  assert.equal(record.externalNotificationsEnabled, false);
+});
+
+test("audit history de-duplicates the same snapshot and rule evaluation", () => {
+  const first = createAuditRecord(new Date("2026-11-17T03:00:00.000Z"));
+  const repeated = createAuditRecord(new Date("2026-11-17T04:00:00.000Z"));
+  assert.equal(first.runFingerprint, repeated.runFingerprint);
+
+  const withFirst = appendAlertAuditRecord([], first);
+  const withRepeat = appendAlertAuditRecord(withFirst, repeated);
+  assert.equal(withRepeat, withFirst);
+  assert.equal(withRepeat.length, 1);
+});
+
+test("audit history retains no more than the configured record limit", () => {
+  const base = createAuditRecord();
+  const existing = Array.from({ length: ALERT_AUDIT_MAX_RECORDS }, (_, index) => ({
+    ...base,
+    id: `record-${index}`,
+    runFingerprint: `fingerprint-${index}`,
+  }));
+  const next = appendAlertAuditRecord(existing, {
+    ...base,
+    id: "new-record",
+    runFingerprint: "new-fingerprint",
+  });
+  assert.equal(next.length, ALERT_AUDIT_MAX_RECORDS);
+  assert.equal(next[0].id, "new-record");
+});
+
+test("audit storage safely ignores malformed local JSON", () => {
+  const storage = new MemoryAuditStorage();
+  storage.value = "{not valid json";
+  assert.deepEqual(readAlertAuditRecords(storage), []);
+});
+
+test("audit storage reports quota or permission failures", () => {
+  const storage: AlertAuditStorage = {
+    getItem: () => null,
+    setItem: () => { throw new Error("storage unavailable"); },
+  };
+  assert.equal(writeAlertAuditRecords(storage, [createAuditRecord()]), false);
 });
