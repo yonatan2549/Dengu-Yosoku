@@ -75,6 +75,19 @@ function inspectModelPayload(
   const provinceList = Array.isArray(predictions.provinces) ? predictions.provinces : [];
   const provinceSet = new Set(provinceList);
 
+  if (predictions.schema_version >= 2) {
+    if (!/^[a-f0-9]{40}$/i.test(predictions.model_revision ?? "")) {
+      problems.push("ไม่พบ Model Commit SHA ที่ใช้ยืนยันชุดข้อมูล");
+    }
+    if (
+      predictions.freshness?.timezone !== "Asia/Bangkok" ||
+      !predictions.freshness?.source_retrieved_at_utc ||
+      !predictions.freshness?.converted_at_utc
+    ) {
+      problems.push("ข้อมูลรุ่นนี้ขาด metadata สำหรับตรวจสอบที่มาและเวลา");
+    }
+  }
+
   if (predictions.province_count !== 77 || provinceList.length !== 77 || provinceSet.size !== 77) {
     problems.push("รายชื่อจังหวัดต้องครบ 77 จังหวัดและไม่ซ้ำกัน");
   }
@@ -175,6 +188,25 @@ function inspectModelPayload(
       predictions,
       metrics: null,
       warning: "Model Commit ของไฟล์ Metrics ไม่ตรงกับไฟล์ผลพยากรณ์ จึงซ่อน Metrics ไว้จนกว่าจะสร้างไฟล์จาก Commit เดียวกัน",
+    };
+  }
+
+  if (
+    metrics &&
+    (
+      typeof metrics.metrics.mae !== "number" ||
+      !Number.isFinite(metrics.metrics.mae) ||
+      metrics.metrics.mae < 0 ||
+      typeof metrics.metrics.rmse !== "number" ||
+      !Number.isFinite(metrics.metrics.rmse) ||
+      metrics.metrics.rmse < 0 ||
+      typeof metrics.metrics.eval_cutoff !== "string"
+    )
+  ) {
+    return {
+      predictions,
+      metrics: null,
+      warning: "ไฟล์ Metrics มีค่า MAE, RMSE หรือ eval_cutoff ที่ไม่ถูกต้อง จึงซ่อนตัวชี้วัดไว้",
     };
   }
 
