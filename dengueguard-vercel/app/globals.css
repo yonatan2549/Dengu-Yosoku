@@ -286,3 +286,33 @@ a { color: inherit; text-decoration: none; }
   .alert-audit-toolbar { align-items: flex-start; flex-direction: column; }
   .alert-audit-record-top { align-items: flex-start; flex-direction: column; gap: 3px; }
 }
+
+
+/* Browser-local simulated alert event lifecycle */
+.alert-lifecycle-section { border-top: 1px solid var(--line); margin-top: 17px; padding-top: 16px; }
+.alert-lifecycle-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.alert-lifecycle-summary span { border: 1px solid #e7edf2; border-radius: 999px; padding: 5px 9px; color: #6e8091; background: #fbfcfd; font-size: 9px; }
+.alert-lifecycle-summary strong { color: #35536d; margin-left: 3px; }
+.alert-lifecycle-list { display: flex; flex-direction: column; gap: 9px; }
+.alert-lifecycle-card { border: 1px solid #e7edf2; border-radius: 10px; background: #fcfdff; padding: 11px 13px; min-width: 0; }
+.alert-lifecycle-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.alert-lifecycle-card-heading > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.alert-lifecycle-card-heading strong { color: #304c67; font-size: 10px; }
+.alert-lifecycle-card-heading time, .alert-lifecycle-card time { color: #8a97a4; font-size: 8px; }
+.alert-lifecycle-status { color: #65788c; font-size: 9px; }
+.alert-lifecycle-card > p { margin: 7px 0 3px; color: #65788c; font-size: 9px; }
+.alert-lifecycle-card > small { display: block; color: #8a97a4; font-size: 8px; overflow-wrap: anywhere; }
+.alert-lifecycle-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.alert-lifecycle-resolve { display: flex; flex: 1 1 360px; flex-wrap: wrap; gap: 7px; }
+.alert-lifecycle-resolve input { flex: 1 1 220px; min-width: 0; border: 1px solid #dfe7ee; border-radius: 8px; padding: 7px 9px; color: #38546d; background: #fff; font: inherit; font-size: 9px; }
+.alert-lifecycle-history { margin-top: 10px; border-top: 1px solid #edf1f4; padding-top: 8px; color: #718397; }
+.alert-lifecycle-history summary { display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 9px; font-weight: 600; }
+.alert-lifecycle-history ol { display: flex; flex-direction: column; gap: 7px; margin: 9px 0 0; padding-left: 18px; }
+.alert-lifecycle-history li { padding-left: 2px; color: #718397; font-size: 8px; }
+.alert-lifecycle-history li strong { margin-right: 8px; color: #49657f; }
+.alert-lifecycle-history li span { display: block; margin-top: 2px; }
+@media (max-width: 640px) {
+  .alert-lifecycle-card-heading { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .alert-lifecycle-resolve { flex-basis: 100%; }
+  .alert-lifecycle-resolve .button { width: 100%; justify-content: center; }
+}
