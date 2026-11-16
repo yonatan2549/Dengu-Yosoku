@@ -46,7 +46,7 @@ export function SupportingPopup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!summary || !data) return null;
+  if (!summary || !data || data.modelPredictions) return null;
 
   const weekLabel = new Date(`${summary.week}T00:00:00`).toLocaleDateString("th-TH", {
     day: "numeric", month: "long", year: "numeric",
