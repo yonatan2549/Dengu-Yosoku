@@ -121,6 +121,9 @@ export default function ModelDashboard() {
   const forecastLagWeeks = getEpiWeekLagWeeks(forecastWeek, currentEpiWeekStart);
   const isForecastWeek = Boolean(model && activeWeek === forecastWeek);
   const isStaleForecast = Boolean(model && forecastWeek && forecastWeek < currentEpiWeekStart);
+  const forecastHorizonWeeks = model && forecastWeek && model.coverage.history_end_week
+    ? Math.round((Date.parse(forecastWeek + "T00:00:00Z") - Date.parse(model.coverage.history_end_week + "T00:00:00Z")) / (7 * 24 * 60 * 60 * 1000))
+    : null;
 
   const displayRows = useMemo<DisplayRow[]>(() => {
     if (!model || !activeWeek) return [];
@@ -199,8 +202,8 @@ export default function ModelDashboard() {
       <section className="page-heading-row">
         <div>
           <div className="eyebrow">NATIONAL DENGUE FORECAST · 77 PROVINCES</div>
-          <h1>ภาพรวมสถานการณ์ไข้เลือดออกทั่วประเทศ</h1>
-          <p>ผลพยากรณ์จาก DenguYosoku LightGBM ครอบคลุม 77 จังหวัด</p>
+          <h1>ภาพรวมผลพยากรณ์ไข้เลือดออกทั่วประเทศ</h1>
+          <p>ข้อมูล DenguYosoku LightGBM ประกอบด้วย Holdout ย้อนหลัง {model.coverage.history_week_count} สัปดาห์ และ Forecast เป้าหมาย {formatWeek(forecastWeek)} ไม่ใช่ข้อมูลเฝ้าระวังแบบเรียลไทม์</p>
         </div>
         <button
           className="button button-secondary"
@@ -215,17 +218,19 @@ export default function ModelDashboard() {
         <div className="inline-callout warning">
           <Info size={17} />
           <span>
-            ผลพยากรณ์กำหนดสัปดาห์ {formatWeek(forecastWeek)} ซึ่งเก่ากว่าสัปดาห์ระบาดวิทยาปัจจุบัน
-            ที่เริ่ม {formatWeek(currentEpiWeekStart)} อยู่ {forecastLagWeeks} สัปดาห์
-            จึงไม่ควรสื่อสารเป็นสถานการณ์ปัจจุบัน ต้องดึงข้อมูลต้นทางและสร้างผลพยากรณ์รอบใหม่
+            Forecast ในชุดข้อมูลนี้เป็น Snapshot เป้าหมายสัปดาห์ {formatWeek(forecastWeek)}
+            ซึ่งอยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({formatWeek(model.coverage.history_end_week)}).
+            ปัจจุบันสัปดาห์ระบาดวิทยาเริ่ม {formatWeek(currentEpiWeekStart)} ทำให้ Snapshot นี้เก่ากว่า {forecastLagWeeks} สัปดาห์
+            จึงใช้ตรวจดูผลลัพธ์ของโมเดลได้ แต่ไม่ควรนำไปสื่อสารเป็นสถานการณ์ปัจจุบัน
+            การไม่มีค่าผู้ป่วยจริงของสัปดาห์ Forecast เป็นเรื่องปกติของผลพยากรณ์ล่วงหน้า และ Metrics ประเมินจาก Holdout เท่านั้น
           </span>
         </div>
       ) : (
         <div className="historical-notice">
           <Info size={17} />
           <span>
-            สัปดาห์พยากรณ์: {formatWeek(forecastWeek)} · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)}
-            · ตรวจสอบเวลาอัปเดตต้นทางก่อนนำไปใช้งาน
+            Forecast เป้าหมาย {formatWeek(forecastWeek)} · อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout
+            · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)} · ตรวจสอบรุ่นข้อมูลก่อนใช้งาน
           </span>
         </div>
       )}
@@ -266,7 +271,7 @@ export default function ModelDashboard() {
 
       <section className="metric-grid metric-grid-four">
         <article className="metric-card">
-          <div className="metric-card-top"><span>ค่าพยากรณ์รวม</span><span className="metric-icon blue">Σ</span></div>
+          <div className="metric-card-top"><span>{isForecastWeek ? "ค่าพยากรณ์รวม" : "ผลทำนายรวมใน Holdout"}</span><span className="metric-icon blue">Σ</span></div>
           <strong>{formatCases(totalPrediction)}</strong>
           <small>{isForecastWeek ? "ผลพยากรณ์ของสัปดาห์เป้าหมาย" : "ผลทำนายย้อนหลังของสัปดาห์ที่เลือก"}</small>
         </article>
@@ -290,7 +295,7 @@ export default function ModelDashboard() {
       <section className="panel map-panel">
         <div className="panel-heading">
           <div>
-            <h2>แผนที่จำนวนผู้ป่วยที่คาดการณ์</h2>
+            <h2>แผนที่ผล AI รายจังหวัด</h2>
             <p>แสดงข้อมูล {displayRows.length} จาก 77 จังหวัด · {activeWeek ? formatWeek(activeWeek) : ""}</p>
           </div>
           <MapPinned size={20} />
@@ -363,7 +368,7 @@ export default function ModelDashboard() {
       <section className="panel province-table-panel">
         <div className="panel-heading">
           <div>
-            <h2>ผลพยากรณ์รายจังหวัด</h2>
+            <h2>{isForecastWeek ? "ผลพยากรณ์รายจังหวัด" : "ผล Holdout รายจังหวัด"}</h2>
             <p>เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
           </div>
         </div>
@@ -459,7 +464,9 @@ export default function ModelDashboard() {
             <br />
             สัปดาห์ปัจจุบัน (Asia/Bangkok): {formatWeek(currentEpiWeekStart)}
             <br />
-            อายุผลพยากรณ์: {isStaleForecast ? `${forecastLagWeeks} สัปดาห์` : "สัปดาห์ปัจจุบันหรืออนาคต"}
+            อายุ Snapshot เทียบสัปดาห์ปัจจุบัน: {isStaleForecast ? `${forecastLagWeeks} สัปดาห์` : "ไม่เก่ากว่าสัปดาห์ปัจจุบัน"}
+            <br />
+            ระยะ Forecast หลัง Holdout: {forecastHorizonWeeks === null ? "ไม่มีข้อมูล" : `${forecastHorizonWeeks} สัปดาห์`}
             <br />
             ดึงไฟล์จาก Model Repository: {formatTimestamp(model.freshness?.source_retrieved_at_utc)}
             <br />
