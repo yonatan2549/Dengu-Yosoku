@@ -36,6 +36,7 @@ export interface ModelPredictionsPayload {
   schema_version: number;
   model_name: string;
   source_repository: string;
+  model_revision: string | null;
   generated_at_utc: string;
   province_count: number;
   provinces: string[];
@@ -57,6 +58,7 @@ export interface ModelMetricsPayload {
   schema_version: number;
   model_name: string;
   source_repository: string;
+  model_revision: string | null;
   generated_at_utc: string;
   metrics: Record<string, unknown>;
 }
