@@ -156,6 +156,7 @@ export default function ModelDashboard() {
   };
 
   if (!model) return null;
+  const mapGeo = data?.thailandGeo ?? null;
 
   const totalPrediction = sum(selectedRows.map((row) => row.prediction));
   const totalActual = selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
@@ -280,15 +281,19 @@ export default function ModelDashboard() {
           <span>ค่าพยากรณ์สูง</span>
           <span style={{ marginLeft: "auto" }}>สีเทา = ไม่มีข้อมูล</span>
         </div>
-        <ModelMapLoader
-          geo={data.thailandGeo}
-          rows={displayRows.map((row) => ({
-            province: row.province,
-            prediction: row.prediction,
-            actual_cases: row.actualCases,
-            persistence: row.persistence,
-          }))}
-        />
+        {mapGeo ? (
+          <ModelMapLoader
+            geo={mapGeo}
+            rows={displayRows.map((row) => ({
+              province: row.province,
+              prediction: row.prediction,
+              actual_cases: row.actualCases,
+              persistence: row.persistence,
+            }))}
+          />
+        ) : (
+          <div className="map-placeholder">ไม่พบข้อมูลขอบเขตจังหวัดสำหรับแสดงแผนที่</div>
+        )}
         <p className="panel-note">
           สีเข้มหมายถึงจำนวนผู้ป่วยที่โมเดลคาดการณ์สูงกว่าเมื่อเทียบกับจังหวัดอื่นในสัปดาห์ที่เลือก
           เป็นการไล่ระดับตามจำนวนพยากรณ์ ไม่ใช่ระดับความเสี่ยงหรือเกณฑ์เตือนระบาด
