@@ -10,7 +10,7 @@ function RiskPill({ level }: { level: string }) {
   return <span className={`risk-pill ${cls}`}><span />{level}</span>;
 }
 
-export default function PreventionPage() {
+function LegacyPreventionPage() {
   const { data } = useDengueData();
   const [selectedProvince, setSelectedProvince] = useState("");
   const years = useMemo(() => data ? getUniqueYears(data.predictions) : [], [data]);
@@ -101,4 +101,133 @@ export default function PreventionPage() {
       <p className="disclaimer-line"><Info size={15} /> ระบบนี้เป็นการแจ้งเตือนภายในเว็บไซต์ ไม่ได้ส่ง LINE, Email หรือ SMS และระดับพยากรณ์ไม่ใช่การยืนยันว่ามีการระบาดจริง</p>
     </div>
   );
+}
+
+function ModelPreventionPage() {
+  const { data } = useDengueData();
+  const model = data?.modelPredictions ?? null;
+  const rows = useMemo(
+    () => model ? [...model.forecast].sort((a, b) => b.prediction - a.prediction) : [],
+    [model],
+  );
+  const universalActions = useMemo(
+    () => data?.preventionActions
+      .filter((item) => item.level === "ปกติ")
+      .sort((a, b) => a.priority - b.priority) ?? [],
+    [data],
+  );
+
+  if (!model) return null;
+
+  const forecastWeek = model.coverage.forecast_week;
+  const stale = forecastWeek <= model.generated_at_utc.slice(0, 10);
+  const total = rows.reduce((sum, row) => sum + row.prediction, 0);
+
+  return (
+    <div className="page-stack">
+      <section className="page-heading-row">
+        <div>
+          <div className="eyebrow">PROACTIVE DISEASE PREVENTION · 77 PROVINCES</div>
+          <h1>ป้องกันโรคเชิงรุกทั่วประเทศไทย</h1>
+          <p>ใช้ผลพยากรณ์จำนวนผู้ป่วยจาก DenguYosoku เป็นข้อมูลประกอบการวางแผนเฝ้าระวัง</p>
+        </div>
+        <div className="heading-icon-card"><ShieldCheck size={26} /><span>PREVENTION</span></div>
+      </section>
+
+      <div className="inline-callout warning">
+        <Info size={17} />
+        <span>
+          โมเดลใหม่ให้ค่าพยากรณ์จำนวนผู้ป่วยรายจังหวัดเท่านั้น ยังไม่มีเกณฑ์เฝ้าระวัง
+          และเกณฑ์เตือนระบาดที่ผ่านการกำหนดแยกต่างหาก หน้านี้จึงแสดงจำนวนที่คาดการณ์
+          ไม่จัดระดับความเสี่ยงหรือสร้างคำเตือนจากค่าดังกล่าว
+        </span>
+      </div>
+
+      {stale && (
+        <div className="historical-notice">
+          <Info size={17} />
+          <span>
+            ผลพยากรณ์ชุดนี้กำหนดสัปดาห์เป้าหมาย {new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}
+            {" "}และถูกแปลงข้อมูลเมื่อ {new Date(model.generated_at_utc).toLocaleDateString("th-TH")}
+            จึงไม่ใช่สถานการณ์ปัจจุบัน ต้องอัปเดตข้อมูลต้นทางและสร้างผลพยากรณ์ใหม่ก่อนใช้งานจริง
+          </span>
+        </div>
+      )}
+
+      <section className="metric-grid metric-grid-three">
+        <article className="metric-card">
+          <div className="metric-card-top"><span>ผู้ป่วยที่โมเดลคาดการณ์รวม</span><span className="metric-icon blue">Σ</span></div>
+          <strong>{total.toLocaleString("th-TH", { maximumFractionDigits: 1 })} ราย</strong>
+          <small>ผลรวมจาก 77 จังหวัด</small>
+        </article>
+        <article className="metric-card">
+          <div className="metric-card-top"><span>จังหวัดในชุดพยากรณ์</span><span className="metric-icon aqua">77</span></div>
+          <strong>{rows.length} จังหวัด</strong>
+          <small>ตรวจสอบความครบถ้วนจาก Model Adapter</small>
+        </article>
+        <article className="metric-card">
+          <div className="metric-card-top"><span>สัปดาห์เป้าหมาย</span><span className="metric-icon amber">◷</span></div>
+          <strong>{new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}</strong>
+          <small>วันที่เริ่มต้นสัปดาห์ตามชุดข้อมูลโมเดล</small>
+        </article>
+      </section>
+
+      <section className="panel province-table-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>จำนวนผู้ป่วยที่คาดการณ์รายจังหวัด</h2>
+            <p>เรียงจากค่าพยากรณ์มากไปน้อย · ไม่มีการตีความเป็นระดับความเสี่ยง</p>
+          </div>
+        </div>
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead><tr><th>ลำดับ</th><th>จังหวัด</th><th>จำนวนที่คาดการณ์</th></tr></thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={row.province}>
+                  <td>{index + 1}</td>
+                  <td>{row.province}</td>
+                  <td className="numeric-cell">{row.prediction.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel actions-panel">
+        <div className="panel-heading">
+          <div><h2>มาตรการป้องกันพื้นฐาน</h2><p>แนวทางทั่วไปที่ทำได้ทุกพื้นที่ โดยไม่ขึ้นกับระดับพยากรณ์</p></div>
+          <ShieldCheck size={20} />
+        </div>
+        {universalActions.length ? (
+          <div className="action-list">
+            {universalActions.map((item, index) => (
+              <article className="action-item" key={item.priority + "-" + item.action}>
+                <div className="action-number">{index + 1}</div>
+                <div className="action-copy">
+                  <strong>{item.action}</strong>
+                  <p>{item.frequency}</p>
+                  <small>กลุ่มเป้าหมาย: {item.target_group} · แหล่งข้อมูล: {item.source}</small>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : <p className="muted">ยังไม่มีรายการคำแนะนำพื้นฐาน</p>}
+      </section>
+
+      <p className="disclaimer-line">
+        <Info size={15} />
+        จำนวนผู้ป่วยที่คาดการณ์เป็นผลลัพธ์ของแบบจำลอง ไม่ใช่การยืนยันการระบาดหรือความเสี่ยงรายบุคคล
+        การกำหนดมาตรการควบคุมโรคต้องพิจารณาข้อมูลเฝ้าระวังจริงและแนวทางของหน่วยงานสาธารณสุขร่วมด้วย
+      </p>
+    </div>
+  );
+}
+
+
+export default function PreventionPage() {
+  const { data } = useDengueData();
+  if (data?.modelPredictions) return <ModelPreventionPage />;
+  return <LegacyPreventionPage />;
 }
