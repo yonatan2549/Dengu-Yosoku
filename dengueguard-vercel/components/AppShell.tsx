@@ -85,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const { data, loading, error } = useDengueData();
+  const { data, loading, error, modelWarning } = useDengueData();
   const currentPage = allNavigation.find(
     (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
   );
@@ -196,7 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
               <span>{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
-            <span className="topbar-status"><span className="status-dot" /> ระบบพร้อมใช้งาน</span>
+            <span className="topbar-status"><span className="status-dot" /> {modelWarning ? "ข้อมูลโมเดลต้องตรวจสอบ" : "ระบบพร้อมใช้งาน"}</span>
             <span className="topbar-region">{data?.modelPredictions ? "ทั่วประเทศ · 77 จังหวัด" : "สคร.4 · 8 จังหวัด"}</span>
           </div>
         </header>
@@ -204,6 +204,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {isDataRoute && error && (
           <div className="global-error">
             <strong>โหลดข้อมูลไม่สำเร็จ</strong><span>{error}</span>
+          </div>
+        )}
+        {isDataRoute && !loading && modelWarning && (
+          <div className="historical-notice">
+            <Info size={17} />
+            <span>{modelWarning}</span>
           </div>
         )}
 
