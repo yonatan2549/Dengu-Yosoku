@@ -13,6 +13,13 @@ export interface ForecastRow {
   level: RiskLevel;
 }
 
+export interface ModelMapRow {
+  province: string;
+  prediction: number;
+  actual_cases: number | null;
+  persistence: number | null;
+}
+
 export interface ModelHistoryRow {
   province: string;
   week_start: string;
