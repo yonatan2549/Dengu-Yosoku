@@ -345,6 +345,18 @@ export default function ModelDashboard() {
             <br />
             Forecast: {formatWeek(model.coverage.forecast_week)}
           </p>
+          {model.model_revision && (
+            <p className="panel-note">
+              Model commit:{" "}
+              <a
+                href={model.source_repository + "/commit/" + model.model_revision}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {model.model_revision.slice(0, 12)}
+              </a>
+            </p>
+          )}
           <a className="dg-source-link" href={model.source_repository} target="_blank" rel="noreferrer">
             เปิด Model Repository
           </a>
