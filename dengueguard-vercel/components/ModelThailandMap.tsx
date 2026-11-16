@@ -59,6 +59,21 @@ export function ModelThailandMap({
     [rows],
   );
   const geoJson = geo as unknown as FeatureCollection;
+  const boundaryProvinces = useMemo(
+    () => new Set(
+      geo.features
+        .map((feature) => normalizeProvince(feature.properties?.pro_th))
+        .filter(Boolean),
+    ),
+    [geo],
+  );
+  const unmatchedProvinces = useMemo(
+    () => rows
+      .filter((row) => !boundaryProvinces.has(normalizeProvince(row.province)))
+      .map((row) => row.province),
+    [rows, boundaryProvinces],
+  );
+  const matchedProvinceCount = rows.length - unmatchedProvinces.length;
 
   const style = (feature?: Feature) => {
     const provinceName = String(feature?.properties?.pro_th ?? "");
@@ -94,6 +109,7 @@ export function ModelThailandMap({
   const mapKey = rows.map((row) => row.province + ":" + row.prediction).join("|");
 
   return (
+    <>
     <div className="map-wrap">
       <MapContainer
         center={[15.2, 101.0]}
@@ -117,5 +133,12 @@ export function ModelThailandMap({
         <FitThailand />
       </MapContainer>
     </div>
+    <p className="panel-note" role={unmatchedProvinces.length ? "alert" : "status"}>
+      จับคู่ข้อมูลกับขอบเขตแผนที่ได้ {matchedProvinceCount} / {rows.length} จังหวัด
+      {unmatchedProvinces.length
+        ? ` · ไม่พบขอบเขตสำหรับ: ${unmatchedProvinces.join(", ")}`
+        : " · ชื่อจังหวัดตรงกับข้อมูลแผนที่ครบถ้วน"}
+    </p>
+    </>
   );
 }
