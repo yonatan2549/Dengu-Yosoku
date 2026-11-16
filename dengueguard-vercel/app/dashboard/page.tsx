@@ -6,6 +6,7 @@ import {
   CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
+import ModelDashboard from "@/components/ModelDashboard";
 import { MapLoader } from "@/components/MapLoader";
 import { ALL_PROVINCES, formatCases, formatNumber, getCurrentRows, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 import type { ForecastRow } from "@/lib/types";
@@ -35,7 +36,7 @@ function RiskPill({ level }: { level: string }) {
   return <span className={`risk-pill ${cls}`}><span />{level}</span>;
 }
 
-export default function DashboardPage() {
+function LegacyDashboardPage() {
   const { data } = useDengueData();
   const [selectedProvince, setSelectedProvince] = useState(ALL_PROVINCES);
   const years = useMemo(() => data ? getUniqueYears(data.predictions) : [], [data]);
@@ -162,4 +163,11 @@ export default function DashboardPage() {
       <p className="disclaimer-line"><Info size={15} /> ระดับความเสี่ยงเป็นไปตามเกณฑ์พยากรณ์ของโมเดล ไม่ใช่ความน่าจะเป็นที่บุคคลจะติดเชื้อ และไม่ใช่การยืนยันว่ามีการระบาดจริง</p>
     </div>
   );
+}
+
+
+export default function DashboardPage() {
+  const { data } = useDengueData();
+  if (data?.modelPredictions) return <ModelDashboard />;
+  return <LegacyDashboardPage />;
 }
