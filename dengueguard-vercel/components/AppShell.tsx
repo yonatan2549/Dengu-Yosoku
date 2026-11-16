@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { SupportingPopup } from "@/components/SupportingPopup";
 import { useDengueData } from "@/components/DataProvider";
+import { getCurrentEpiWeekStart } from "@/lib/utils";
 
 const navigationGroups = [
   {
@@ -94,6 +95,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
   const isModelRoute = pathname === "/" || pathname === "/dashboard" || pathname === "/prevention";
   const latestDate = data?.modelPredictions?.coverage.forecast_week ?? data?.predictions.map((row) => row.target_week_start).sort().at(-1);
+  const currentEpiWeekStart = getCurrentEpiWeekStart();
+  const modelForecastBehind = Boolean(
+    data?.modelPredictions?.coverage.forecast_week &&
+    data.modelPredictions.coverage.forecast_week < currentEpiWeekStart,
+  );
   const pageLabel =
     currentPage?.label ?? (pathname === "/" ? "ภาพรวมสถานการณ์" : "DengueYosoku");
 
@@ -197,7 +203,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
               <span>{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
-            <span className="topbar-status"><span className="status-dot" /> {isModelRoute && modelWarning ? "ข้อมูลโมเดลต้องตรวจสอบ" : "ระบบพร้อมใช้งาน"}</span>
+            <span className="topbar-status"><span className="status-dot" /> {isModelRoute && modelWarning ? "ข้อมูลโมเดลต้องตรวจสอบ" : isModelRoute && modelForecastBehind ? "Forecast ไม่ใช่ข้อมูลปัจจุบัน" : "ระบบพร้อมใช้งาน"}</span>
             <span className="topbar-region">{data?.modelPredictions ? "ทั่วประเทศ · 77 จังหวัด" : "สคร.4 · 8 จังหวัด"}</span>
           </div>
         </header>
