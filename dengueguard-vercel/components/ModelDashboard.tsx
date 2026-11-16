@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Info, SlidersHorizontal } from "lucide-react";
+import { Download, Info, MapPinned, SlidersHorizontal } from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
+import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow } from "@/lib/types";
 
 const ALL_PROVINCES = "รวม 77 จังหวัด";
@@ -254,6 +255,45 @@ export default function ModelDashboard() {
           <strong>{mae === null ? "ไม่มีข้อมูล" : formatNumber(mae, 3)}</strong>
           <small>ราย · ประเมินบนชุด Holdout</small>
         </article>
+      </section>
+
+      <section className="panel map-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>แผนที่จำนวนผู้ป่วยที่คาดการณ์</h2>
+            <p>แสดงข้อมูล {displayRows.length} จาก 77 จังหวัด · {activeWeek ? formatWeek(activeWeek) : ""}</p>
+          </div>
+          <MapPinned size={20} />
+        </div>
+        <div className="map-legend" aria-label="คำอธิบายสีแผนที่">
+          <span>ค่าพยากรณ์ต่ำ</span>
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              width: "min(260px, 55vw)",
+              height: 10,
+              borderRadius: 999,
+              background: "linear-gradient(90deg, #e8f1fb 0%, #b8d3f0 25%, #78a9df 50%, #397fc4 75%, #174f91 100%)",
+            }}
+          />
+          <span>ค่าพยากรณ์สูง</span>
+          <span style={{ marginLeft: "auto" }}>สีเทา = ไม่มีข้อมูล</span>
+        </div>
+        <ModelMapLoader
+          geo={data.thailandGeo}
+          rows={displayRows.map((row) => ({
+            province: row.province,
+            prediction: row.prediction,
+            actual_cases: row.actualCases,
+            persistence: row.persistence,
+          }))}
+        />
+        <p className="panel-note">
+          สีเข้มหมายถึงจำนวนผู้ป่วยที่โมเดลคาดการณ์สูงกว่าเมื่อเทียบกับจังหวัดอื่นในสัปดาห์ที่เลือก
+          เป็นการไล่ระดับตามจำนวนพยากรณ์ ไม่ใช่ระดับความเสี่ยงหรือเกณฑ์เตือนระบาด
+          เลื่อนเมาส์เหนือจังหวัดเพื่อดูข้อมูล
+        </p>
       </section>
 
       <section className="panel chart-panel">
