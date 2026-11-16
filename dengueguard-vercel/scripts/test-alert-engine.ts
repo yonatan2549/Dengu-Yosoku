@@ -176,3 +176,161 @@ test("audit storage reports quota or permission failures", () => {
   };
   assert.equal(writeAlertAuditRecords(storage, [createAuditRecord()]), false);
 });
+
+
+import {
+  reconcileAlertLifecycle,
+  transitionAlertLifecycleEvent,
+  ALERT_LIFECYCLE_MAX_EVENTS,
+  readAlertLifecycleEvents,
+  writeAlertLifecycleEvents,
+  type AlertLifecycleStorage,
+} from "../lib/alerting/lifecycle";
+
+function approvedCandidates(model = createModel(), profile = createApprovedProfile()) {
+  return evaluateAlertDryRun(model, profile, "2026-10-25").candidateEvents;
+}
+
+test("event identity remains stable when severity or rule version changes", () => {
+  const firstProfile = createApprovedProfile();
+  const firstCandidates = approvedCandidates(createModel(), firstProfile);
+  const watch = firstCandidates.find((event) => event.province === provinceNames[0]);
+  assert.ok(watch);
+  assert.equal(watch.level, "WATCH");
+
+  const changedModel = createModel();
+  changedModel.forecast[0].prediction = 12;
+  const changedProfile = createApprovedProfile();
+  changedProfile.version = "0.2.0-test";
+  const changedCandidates = approvedCandidates(changedModel, changedProfile);
+  const alert = changedCandidates.find((event) => event.province === provinceNames[0]);
+  assert.ok(alert);
+  assert.equal(alert.level, "ALERT");
+  assert.equal(alert.eventId, watch.eventId);
+});
+
+test("lifecycle creates one stable event and records a severity escalation", () => {
+  const model = createModel();
+  const profile = createApprovedProfile();
+  const candidates = approvedCandidates(model, profile);
+  const created = reconcileAlertLifecycle(
+    [],
+    candidates,
+    model.model_revision,
+    new Date("2026-11-17T03:00:00.000Z"),
+  );
+  assert.equal(created.length, 2);
+  assert.ok(created.every((event) => event.status === "new"));
+  assert.ok(created.every((event) => event.transitions.length === 1));
+
+  const changedModel = createModel();
+  changedModel.forecast[0].prediction = 12;
+  const changedProfile = createApprovedProfile();
+  changedProfile.version = "0.2.0-test";
+  const changed = reconcileAlertLifecycle(
+    created,
+    approvedCandidates(changedModel, changedProfile),
+    changedModel.model_revision,
+    new Date("2026-11-17T04:00:00.000Z"),
+  );
+  const escalated = changed.find((event) => event.province === provinceNames[0]);
+  assert.ok(escalated);
+  assert.equal(escalated.status, "new");
+  assert.equal(escalated.level, "ALERT");
+  assert.ok(escalated.transitions.some((item) => item.kind === "level_changed"));
+});
+
+test("reviewer must acknowledge and provide a reason before resolving an event", () => {
+  const candidates = approvedCandidates();
+  const created = reconcileAlertLifecycle([], candidates, "a".repeat(40), new Date("2026-11-17T03:00:00.000Z"));
+  const targetId = created[0].eventId;
+  const acknowledged = transitionAlertLifecycleEvent(
+    created,
+    targetId,
+    "acknowledge",
+    "ผู้ทบทวนรับทราบ",
+    new Date("2026-11-17T03:10:00.000Z"),
+  );
+  assert.equal(acknowledged.find((event) => event.eventId === targetId)?.status, "acknowledged");
+
+  const withoutReason = transitionAlertLifecycleEvent(
+    acknowledged,
+    targetId,
+    "resolve",
+    " ",
+    new Date("2026-11-17T03:20:00.000Z"),
+  );
+  assert.equal(withoutReason, acknowledged);
+
+  const resolved = transitionAlertLifecycleEvent(
+    acknowledged,
+    targetId,
+    "resolve",
+    "ตรวจสอบแล้วและปิดรอบทดสอบ",
+    new Date("2026-11-17T03:30:00.000Z"),
+  );
+  assert.equal(resolved.find((event) => event.eventId === targetId)?.status, "resolved");
+});
+
+test("a matching candidate reopens a resolved event and retains its history", () => {
+  const model = createModel();
+  const candidates = approvedCandidates(model);
+  const created = reconcileAlertLifecycle([], candidates, model.model_revision, new Date("2026-11-17T03:00:00.000Z"));
+  const targetId = created[0].eventId;
+  const resolved = transitionAlertLifecycleEvent(
+    created,
+    targetId,
+    "resolve",
+    "สิ้นสุดการตรวจสอบจำลอง",
+    new Date("2026-11-17T03:10:00.000Z"),
+  );
+  const reopened = reconcileAlertLifecycle(
+    resolved,
+    candidates,
+    model.model_revision,
+    new Date("2026-11-17T03:20:00.000Z"),
+  );
+  const event = reopened.find((item) => item.eventId === targetId);
+  assert.ok(event);
+  assert.equal(event.status, "reopened");
+  assert.ok(event.transitions.some((item) => item.kind === "resolved"));
+  assert.ok(event.transitions.some((item) => item.kind === "reopened"));
+});
+
+test("missing candidates do not automatically resolve an existing event", () => {
+  const created = reconcileAlertLifecycle([], approvedCandidates(), "a".repeat(40));
+  const next = reconcileAlertLifecycle(created, [], "a".repeat(40));
+  assert.equal(next.length, created.length);
+  assert.ok(next.every((event) => event.status === "new"));
+});
+
+class MemoryLifecycleStorage implements AlertLifecycleStorage {
+  value: string | null = null;
+  getItem() { return this.value; }
+  setItem(_key: string, value: string) { this.value = value; }
+}
+
+test("lifecycle storage round-trips valid events and enforces retention", () => {
+  const created = reconcileAlertLifecycle([], approvedCandidates(), "a".repeat(40));
+  const storage = new MemoryLifecycleStorage();
+  assert.equal(writeAlertLifecycleEvents(storage, created), true);
+  assert.equal(readAlertLifecycleEvents(storage).length, created.length);
+
+  const many = Array.from({ length: ALERT_LIFECYCLE_MAX_EVENTS + 5 }, (_, index) => ({
+    ...created[0],
+    eventId: "event-" + index,
+  }));
+  assert.equal(writeAlertLifecycleEvents(storage, many), true);
+  assert.equal(readAlertLifecycleEvents(storage).length, ALERT_LIFECYCLE_MAX_EVENTS);
+});
+
+test("lifecycle storage safely handles malformed data and write failures", () => {
+  const storage = new MemoryLifecycleStorage();
+  storage.value = "{bad json";
+  assert.deepEqual(readAlertLifecycleEvents(storage), []);
+  const failing: AlertLifecycleStorage = {
+    getItem: () => null,
+    setItem: () => { throw new Error("storage unavailable"); },
+  };
+  assert.equal(writeAlertLifecycleEvents(failing, []), false);
+});
