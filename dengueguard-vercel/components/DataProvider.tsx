@@ -194,6 +194,8 @@ function inspectModelPayload(
   if (
     metrics &&
     (
+      !metrics.metrics ||
+      typeof metrics.metrics !== "object" ||
       typeof metrics.metrics.mae !== "number" ||
       !Number.isFinite(metrics.metrics.mae) ||
       metrics.metrics.mae < 0 ||
