@@ -21,6 +21,13 @@ Prevention page.
   is hard-disabled in the engine.
 - A stale snapshot can be inspected as a historical dry-run input, but its
   freshness warning remains visible and it must not be described as current.
+- Each distinct dry-run input/rule combination is recorded in a versioned,
+  browser-local audit log (maximum 30 records), with model provenance,
+  epidemiological weeks, rule/threshold snapshot, checks, blocked reasons,
+  and candidate events. Reviewers can export the local history as JSON.
+- The browser-local log is a development aid, not a centralized or tamper-proof
+  audit store. Production review requires server-side persistence, access
+  control, retention policy, and code-revision provenance.
 
 Run the engine tests from the `dengueguard-vercel` project root:
 
@@ -29,8 +36,9 @@ npm run test:alerts
 ```
 
 The tests cover missing input, a draft profile, approved thresholds, invalid
-threshold ordering, incomplete province coverage, and the no-notification
-safety invariant.
+threshold ordering, incomplete province coverage, the no-notification safety
+invariant, audit provenance, duplicate-run suppression, retention limits, and
+local-storage failure handling.
 
 ## Decision
 
@@ -127,7 +135,8 @@ Nationwide automated alerts remain disabled until all of the following are met:
 3. Agree the alert methodology and input data contract with the model owner and
    public-health stakeholders.
 4. Implement a dry-run evaluator that records candidate events without sending
-   notifications.
+   notifications; use the browser-local JSON audit history only for development
+   review until a protected server-side audit store is designed.
 5. Backtest, review errors, and revise the method.
 6. Release an in-app alert centre in a controlled pilot.
 7. Enable external notifications only after the activation gates are satisfied.
