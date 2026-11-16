@@ -1,7 +1,36 @@
 # DengueYosoku outbreak-alerting system roadmap
 
-Status: planned feature; automatic outbreak alerts are intentionally not enabled for
+Status: staged implementation; automatic outbreak alerts are intentionally not enabled for
 the nationwide model yet.
+
+## Implemented dry-run foundation
+
+The website now includes a guarded Alert Evaluation Engine in
+`lib/alerting/engine.ts`, a draft-only rule profile in
+`lib/alerting/profile.ts`, and a readiness/candidate panel on the nationwide
+Prevention page.
+
+- The engine validates the 77-province forecast coverage, target week, model
+  revision, rule approval, and per-province threshold coverage.
+- The default rule profile is Draft and contains no thresholds. Therefore the
+  current run is expected to be blocked from creating Watch/Alert candidates;
+  this is intentional and safer than inventing thresholds.
+- Candidate events can only be simulated when a profile is explicitly approved
+  and contains valid thresholds for all 77 provinces.
+- Every event is marked `not_sent_dry_run_only`. External notification delivery
+  is hard-disabled in the engine.
+- A stale snapshot can be inspected as a historical dry-run input, but its
+  freshness warning remains visible and it must not be described as current.
+
+Run the engine tests from the `dengueguard-vercel` project root:
+
+```bash
+npm run test:alerts
+```
+
+The tests cover missing input, a draft profile, approved thresholds, invalid
+threshold ordering, incomplete province coverage, and the no-notification
+safety invariant.
 
 ## Decision
 
