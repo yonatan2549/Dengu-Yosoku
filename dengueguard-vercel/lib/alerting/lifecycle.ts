@@ -191,7 +191,7 @@ export function transitionAlertLifecycleEvent(
   if (action === "acknowledge" && (current.status === "new" || current.status === "reopened")) {
     nextStatus = "acknowledged";
     kind = "acknowledged";
-  } else if (action === "resolve" && current.status !== "resolved" && cleanNote.length >= 3) {
+  } else if (action === "resolve" && current.status === "acknowledged" && cleanNote.length >= 3) {
     nextStatus = "resolved";
     kind = "resolved";
   } else if (action === "reopen" && current.status === "resolved") {
