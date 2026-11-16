@@ -253,6 +253,15 @@ test("reviewer must acknowledge and provide a reason before resolving an event",
   );
   assert.equal(acknowledged.find((event) => event.eventId === targetId)?.status, "acknowledged");
 
+  const prematureResolve = transitionAlertLifecycleEvent(
+    created,
+    targetId,
+    "resolve",
+    "มีเหตุผลครบแต่ยังไม่รับทราบ",
+    new Date("2026-11-17T03:05:00.000Z"),
+  );
+  assert.equal(prematureResolve, created);
+
   const withoutReason = transitionAlertLifecycleEvent(
     acknowledged,
     targetId,
