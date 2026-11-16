@@ -23,7 +23,6 @@ import json
 import math
 import sys
 from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -343,7 +342,7 @@ def main() -> int:
         )
 
         generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        bangkok_today = datetime.now(ZoneInfo("Asia/Bangkok")).date()
+        bangkok_today = (datetime.now(timezone.utc) + timedelta(hours=7)).date()
         current_week_start = bangkok_today - timedelta(days=(bangkok_today.weekday() + 1) % 7)
         forecast_is_current_or_future = forecast_week >= current_week_start
         forecast_lag_weeks = (
