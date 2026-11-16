@@ -56,7 +56,7 @@ async function readOptionalJson<T>(path: string): Promise<OptionalJsonResult<T>>
 }
 
 function isSundayWeek(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(value + "T00:00:00Z");
   return Number.isFinite(date.getTime()) &&
     date.toISOString().slice(0, 10) === value &&
@@ -233,7 +233,7 @@ function inspectModelPayload(
     !Number.isFinite(metricValues.rmse) ||
     metricValues.rmse < 0 ||
     typeof evalCutoff !== "string" ||
-    !/^\\d{4}-\\d{2}-\\d{2}$/.test(evalCutoff) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(evalCutoff) ||
     evalCutoff < predictions.coverage.history_end_week ||
     (metricValues.n_test !== undefined && metricValues.n_test !== predictions.coverage.history_rows)
   ) {
