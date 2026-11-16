@@ -22,7 +22,8 @@ import hashlib
 import json
 import math
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Any
 
@@ -284,6 +285,37 @@ def load_metrics() -> dict[str, Any]:
     return metrics
 
 
+def validate_metrics(metrics: dict[str, Any], *, history_rows: int, history_end: date) -> None:
+    for key in ("mae", "rmse"):
+        value = metrics.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise DataValidationError(f"metrics.json: {key} must be numeric")
+        if not math.isfinite(float(value)) or float(value) < 0:
+            raise DataValidationError(f"metrics.json: {key} must be finite and non-negative")
+
+    features = metrics.get("features")
+    if not isinstance(features, list) or not features or not all(
+        isinstance(item, str) and item.strip() for item in features
+    ):
+        raise DataValidationError("metrics.json: features must be a non-empty list of names")
+
+    try:
+        eval_cutoff = date.fromisoformat(str(metrics.get("eval_cutoff", "")))
+    except ValueError as exc:
+        raise DataValidationError("metrics.json: eval_cutoff must be an ISO date") from exc
+    if eval_cutoff < history_end:
+        raise DataValidationError(
+            f"metrics.json: eval_cutoff {eval_cutoff} is earlier than holdout end {history_end}"
+        )
+
+    n_test = metrics.get("n_test")
+    if n_test is not None:
+        if isinstance(n_test, bool) or not isinstance(n_test, int) or n_test != history_rows:
+            raise DataValidationError(
+                f"metrics.json: n_test ({n_test!r}) does not match holdout row count ({history_rows})"
+            )
+
+
 def write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -300,36 +332,75 @@ def main() -> int:
         forecast, forecast_week = load_forecast(set(province_list))
         metrics = load_metrics()
 
-        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        manifest_path = SOURCE_DIR / "source_manifest.json"
-        model_revision = None
-        if manifest_path.is_file():
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
-            except json.JSONDecodeError as exc:
-                raise DataValidationError(f"{manifest_path.name} is not valid JSON: {exc}") from exc
-            model_revision = manifest.get("commit_sha") if isinstance(manifest, dict) else None
-            if model_revision is not None and (
-                not isinstance(model_revision, str) or len(model_revision) != 40
-            ):
-                raise DataValidationError(f"{manifest_path.name} contains an invalid commit_sha")
+        if forecast_week <= history_weeks[-1]:
+            raise DataValidationError(
+                f"forecast week {forecast_week} must be later than the final holdout week {history_weeks[-1]}"
+            )
+        validate_metrics(
+            metrics,
+            history_rows=len(history),
+            history_end=history_weeks[-1],
+        )
 
-            artifact_manifest = manifest.get("artifacts", {})
-            for artifact_path in (HISTORY_FILE, FORECAST_FILE, METRICS_FILE):
-                artifact_info = artifact_manifest.get(artifact_path.name)
-                expected_hash = artifact_info.get("sha256") if isinstance(artifact_info, dict) else None
-                if not isinstance(expected_hash, str):
-                    raise DataValidationError(
-                        f"{manifest_path.name} is missing the SHA-256 for {artifact_path.name}"
-                    )
-                actual_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
-                if actual_hash != expected_hash:
-                    raise DataValidationError(
-                        f"{artifact_path.name} does not match the downloaded source_manifest.json hash"
-                    )
+        generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        bangkok_today = datetime.now(ZoneInfo("Asia/Bangkok")).date()
+        current_week_start = bangkok_today - timedelta(days=(bangkok_today.weekday() + 1) % 7)
+        forecast_is_current_or_future = forecast_week >= current_week_start
+        forecast_lag_weeks = (
+            max(0, (current_week_start - forecast_week).days // 7)
+            if forecast_week < current_week_start else 0
+        )
+
+        manifest_path = SOURCE_DIR / "source_manifest.json"
+        if not manifest_path.is_file():
+            raise DataValidationError(
+                f"{manifest_path.name} is required; run scripts/fetch_model_outputs.py first"
+            )
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+        except json.JSONDecodeError as exc:
+            raise DataValidationError(f"{manifest_path.name} is not valid JSON: {exc}") from exc
+        if not isinstance(manifest, dict):
+            raise DataValidationError(f"{manifest_path.name} must contain a JSON object")
+
+        expected_repository = "https://github.com/johnlovepizza/DenguYosoku"
+        if manifest.get("repository") != expected_repository:
+            raise DataValidationError(
+                f"{manifest_path.name} repository must be {expected_repository}"
+            )
+
+        model_revision = manifest.get("commit_sha")
+        if not isinstance(model_revision, str) or len(model_revision) != 40:
+            raise DataValidationError(f"{manifest_path.name} contains an invalid commit_sha")
+
+        source_retrieved_at = manifest.get("retrieved_at_utc")
+        if not isinstance(source_retrieved_at, str):
+            raise DataValidationError(f"{manifest_path.name} is missing retrieved_at_utc")
+        try:
+            datetime.fromisoformat(source_retrieved_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise DataValidationError(
+                f"{manifest_path.name} retrieved_at_utc must be an ISO timestamp"
+            ) from exc
+
+        artifact_manifest = manifest.get("artifacts", {})
+        if not isinstance(artifact_manifest, dict):
+            raise DataValidationError(f"{manifest_path.name} artifacts must be an object")
+        for artifact_path in (HISTORY_FILE, FORECAST_FILE, METRICS_FILE):
+            artifact_info = artifact_manifest.get(artifact_path.name)
+            expected_hash = artifact_info.get("sha256") if isinstance(artifact_info, dict) else None
+            if not isinstance(expected_hash, str) or len(expected_hash) != 64:
+                raise DataValidationError(
+                    f"{manifest_path.name} is missing a valid SHA-256 for {artifact_path.name}"
+                )
+            actual_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+            if actual_hash != expected_hash:
+                raise DataValidationError(
+                    f"{artifact_path.name} does not match the downloaded source_manifest.json hash"
+                )
 
         prediction_payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "model_name": "DenguYosoku LightGBM",
             "source_repository": "https://github.com/johnlovepizza/DenguYosoku",
             "model_revision": model_revision,
@@ -345,7 +416,15 @@ def main() -> int:
                 "history_end_week": history_weeks[-1].isoformat(),
                 "forecast_rows": len(forecast),
                 "forecast_week": forecast_week.isoformat(),
-                "forecast_is_after_history": forecast_week > history_weeks[-1],
+                "forecast_is_after_history": True,
+            },
+            "freshness": {
+                "timezone": "Asia/Bangkok",
+                "source_retrieved_at_utc": source_retrieved_at,
+                "converted_at_utc": generated_at,
+                "current_week_start_at_conversion": current_week_start.isoformat(),
+                "forecast_is_current_or_future_at_conversion": forecast_is_current_or_future,
+                "forecast_lag_weeks_at_conversion": forecast_lag_weeks,
             },
             "semantic_notes": {
                 "prediction": "Model prediction of weekly reported cases",
@@ -355,7 +434,7 @@ def main() -> int:
             },
         }
         metrics_payload = {
-            "schema_version": 1,
+            "schema_version": 2,
             "model_name": prediction_payload["model_name"],
             "source_repository": prediction_payload["source_repository"],
             "model_revision": model_revision,
@@ -377,15 +456,13 @@ def main() -> int:
         print(f"  Forecast           : {len(forecast)} provinces, week {forecast_week}")
         print(f"  Output             : {predictions_path.relative_to(ROOT)}")
         print(f"  Metrics            : {metrics_path.relative_to(ROOT)}")
-        if forecast_week <= date.today():
+        print(
+            f"  Current epi week   : {current_week_start} (Asia/Bangkok)"
+        )
+        if not forecast_is_current_or_future:
             print(
-                "  WARNING            : forecast week is not in the future relative "
-                "to the conversion date; refresh model input data before presenting it as current."
-            )
-        if not prediction_payload["coverage"]["forecast_is_after_history"]:
-            print(
-                "  WARNING            : forecast week is not later than the holdout end; "
-                "confirm that the correct forecast artifact was supplied."
+                f"  WARNING            : forecast is {forecast_lag_weeks} epidemiological "
+                "week(s) behind the current week; refresh the source data before using it as current."
             )
         return 0
 
