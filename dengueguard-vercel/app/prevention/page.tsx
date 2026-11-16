@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
+import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
 import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 
@@ -158,6 +158,73 @@ function ModelPreventionPage() {
           ไม่จัดระดับความเสี่ยงหรือสร้างคำเตือนจากค่าดังกล่าว
         </span>
       </div>
+
+      <section className="panel alert-performance-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>ระบบแจ้งเตือนการระบาด</h2>
+            <p>ฟีเจอร์หลักที่อยู่ในแผนพัฒนาระยะถัดไปของ DengueYosoku</p>
+          </div>
+          <BellRing size={20} />
+        </div>
+        <div className="inline-callout warning">
+          <Info size={17} />
+          <span>
+            <strong>สถานะ: เตรียมพัฒนา · ยังไม่เปิดแจ้งเตือนอัตโนมัติ</strong>
+            <br />
+            ระบบแจ้งเตือนไม่ได้ถูกตัดออก แต่ยังไม่เปิดใช้กับโมเดล 77 จังหวัด
+            จนกว่าจะมีเกณฑ์ที่ผ่านการทบทวนและทดสอบย้อนหลัง
+          </span>
+        </div>
+        <div className="performance-grid">
+          <div>
+            <span>ข้อมูลพยากรณ์</span>
+            <strong>77 จังหวัด</strong>
+          </div>
+          <div>
+            <span>เกณฑ์ Watch / Alert</span>
+            <strong>รอทบทวน</strong>
+          </div>
+          <div>
+            <span>การส่ง Notification</span>
+            <strong>ยังไม่เปิดใช้</strong>
+          </div>
+        </div>
+        <div className="action-list">
+          <article className="action-item">
+            <div className="action-number">1</div>
+            <div className="action-copy">
+              <strong>กำหนดแหล่งข้อมูลและรอบเวลาตัดข้อมูล</strong>
+              <p>แยกผลพยากรณ์ออกจากจำนวนผู้ป่วยที่รายงานจริง พร้อมตรวจสอบความครบถ้วนและความล่าช้าของข้อมูล</p>
+            </div>
+          </article>
+          <article className="action-item">
+            <div className="action-number">2</div>
+            <div className="action-copy">
+              <strong>ทบทวนเกณฑ์แจ้งเตือนรายจังหวัด</strong>
+              <p>กำหนดนิยามระดับเฝ้าระวังและเตือนภัยร่วมกับผู้เชี่ยวชาญ โดยไม่คัดลอกเกณฑ์เดิมของ สคร.4 มาใช้กับทั้งประเทศโดยอัตโนมัติ</p>
+            </div>
+          </article>
+          <article className="action-item">
+            <div className="action-number">3</div>
+            <div className="action-copy">
+              <strong>ทดสอบย้อนหลังและประเมินผลการเตือน</strong>
+              <p>ประเมิน Precision, Recall, False Alarm Rate, Lead Time และผลแยกตามจังหวัดก่อนเปิดใช้งาน</p>
+            </div>
+          </article>
+          <article className="action-item">
+            <div className="action-number">4</div>
+            <div className="action-copy">
+              <strong>พัฒนาศูนย์แจ้งเตือนและช่องทางส่งข่าว</strong>
+              <p>แสดงเหตุผล วันที่ ข้อมูลที่กระตุ้นการเตือน ผู้รับผิดชอบ และประวัติการแจ้งเตือน ก่อนเชื่อม Email, LINE หรือช่องทางอื่น</p>
+            </div>
+          </article>
+        </div>
+        <p className="panel-note">
+          เกณฑ์และระดับเตือนจากระบบข้อมูลเดิมของ สคร.4 ยังคงอยู่ในชุดข้อมูลเดิมสำหรับพื้นที่และช่วงเวลาที่เกี่ยวข้อง
+          แต่ยังไม่นำมาใช้ตัดสินระดับแจ้งเตือนของโมเดลใหม่ที่ครอบคลุม 77 จังหวัด
+        </p>
+      </section>
 
       {stale && (
         <div className="historical-notice">
