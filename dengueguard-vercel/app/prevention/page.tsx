@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
+import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
 import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 
 function RiskPill({ level }: { level: string }) {
@@ -225,6 +226,8 @@ function ModelPreventionPage() {
           แต่ยังไม่นำมาใช้ตัดสินระดับแจ้งเตือนของโมเดลใหม่ที่ครอบคลุม 77 จังหวัด
         </p>
       </section>
+
+      <AlertDryRunPanel model={model} />
 
       {stale && (
         <div className="historical-notice">
