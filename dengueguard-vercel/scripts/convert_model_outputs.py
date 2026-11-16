@@ -18,6 +18,7 @@ risk levels, or a four-week rolling baseline.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import sys
@@ -312,6 +313,20 @@ def main() -> int:
                 not isinstance(model_revision, str) or len(model_revision) != 40
             ):
                 raise DataValidationError(f"{manifest_path.name} contains an invalid commit_sha")
+
+            artifact_manifest = manifest.get("artifacts", {})
+            for artifact_path in (HISTORY_FILE, FORECAST_FILE, METRICS_FILE):
+                artifact_info = artifact_manifest.get(artifact_path.name)
+                expected_hash = artifact_info.get("sha256") if isinstance(artifact_info, dict) else None
+                if not isinstance(expected_hash, str):
+                    raise DataValidationError(
+                        f"{manifest_path.name} is missing the SHA-256 for {artifact_path.name}"
+                    )
+                actual_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+                if actual_hash != expected_hash:
+                    raise DataValidationError(
+                        f"{artifact_path.name} does not match the downloaded source_manifest.json hash"
+                    )
 
         prediction_payload = {
             "schema_version": 1,
