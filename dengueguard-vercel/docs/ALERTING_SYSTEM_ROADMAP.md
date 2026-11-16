@@ -28,6 +28,13 @@ Prevention page.
 - The browser-local log is a development aid, not a centralized or tamper-proof
   audit store. Production review requires server-side persistence, access
   control, retention policy, and code-revision provenance.
+- Candidate events have a browser-local lifecycle: new, acknowledged, resolved,
+  and reopened. Severity changes are recorded in the event timeline while the
+  event identity remains stable across WATCH/ALERT changes and rule revisions.
+- Events are never auto-resolved merely because a later run has no matching
+  candidate. A reviewer must provide a reason to resolve; a later matching
+  candidate reopens a resolved event. These are simulated workflow states, not
+  confirmation that an outbreak has occurred or ended.
 
 Run the engine tests from the `dengueguard-vercel` project root:
 
@@ -37,8 +44,9 @@ npm run test:alerts
 
 The tests cover missing input, a draft profile, approved thresholds, invalid
 threshold ordering, incomplete province coverage, the no-notification safety
-invariant, audit provenance, duplicate-run suppression, retention limits, and
-local-storage failure handling.
+invariant, audit provenance, duplicate-run suppression, retention limits,
+local-storage failure handling, stable event identity, severity changes,
+acknowledgement, reason-required resolution, reopening, and no automatic resolution.
 
 ## Decision
 
@@ -92,7 +100,8 @@ Keep outbreak alerting as a layer separate from the forecasting model:
      type, observed/predicted value, threshold and threshold version, source
      references, evaluation timestamp, and explanation.
    - Add duplicate suppression, update/resolve states, and an auditable event
-     history before operational rollout.
+     history before operational rollout. The current browser-local lifecycle is
+     a development workflow only; production use needs protected server storage.
 4. **Backtesting and validation**
    - Use chronological or rolling-origin evaluation; never use target-week
      observations as model inputs or rule features when simulating an earlier
@@ -134,9 +143,9 @@ Nationwide automated alerts remain disabled until all of the following are met:
 2. Complete the nationwide dashboard and data-quality/freshness checks.
 3. Agree the alert methodology and input data contract with the model owner and
    public-health stakeholders.
-4. Implement a dry-run evaluator that records candidate events without sending
-   notifications; use the browser-local JSON audit history only for development
-   review until a protected server-side audit store is designed.
+4. Implement a dry-run evaluator and browser-local event lifecycle that records
+   candidate events without sending notifications. Use it only for development
+   review until protected server-side persistence is designed.
 5. Backtest, review errors, and revise the method.
 6. Release an in-app alert centre in a controlled pilot.
 7. Enable external notifications only after the activation gates are satisfied.
