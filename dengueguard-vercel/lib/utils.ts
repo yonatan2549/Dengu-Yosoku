@@ -141,3 +141,31 @@ export function compareProvinceWeek(
   const percent = Number(previous.pred) > 0 ? delta / Number(previous.pred) * 100 : null;
   return { current, previous, delta, percent };
 }
+
+
+export function getCurrentEpiWeekStart(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const todayUtc = new Date(Date.UTC(
+    Number(values.year),
+    Number(values.month) - 1,
+    Number(values.day),
+  ));
+  const weekday = todayUtc.getUTCDay();
+  todayUtc.setUTCDate(todayUtc.getUTCDate() - weekday);
+  return todayUtc.toISOString().slice(0, 10);
+}
+
+export function getEpiWeekLagWeeks(forecastWeek: string, currentWeek = getCurrentEpiWeekStart()) {
+  const forecastTime = Date.parse(forecastWeek + "T00:00:00Z");
+  const currentTime = Date.parse(currentWeek + "T00:00:00Z");
+  if (!Number.isFinite(forecastTime) || !Number.isFinite(currentTime) || forecastTime >= currentTime) {
+    return 0;
+  }
+  return Math.floor((currentTime - forecastTime) / (7 * 24 * 60 * 60 * 1000));
+}
