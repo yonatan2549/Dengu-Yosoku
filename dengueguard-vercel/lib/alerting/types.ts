@@ -25,6 +25,8 @@ export interface AlertRuleProfile {
 export interface AlertModelSnapshot {
   model_revision: string | null;
   source_repository: string;
+  generated_at_utc?: string;
+  source_retrieved_at_utc?: string | null;
   province_count: number;
   provinces: string[];
   forecast: Array<{
