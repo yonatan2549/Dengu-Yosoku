@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
+import { getCurrentEpiWeekStart, getEpiWeekLagWeeks } from "@/lib/utils";
 import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow } from "@/lib/types";
 
@@ -51,6 +52,18 @@ function formatWeek(value: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+function formatTimestamp(value?: string | null) {
+  if (!value) return "ไม่มีข้อมูล";
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime())
+    ? "ไม่มีข้อมูล"
+    : timestamp.toLocaleString("th-TH", {
+        timeZone: "Asia/Bangkok",
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
 }
 
 function downloadCsv(rows: DisplayRow[], week: string) {
@@ -104,11 +117,10 @@ export default function ModelDashboard() {
       ? forecastWeek
       : weeks.at(-1) ?? "");
 
+  const currentEpiWeekStart = getCurrentEpiWeekStart();
+  const forecastLagWeeks = getEpiWeekLagWeeks(forecastWeek, currentEpiWeekStart);
   const isForecastWeek = Boolean(model && activeWeek === forecastWeek);
-  const isStaleForecast = Boolean(
-    model && forecastWeek &&
-    forecastWeek <= model.generated_at_utc.slice(0, 10),
-  );
+  const isStaleForecast = Boolean(model && forecastWeek && forecastWeek < currentEpiWeekStart);
 
   const displayRows = useMemo<DisplayRow[]>(() => {
     if (!model || !activeWeek) return [];
@@ -203,16 +215,17 @@ export default function ModelDashboard() {
         <div className="inline-callout warning">
           <Info size={17} />
           <span>
-            ผลพยากรณ์ที่มีอยู่กำหนดสัปดาห์เป้าหมาย {formatWeek(forecastWeek)} และถูกแปลงข้อมูลเมื่อ
-            {" " + formatWeek(model.generated_at_utc.slice(0, 10))} จึงเป็นผลจากสัปดาห์ที่ผ่านมา
-            ต้องสร้างผลพยากรณ์ใหม่จากข้อมูลล่าสุดก่อนนำไปสื่อสารเป็นสถานการณ์ปัจจุบัน
+            ผลพยากรณ์กำหนดสัปดาห์ {formatWeek(forecastWeek)} ซึ่งเก่ากว่าสัปดาห์ระบาดวิทยาปัจจุบัน
+            ที่เริ่ม {formatWeek(currentEpiWeekStart)} อยู่ {forecastLagWeeks} สัปดาห์
+            จึงไม่ควรสื่อสารเป็นสถานการณ์ปัจจุบัน ต้องดึงข้อมูลต้นทางและสร้างผลพยากรณ์รอบใหม่
           </span>
         </div>
       ) : (
         <div className="historical-notice">
           <Info size={17} />
           <span>
-            สัปดาห์พยากรณ์ที่เผยแพร่: {formatWeek(forecastWeek)} · ตรวจสอบวันที่ข้อมูลก่อนใช้งานทุกครั้ง
+            สัปดาห์พยากรณ์: {formatWeek(forecastWeek)} · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)}
+            · ตรวจสอบเวลาอัปเดตต้นทางก่อนนำไปใช้งาน
           </span>
         </div>
       )}
@@ -443,6 +456,18 @@ export default function ModelDashboard() {
             Holdout: {formatWeek(model.coverage.history_start_week)} – {formatWeek(model.coverage.history_end_week)}
             <br />
             Forecast: {formatWeek(model.coverage.forecast_week)}
+            <br />
+            สัปดาห์ปัจจุบัน (Asia/Bangkok): {formatWeek(currentEpiWeekStart)}
+            <br />
+            อายุผลพยากรณ์: {isStaleForecast ? `${forecastLagWeeks} สัปดาห์` : "สัปดาห์ปัจจุบันหรืออนาคต"}
+            <br />
+            ดึงไฟล์จาก Model Repository: {formatTimestamp(model.freshness?.source_retrieved_at_utc)}
+            <br />
+            สร้างไฟล์ JSON สำหรับเว็บ: {formatTimestamp(model.freshness?.converted_at_utc ?? model.generated_at_utc)}
+            <br />
+            Metrics eval cutoff: {typeof metrics.eval_cutoff === "string" ? metrics.eval_cutoff : "ไม่มีข้อมูล"}
+            <br />
+            ลำดับ Holdout → Forecast: {model.coverage.forecast_is_after_history ? "ผ่าน" : "ต้องตรวจสอบ"}
           </p>
           {model.model_revision && (
             <p className="panel-note">
