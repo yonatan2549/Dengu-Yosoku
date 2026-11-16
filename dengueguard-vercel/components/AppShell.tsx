@@ -92,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isDataRoute = dataRoutes.some(
     (route) => pathname === route || (route !== "/" && pathname.startsWith(route + "/")),
   );
-  const latestDate = data?.predictions.map((row) => row.target_week_start).sort().at(-1);
+  const latestDate = data?.modelPredictions?.coverage.forecast_week ?? data?.predictions.map((row) => row.target_week_start).sort().at(-1);
   const pageLabel =
     currentPage?.label ?? (pathname === "/" ? "ภาพรวมสถานการณ์" : "DengueYosoku");
 
@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
         <div className="sidebar-footer">
-          <span className="status-dot" /> DengueYosoku · สคร.4
+          <span className="status-dot" /> DengueYosoku · {data?.modelPredictions ? "ทั่วประเทศ · 77 จังหวัด" : "สคร.4 · 8 จังหวัด"}
         </div>
       </aside>
 
@@ -197,7 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span>{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
             <span className="topbar-status"><span className="status-dot" /> ระบบพร้อมใช้งาน</span>
-            <span className="topbar-region">สคร.4 · 8 จังหวัด</span>
+            <span className="topbar-region">{data?.modelPredictions ? "ทั่วประเทศ · 77 จังหวัด" : "สคร.4 · 8 จังหวัด"}</span>
           </div>
         </header>
 
