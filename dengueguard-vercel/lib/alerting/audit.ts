@@ -1,6 +1,5 @@
 import type {
   AlertCandidateEvent,
-  AlertCheckStatus,
   AlertDryRunCheck,
   AlertDryRunResult,
   AlertRuleProfile,
@@ -20,6 +19,7 @@ export interface AlertAuditRecord {
   ruleProfileId: string;
   ruleProfileVersion: string;
   ruleProfileStatus: AlertRuleStatus;
+  ruleProfileMethodology: string;
   ruleProfileApprovalReference: string | null;
   ruleProfileEffectiveFromWeek: string | null;
   thresholdsByProvince: Record<string, ProvinceAlertThreshold>;
@@ -83,6 +83,7 @@ export function createAlertAuditRecord(
     ruleProfileId: profile.profileId,
     ruleProfileVersion: profile.version,
     ruleProfileStatus: profile.status,
+    ruleProfileMethodology: profile.methodology,
     ruleProfileApprovalReference: profile.approvalReference,
     ruleProfileEffectiveFromWeek: profile.effectiveFromWeek,
     thresholdsByProvince,
@@ -125,6 +126,7 @@ function isAuditRecord(value: unknown): value is AlertAuditRecord {
     typeof record.evaluatedAtUtc === "string" &&
     typeof record.ruleProfileId === "string" &&
     typeof record.ruleProfileVersion === "string" &&
+    typeof record.ruleProfileMethodology === "string" &&
     (record.ruleProfileStatus === "draft" || record.ruleProfileStatus === "approved") &&
     (record.status === "blocked" || record.status === "evaluated") &&
     typeof record.currentEpiWeek === "string" &&
@@ -135,7 +137,7 @@ function isAuditRecord(value: unknown): value is AlertAuditRecord {
       Boolean(check) &&
       typeof check.id === "string" &&
       typeof check.label === "string" &&
-      (check.status === "pass" || check.status === "warning" || check.status === "blocked") satisfies boolean
+      (check.status === "pass" || check.status === "warning" || check.status === "blocked")
     ) &&
     Array.isArray(record.candidateEvents) &&
     record.externalNotificationsEnabled === false;
