@@ -117,25 +117,19 @@ python scripts/convert_data.py
 - Vercel Next.js: https://vercel.com/docs/frameworks/full-stack/nextjs
 
 
+
+
 ## เชื่อมต่อโมเดลใหม่ DenguYosoku (77 จังหวัด)
 
-เว็บไซต์รองรับการเตรียมข้อมูลจากโมเดล LightGBM รุ่นใหม่โดยแยกผลย้อนหลังออกจาก
-ผลพยากรณ์สัปดาห์ล่าสุด ไม่อ่านไฟล์ \`model.txt\` ใน Browser และไม่เปิดเผยไฟล์โมเดล
-ในโฟลเดอร์ \`public/\`
+เว็บไซต์มีสคริปต์ดึงผลลัพธ์จาก Model Repository โดยบันทึก Commit SHA และ SHA-256 ของไฟล์ต้นทางไว้ใน `source_manifest.json` จากนั้นตรวจสอบและแปลงผลลัพธ์เป็น JSON แยกจากข้อมูลเดิม
 
-1. คัดลอก \`DenguYosoku/holdout_predictions.csv\`,
-   \`predict_week/predictions.csv\` และ \`DenguYosoku/metrics.json\`
-   จาก https://github.com/johnlovepizza/DenguYosoku ไปไว้ใน
-   \`source-data/model/\` (ดู \`source-data/model/README.md\`)
-2. รัน \`python scripts/convert_model_outputs.py\` จากโฟลเดอร์โปรเจกต์
-3. ตรวจสอบผลตรวจความครบถ้วน 77 จังหวัด และไฟล์ JSON ที่สร้างใน
-   \`public/data/\` ก่อน Commit/Push
+จากโฟลเดอร์โปรเจกต์ `dengueguard-vercel` ให้รัน:
 
-ผลลัพธ์ใหม่อยู่ใน \`model_predictions.json\` และ \`model_metrics.json\`
-แยกจาก \`predictions.json\` รุ่นเดิม เพื่อให้พัฒนาหน้า Dashboard ต่อได้โดยไม่ทำให้
-ข้อมูล 8 จังหวัดเดิมหรือหน้าระบบอื่นเสียหาย
+```bash
+python scripts/fetch_model_outputs.py
+python scripts/convert_model_outputs.py
+```
 
-**ข้อจำกัด:** โมเดลส่งออกค่าพยากรณ์จำนวนผู้ป่วย แต่ไม่ได้ส่งเกณฑ์เตือน
-(\`thr_watch\`, \`thr_alert\`) หรือระดับความเสี่ยง (\`level\`) มาให้
-จึงยังไม่ควรนำผลใหม่ไปสร้างสถานะเตือนใน Prevention จนกว่าจะกำหนดและทบทวน
-เกณฑ์ดังกล่าวแยกต่างหาก และข้อมูลสภาพอากาศต้องอัปเดตจากแหล่งข้อมูลใหม่ด้วย
+สคริปต์จะนำเข้าเฉพาะผล Holdout, ผลพยากรณ์สัปดาห์ล่าสุด และ Metrics จาก https://github.com/johnlovepizza/DenguYosoku โดยไม่ดาวน์โหลด `answer_key.csv`, ข้อมูลดิบ หรือ `model.txt` เข้าเว็บไซต์ ผลลัพธ์จะอยู่ใน `public/data/model_predictions.json` และ `public/data/model_metrics.json` แยกจาก `predictions.json` รุ่นเดิม
+
+**ข้อจำกัด:** โมเดลส่งออกค่าพยากรณ์จำนวนผู้ป่วย แต่ไม่ได้ส่งเกณฑ์เตือน (`thr_watch`, `thr_alert`) หรือระดับความเสี่ยง (`level`) มาให้ จึงยังไม่ควรนำผลใหม่ไปสร้างสถานะเตือนใน Prevention จนกว่าจะกำหนดและทบทวนเกณฑ์ดังกล่าวแยกต่างหาก ข้อมูลสภาพอากาศต้องอัปเดตจากแหล่งข้อมูลใหม่ด้วย
