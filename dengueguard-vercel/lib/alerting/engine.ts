@@ -216,10 +216,9 @@ export function evaluateAlertDryRun(
       candidateEvents.push({
         eventId: [
           profile.profileId,
-          profile.version,
           targetWeek,
           row.province,
-          level,
+          "predicted_cases_threshold",
         ].join(":"),
         province: row.province,
         weekStart: targetWeek,
