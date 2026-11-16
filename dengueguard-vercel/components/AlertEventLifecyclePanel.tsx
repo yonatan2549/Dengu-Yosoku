@@ -174,7 +174,7 @@ export function AlertEventLifecyclePanel({
                     <Check size={14} /> รับทราบ
                   </button>
                 )}
-                {event.status !== "resolved" && (
+                {event.status === "acknowledged" && (
                   <div className="alert-lifecycle-resolve">
                     <input
                       type="text"
