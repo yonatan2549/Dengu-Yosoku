@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BellRing, CheckCircle2, CircleAlert, Download, History, ShieldAlert } from "lucide-react";
 import { ALERT_RULE_PROFILE } from "@/lib/alerting/profile";
+import { AlertEventLifecyclePanel } from "@/components/AlertEventLifecyclePanel";
 import { evaluateAlertDryRun } from "@/lib/alerting/engine";
 import {
   appendAlertAuditRecord,
@@ -215,6 +216,8 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
             : "รอบการประเมินนี้ไม่พบจังหวัดที่เข้าเกณฑ์จำลอง WATCH หรือ ALERT"}
         </p>
       )}
+
+      <AlertEventLifecyclePanel candidates={report.candidateEvents} modelRevision={auditSnapshot?.model_revision ?? null} />
 
       <section className="alert-audit-section" aria-label="ประวัติการประเมินระบบแจ้งเตือน">
         <div className="alert-audit-toolbar">
