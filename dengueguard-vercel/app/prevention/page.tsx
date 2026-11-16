@@ -133,6 +133,10 @@ function ModelPreventionPage() {
   const currentEpiWeekStart = getCurrentEpiWeekStart();
   const forecastLagWeeks = getEpiWeekLagWeeks(forecastWeek, currentEpiWeekStart);
   const stale = forecastWeek < currentEpiWeekStart;
+  const forecastHorizonWeeks = Math.round(
+    (Date.parse(forecastWeek + "T00:00:00Z") - Date.parse(model.coverage.history_end_week + "T00:00:00Z")) /
+    (7 * 24 * 60 * 60 * 1000),
+  );
   const total = rows.reduce((sum, row) => sum + row.prediction, 0);
 
   return (
@@ -159,9 +163,11 @@ function ModelPreventionPage() {
         <div className="historical-notice">
           <Info size={17} />
           <span>
-            ผลพยากรณ์ชุดนี้กำหนดสัปดาห์ {new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}
-            ซึ่งเก่ากว่าสัปดาห์ระบาดวิทยาปัจจุบันที่เริ่ม {new Date(currentEpiWeekStart + "T00:00:00").toLocaleDateString("th-TH")}
-            อยู่ {forecastLagWeeks} สัปดาห์ จึงไม่ใช่สถานการณ์ปัจจุบัน ต้องอัปเดตข้อมูลต้นทางและสร้างผลพยากรณ์ใหม่
+            Forecast ในชุดข้อมูลนี้เป็น Snapshot เป้าหมายสัปดาห์ {new Date(forecastWeek + "T00:00:00").toLocaleDateString("th-TH")}
+            ซึ่งอยู่ {forecastHorizonWeeks} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({new Date(model.coverage.history_end_week + "T00:00:00").toLocaleDateString("th-TH")}).
+            สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {new Date(currentEpiWeekStart + "T00:00:00").toLocaleDateString("th-TH")} ทำให้ Snapshot นี้เก่ากว่า {forecastLagWeeks} สัปดาห์
+            จึงใช้ตรวจดูผลลัพธ์ของโมเดลได้ แต่ไม่ควรนำไปใช้สื่อสารเป็นสถานการณ์ปัจจุบัน
+            การไม่มีค่าผู้ป่วยจริงของสัปดาห์ Forecast เป็นเรื่องปกติของผลพยากรณ์ล่วงหน้า
           </span>
         </div>
       )}
