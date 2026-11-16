@@ -21,7 +21,6 @@ import csv
 import json
 import math
 import sys
-from collections import defaultdict
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -135,6 +134,10 @@ def load_history() -> tuple[list[dict[str, Any]], list[str], list[date]]:
         year_value = parse_number(
             row.get("year", ""), column="year", source=f"{source_name}:{line_number}"
         )
+        if not year_value.is_integer():
+            raise DataValidationError(
+                f"{source_name}:{line_number}: year must be an integer; got {year_value}"
+            )
         year = int(year_value)
         if year != week.year:
             raise DataValidationError(
@@ -297,10 +300,24 @@ def main() -> int:
         metrics = load_metrics()
 
         generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        manifest_path = SOURCE_DIR / "source_manifest.json"
+        model_revision = None
+        if manifest_path.is_file():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+            except json.JSONDecodeError as exc:
+                raise DataValidationError(f"{manifest_path.name} is not valid JSON: {exc}") from exc
+            model_revision = manifest.get("commit_sha") if isinstance(manifest, dict) else None
+            if model_revision is not None and (
+                not isinstance(model_revision, str) or len(model_revision) != 40
+            ):
+                raise DataValidationError(f"{manifest_path.name} contains an invalid commit_sha")
+
         prediction_payload = {
             "schema_version": 1,
             "model_name": "DenguYosoku LightGBM",
             "source_repository": "https://github.com/johnlovepizza/DenguYosoku",
+            "model_revision": model_revision,
             "generated_at_utc": generated_at,
             "province_count": len(province_list),
             "provinces": province_list,
@@ -326,6 +343,7 @@ def main() -> int:
             "schema_version": 1,
             "model_name": prediction_payload["model_name"],
             "source_repository": prediction_payload["source_repository"],
+            "model_revision": model_revision,
             "generated_at_utc": generated_at,
             "metrics": metrics,
         }
