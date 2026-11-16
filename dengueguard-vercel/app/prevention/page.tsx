@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Info, ShieldCheck, Wind } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
 import { compareProvinceWeek, formatCases, formatNumber, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 
@@ -116,6 +116,16 @@ function ModelPreventionPage() {
       .sort((a, b) => a.priority - b.priority) ?? [],
     [data],
   );
+  const [provinceQuery, setProvinceQuery] = useState("");
+  const [pageSize, setPageSize] = useState(10);
+  const [page, setPage] = useState(1);
+  const filteredRows = useMemo(() => {
+    const query = provinceQuery.trim().toLocaleLowerCase("th");
+    return rows.filter((row) => !query || row.province.toLocaleLowerCase("th").includes(query));
+  }, [rows, provinceQuery]);
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const visibleRows = filteredRows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   if (!model) return null;
 
@@ -179,19 +189,57 @@ function ModelPreventionPage() {
             <p>เรียงจากค่าพยากรณ์มากไปน้อย · ไม่มีการตีความเป็นระดับความเสี่ยง</p>
           </div>
         </div>
+        <div className="table-toolbar">
+          <label className="table-search">
+            <span><Search size={14} /> ค้นหาจังหวัด</span>
+            <input
+              type="search"
+              value={provinceQuery}
+              placeholder="พิมพ์ชื่อจังหวัด..."
+              onChange={(event) => { setProvinceQuery(event.target.value); setPage(1); }}
+            />
+          </label>
+          <label className="table-page-size">
+            <span>แสดงต่อหน้า</span>
+            <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}>
+              <option value={10}>10 จังหวัด</option>
+              <option value={20}>20 จังหวัด</option>
+              <option value={50}>50 จังหวัด</option>
+              <option value={77}>ทั้งหมด 77 จังหวัด</option>
+            </select>
+          </label>
+        </div>
         <div className="table-scroll">
           <table className="data-table">
             <thead><tr><th>ลำดับ</th><th>จังหวัด</th><th>จำนวนที่คาดการณ์</th></tr></thead>
             <tbody>
-              {rows.map((row, index) => (
+              {visibleRows.length ? visibleRows.map((row, index) => (
                 <tr key={row.province}>
-                  <td>{index + 1}</td>
+                  <td>{(safePage - 1) * pageSize + index + 1}</td>
                   <td>{row.province}</td>
                   <td className="numeric-cell">{row.prediction.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 </tr>
-              ))}
+              )) : (
+                <tr><td colSpan={3} className="table-empty">ไม่พบจังหวัดที่ตรงกับคำค้นหา</td></tr>
+              )}
             </tbody>
           </table>
+        </div>
+        <div className="table-pagination">
+          <span>
+            {filteredRows.length
+              ? `แสดง ${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filteredRows.length)} จาก ${filteredRows.length} จังหวัด`
+              : "ไม่มีข้อมูล"}
+          </span>
+          <div className="table-pagination-actions">
+            <button type="button" className="button button-secondary" onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}>
+              <ChevronLeft size={14} /> ก่อนหน้า
+            </button>
+            <span>หน้า {safePage} / {pageCount}</span>
+            <button type="button" className="button button-secondary" onClick={() => setPage(Math.min(pageCount, safePage + 1))} disabled={safePage >= pageCount}>
+              ถัดไป <ChevronRight size={14} />
+            </button>
+          </div>
         </div>
       </section>
 
