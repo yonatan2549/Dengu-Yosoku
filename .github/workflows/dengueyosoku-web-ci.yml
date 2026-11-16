@@ -54,5 +54,8 @@ jobs:
       - name: TypeScript check
         run: npm run typecheck
 
+      - name: Alert dry-run engine tests
+        run: npm run test:alerts
+
       - name: Production build
         run: npm run build
