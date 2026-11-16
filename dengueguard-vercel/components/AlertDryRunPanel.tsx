@@ -100,10 +100,41 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
         ))}
       </div>
 
+      {report.candidateEvents.length ? (
+        <div className="table-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>จังหวัด</th>
+                <th>สัญญาณจำลอง</th>
+                <th>ค่าพยากรณ์</th>
+                <th>เกณฑ์</th>
+                <th>สถานะ Snapshot</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.candidateEvents.map((event) => (
+                <tr key={event.eventId}>
+                  <td>{event.province}</td>
+                  <td>{event.level === "ALERT" ? "เตือน (ALERT)" : "เฝ้าระวัง (WATCH)"}</td>
+                  <td className="numeric-cell">{event.predictedCases.toLocaleString("th-TH", { maximumFractionDigits: 2 })}</td>
+                  <td className="numeric-cell">{event.threshold.toLocaleString("th-TH", { maximumFractionDigits: 2 })}</td>
+                  <td>{event.snapshotIsStale ? "ข้อมูลย้อนหลัง" : "ไม่เก่ากว่าสัปดาห์ปัจจุบัน"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <p className="panel-note">
+          ยังไม่มี Candidate events เนื่องจาก Rule Profile ยังเป็น Draft และไม่มีเกณฑ์รายจังหวัดที่ผ่านการอนุมัติ
+        </p>
+      )}
+
       <p className="panel-note">
         เกณฑ์ปัจจุบัน: {report.ruleProfileStatus === "approved" ? "อนุมัติแล้ว" : "Draft · ยังไม่อนุมัติ"}
         {" · "}Threshold ครอบคลุม {Object.keys(ALERT_RULE_PROFILE.thresholdsByProvince).length}/77 จังหวัด
-        {" · "}Candidate events จะถูกบันทึกเป็นผลจำลองเท่านั้น และไม่มีการส่งออกไปยังผู้รับ
+        {" · "}Candidate events เป็นผลจำลองเท่านั้น ไม่มีการส่งออกไปยังผู้รับ
       </p>
     </section>
   );
