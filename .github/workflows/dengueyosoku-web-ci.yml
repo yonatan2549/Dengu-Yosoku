@@ -1,0 +1,58 @@
+name: DengueYosoku web CI
+
+on:
+  push:
+    branches:
+      - feature/dengueguard-improvements
+    paths:
+      - "dengueguard-vercel/**"
+      - ".github/workflows/dengueyosoku-web-ci.yml"
+  pull_request:
+    branches:
+      - main
+      - feature/dengueguard-improvements
+    paths:
+      - "dengueguard-vercel/**"
+      - ".github/workflows/dengueyosoku-web-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dengueyosoku-web-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate website and model adapter
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dengueguard-vercel
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile model adapter scripts
+        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dengueguard-vercel/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
