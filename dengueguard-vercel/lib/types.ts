@@ -58,6 +58,14 @@ export interface ModelPredictionsPayload {
     forecast_week: string;
     forecast_is_after_history: boolean;
   };
+  freshness?: {
+    timezone: string;
+    source_retrieved_at_utc: string | null;
+    converted_at_utc: string;
+    current_week_start_at_conversion: string;
+    forecast_is_current_or_future_at_conversion: boolean;
+    forecast_lag_weeks_at_conversion: number;
+  };
   semantic_notes: Record<string, string>;
 }
 
