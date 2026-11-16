@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, Info, MapPinned, SlidersHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Info, MapPinned, Search, SlidersHorizontal } from "lucide-react";
 import {
   CartesianGrid,
   Legend,
@@ -76,6 +76,9 @@ export default function ModelDashboard() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   const [selectedProvince, setSelectedProvince] = useState(ALL_PROVINCES);
+  const [tableQuery, setTableQuery] = useState("");
+  const [tablePageSize, setTablePageSize] = useState(10);
+  const [tablePage, setTablePage] = useState(1);
 
   const forecastWeek = model?.coverage.forecast_week ?? "";
   const years = useMemo(() => {
@@ -131,6 +134,19 @@ export default function ModelDashboard() {
     ? displayRows
     : displayRows.filter((row) => row.province === selectedProvince);
 
+  const filteredTableRows = useMemo(() => {
+    const query = tableQuery.trim().toLocaleLowerCase("th");
+    return [...selectedRows]
+      .filter((row) => !query || row.province.toLocaleLowerCase("th").includes(query))
+      .sort((a, b) => b.prediction - a.prediction);
+  }, [selectedRows, tableQuery]);
+  const tablePageCount = Math.max(1, Math.ceil(filteredTableRows.length / tablePageSize));
+  const safeTablePage = Math.min(tablePage, tablePageCount);
+  const tablePageRows = filteredTableRows.slice(
+    (safeTablePage - 1) * tablePageSize,
+    safeTablePage * tablePageSize,
+  );
+
   const trendRows = useMemo(() => {
     if (!model) return [];
     const rows = model.history.filter((row) => (
@@ -176,7 +192,7 @@ export default function ModelDashboard() {
         </div>
         <button
           className="button button-secondary"
-          onClick={() => downloadCsv(selectedRows, activeWeek || "no-week")}
+          onClick={() => downloadCsv(filteredTableRows, activeWeek || "no-week")}
           disabled={!selectedRows.length}
         >
           <Download size={16} /> ดาวน์โหลด CSV
@@ -338,6 +354,26 @@ export default function ModelDashboard() {
             <p>เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
           </div>
         </div>
+        <div className="table-toolbar">
+          <label className="table-search">
+            <span><Search size={14} /> ค้นหาจังหวัด</span>
+            <input
+              type="search"
+              value={tableQuery}
+              placeholder="พิมพ์ชื่อจังหวัด..."
+              onChange={(event) => { setTableQuery(event.target.value); setTablePage(1); }}
+            />
+          </label>
+          <label className="table-page-size">
+            <span>แสดงต่อหน้า</span>
+            <select value={tablePageSize} onChange={(event) => { setTablePageSize(Number(event.target.value)); setTablePage(1); }}>
+              <option value={10}>10 จังหวัด</option>
+              <option value={20}>20 จังหวัด</option>
+              <option value={50}>50 จังหวัด</option>
+              <option value={77}>ทั้งหมด 77 จังหวัด</option>
+            </select>
+          </label>
+        </div>
         <div className="table-scroll">
           <table className="data-table">
             <thead>
@@ -349,19 +385,37 @@ export default function ModelDashboard() {
               </tr>
             </thead>
             <tbody>
-              {[...selectedRows].sort((a, b) => b.prediction - a.prediction).map((row) => (
+              {tablePageRows.length ? tablePageRows.map((row) => (
                 <tr key={row.province}>
                   <td>{row.province}</td>
                   <td className="numeric-cell">{formatNumber(row.prediction, 2)}</td>
                   <td className="numeric-cell">{row.actualCases === null ? "—" : formatNumber(row.actualCases, 0)}</td>
                   <td className="numeric-cell">{row.persistence === null ? "—" : formatNumber(row.persistence, 2)}</td>
                 </tr>
-              ))}
+              )) : (
+                <tr><td colSpan={4} className="table-empty">ไม่พบจังหวัดที่ตรงกับคำค้นหา</td></tr>
+              )}
             </tbody>
           </table>
         </div>
+        <div className="table-pagination">
+          <span>
+            {filteredTableRows.length
+              ? `แสดง ${(safeTablePage - 1) * tablePageSize + 1}–${Math.min(safeTablePage * tablePageSize, filteredTableRows.length)} จาก ${filteredTableRows.length} จังหวัด`
+              : "ไม่มีข้อมูล"}
+          </span>
+          <div className="table-pagination-actions">
+            <button type="button" className="button button-secondary" onClick={() => setTablePage(Math.max(1, safeTablePage - 1))} disabled={safeTablePage <= 1}>
+              <ChevronLeft size={14} /> ก่อนหน้า
+            </button>
+            <span>หน้า {safeTablePage} / {tablePageCount}</span>
+            <button type="button" className="button button-secondary" onClick={() => setTablePage(Math.min(tablePageCount, safeTablePage + 1))} disabled={safeTablePage >= tablePageCount}>
+              ถัดไป <ChevronRight size={14} />
+            </button>
+          </div>
+        </div>
         <div className="panel-note">
-          Persistence คือค่าผู้ป่วยจากสัปดาห์ก่อน ไม่ใช่ค่าเฉลี่ยย้อนหลัง 4 สัปดาห์
+          Persistence คือค่าผู้ป่วยจากสัปดาห์ก่อน ไม่ใช่ค่าเฉลี่ยย้อนหลัง 4 สัปดาห์ · ดาวน์โหลด CSV จะรวมทุกแถวที่ตรงกับตัวกรอง ไม่จำกัดเฉพาะหน้าที่เปิดอยู่
         </div>
       </section>
 
@@ -406,17 +460,6 @@ export default function ModelDashboard() {
             เปิด Model Repository
           </a>
         </article>
-      </section>
-
-      <section className="panel map-panel">
-        <div className="panel-heading">
-          <div><h2>แผนที่ระดับความเสี่ยง</h2><p>รอการกำหนดเกณฑ์ระดับความเสี่ยงสำหรับโมเดลรุ่นใหม่</p></div>
-        </div>
-        <p className="panel-note">
-          โมเดลใหม่ส่งออกจำนวนผู้ป่วยที่คาดการณ์รายจังหวัด แต่ยังไม่มีค่าเกณฑ์เฝ้าระวังและเตือนระบาด
-          จึงยังไม่แสดงสีระดับความเสี่ยง เพื่อไม่ให้สื่อความหมายเกินกว่าข้อมูลที่โมเดลให้มา
-          การแสดงแผนที่จะเชื่อมต่อหลังตรวจสอบเกณฑ์ดังกล่าวแล้ว
-        </p>
       </section>
 
       <p className="disclaimer-line">
