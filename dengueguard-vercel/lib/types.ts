@@ -13,6 +13,54 @@ export interface ForecastRow {
   level: RiskLevel;
 }
 
+export interface ModelHistoryRow {
+  province: string;
+  week_start: string;
+  year: number;
+  actual_cases: number;
+  prediction: number;
+  persistence: number;
+  seasonal_naive: number;
+  climatology: number;
+  residual: number;
+}
+
+export interface ModelForecastRow {
+  province: string;
+  week_start: string;
+  year: number;
+  prediction: number;
+}
+
+export interface ModelPredictionsPayload {
+  schema_version: number;
+  model_name: string;
+  source_repository: string;
+  generated_at_utc: string;
+  province_count: number;
+  provinces: string[];
+  history: ModelHistoryRow[];
+  forecast: ModelForecastRow[];
+  coverage: {
+    history_rows: number;
+    history_week_count: number;
+    history_start_week: string;
+    history_end_week: string;
+    forecast_rows: number;
+    forecast_week: string;
+    forecast_is_after_history: boolean;
+  };
+  semantic_notes: Record<string, string>;
+}
+
+export interface ModelMetricsPayload {
+  schema_version: number;
+  model_name: string;
+  source_repository: string;
+  generated_at_utc: string;
+  metrics: Record<string, unknown>;
+}
+
 export interface WeatherRow {
   province: string;
   date: string;
@@ -103,6 +151,8 @@ export interface DengueData {
   meta: ModelMeta;
   thailandGeo: GeoJsonData;
   odpcGeo: GeoJsonData;
+  modelPredictions: ModelPredictionsPayload | null;
+  modelMetrics: ModelMetricsPayload | null;
 }
 
 export interface RegionalSummary {
