@@ -73,3 +73,47 @@ connection works or that the role has the correct grants.
 Until those decisions and tests are complete, the website keeps using the
 existing browser-local event history. No new database connection is attempted,
 no user-facing behavior is changed, and external notifications remain disabled.
+
+
+## Supabase authentication rollout
+
+The application now has a first-stage Supabase Auth integration using the
+Supabase Auth and PostgREST HTTP endpoints from server-side Next.js route
+handlers. Session tokens are stored in HttpOnly, SameSite=Lax cookies; the
+browser never receives the access or refresh token. The anon key is used only
+as the public Supabase API key. A service-role key is not used by this stage.
+
+Apply migrations in this order:
+
+1. `database/migrations/001_alert_center.sql`
+2. `database/migrations/002_alert_integrity_hardening.sql`
+3. `database/migrations/003_supabase_auth_and_rls.sql`
+
+Configure `SUPABASE_URL` and `SUPABASE_ANON_KEY` in the local environment
+and Vercel project environment settings. Do not use a `NEXT_PUBLIC_` prefix
+for these variables in this implementation, and never add a service-role key
+to client-side code.
+
+Create/invite accounts from the Supabase Dashboard. The application does not
+provide public self-registration. The auth trigger creates each new profile
+with the `viewer` role. A trusted project owner must promote the first
+administrator from the Supabase SQL Editor, replacing the email below:
+
+```sql
+UPDATE public.user_profiles
+SET role = 'administrator', updated_at = now()
+WHERE id = (
+  SELECT id FROM auth.users WHERE email = 'admin@example.com'
+);
+```
+
+Only authenticated reviewers and administrators can read Alert Center tables.
+Direct client writes remain denied. The Alert Center UI continues to use its
+existing browser-local lifecycle until transactional server-side persistence,
+reviewer authorization, and integration tests are implemented. Authentication
+does not by itself make local event history central or tamper-proof.
+
+Before production use, configure Supabase Auth site URL and allowed redirect
+URLs, enforce strong passwords and MFA for administrators, review auth rate
+limits/CAPTCHA settings, and test RLS with anonymous, viewer, reviewer, and
+administrator accounts in a staging project.
