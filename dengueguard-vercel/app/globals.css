@@ -316,3 +316,13 @@ a { color: inherit; text-decoration: none; }
   .alert-lifecycle-resolve { flex-basis: 100%; }
   .alert-lifecycle-resolve .button { width: 100%; justify-content: center; }
 }
+
+
+/* Alert Center filters */
+.alert-lifecycle-filters { display: grid; grid-template-columns: minmax(180px, 1.6fr) repeat(2, minmax(130px, .8fr)); gap: 9px; margin: 10px 0 13px; }
+.alert-lifecycle-filters label { display: flex; flex-direction: column; gap: 5px; color: #728397; font-size: 9px; }
+.alert-lifecycle-filters input, .alert-lifecycle-filters select { min-width: 0; width: 100%; min-height: 35px; border: 1px solid #dfe7ee; border-radius: 8px; padding: 7px 9px; color: #38546d; background: #fff; font: inherit; font-size: 9px; }
+@media (max-width: 640px) {
+  .alert-lifecycle-filters { grid-template-columns: 1fr 1fr; }
+  .alert-lifecycle-filters label:first-child { grid-column: 1 / -1; }
+}
