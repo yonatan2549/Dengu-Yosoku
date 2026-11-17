@@ -29,8 +29,10 @@ Prevention page.
   audit store. Production review requires server-side persistence, access
   control, retention policy, and code-revision provenance.
 - Candidate events have a browser-local lifecycle: new, acknowledged, resolved,
-  and reopened. Severity changes are recorded in the event timeline while the
-  event identity remains stable across WATCH/ALERT changes and rule revisions.
+  and reopened only when a materially changed model/candidate snapshot is seen.
+  Replaying the exact same snapshot does not reopen a manually resolved event.
+  Severity changes are recorded while event identity remains stable across
+  WATCH/ALERT changes and rule revisions.
 - Events are never auto-resolved merely because a later run has no matching
   candidate. A reviewer must provide a reason to resolve; a later matching
   candidate reopens a resolved event. These are simulated workflow states, not
