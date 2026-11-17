@@ -41,6 +41,7 @@ export interface AlertLifecycleEvent {
   updatedAtUtc: string;
   lastSeenAtUtc: string;
   lastSeenModelRevision: string | null;
+  lastSeenFingerprint: string;
   transitions: AlertLifecycleTransition[];
 }
 
@@ -96,6 +97,14 @@ export function reconcileAlertLifecycle(
     if (seen.has(candidate.eventId)) continue;
     seen.add(candidate.eventId);
 
+    const candidateFingerprint = JSON.stringify({
+      modelRevision,
+      predictedCases: candidate.predictedCases,
+      threshold: candidate.threshold,
+      level: candidate.level,
+      ruleProfileVersion: candidate.ruleProfileVersion,
+      snapshotIsStale: candidate.snapshotIsStale,
+    });
     const existing = byId.get(candidate.eventId);
     if (!existing) {
       const created: AlertLifecycleEvent = {
@@ -115,6 +124,7 @@ export function reconcileAlertLifecycle(
         updatedAtUtc: atUtc,
         lastSeenAtUtc: atUtc,
         lastSeenModelRevision: modelRevision,
+        lastSeenFingerprint: candidateFingerprint,
         transitions: [
           transition(candidate.eventId, "created", atUtc, "Candidate event created in dry-run only", {
             toStatus: "new",
@@ -129,7 +139,8 @@ export function reconcileAlertLifecycle(
     let status = existing.status;
     let transitions = [...existing.transitions];
 
-    if (status === "resolved") {
+    const isNewSnapshot = existing.lastSeenFingerprint !== candidateFingerprint;
+    if (status === "resolved" && isNewSnapshot) {
       status = "reopened";
       transitions.push(transition(
         candidate.eventId,
@@ -166,6 +177,7 @@ export function reconcileAlertLifecycle(
       updatedAtUtc: atUtc,
       lastSeenAtUtc: atUtc,
       lastSeenModelRevision: modelRevision,
+      lastSeenFingerprint: candidateFingerprint,
       transitions: keepRecentTransitions(transitions),
     });
   }
@@ -242,6 +254,7 @@ function isLifecycleEvent(value: unknown): value is AlertLifecycleEvent {
     typeof item.createdAtUtc === "string" &&
     typeof item.updatedAtUtc === "string" &&
     typeof item.lastSeenAtUtc === "string" &&
+    typeof item.lastSeenFingerprint === "string" &&
     (item.status === "new" || item.status === "acknowledged" || item.status === "resolved" || item.status === "reopened") &&
     item.delivery === "not_sent_dry_run_only" &&
     Array.isArray(item.transitions) &&
