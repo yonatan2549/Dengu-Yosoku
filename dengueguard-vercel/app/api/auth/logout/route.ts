@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthCookieOptions, getSupabaseServerConfig } from "@/lib/supabase/config";
+import { getAuthCookieOptions, getSupabaseServerConfig, isSameOriginRequest } from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginRequest(request.headers)) {
+    return NextResponse.json({ error: "คำขอไม่ผ่านการตรวจสอบแหล่งที่มา" }, { status: 403 });
+  }
   const config = getSupabaseServerConfig();
   const accessToken = request.cookies.get("dy-supabase-access")?.value;
 
@@ -22,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   const options = getAuthCookieOptions();
   response.cookies.set("dy-supabase-access", "", { ...options, maxAge: 0 });
   response.cookies.set("dy-supabase-refresh", "", { ...options, maxAge: 0 });
