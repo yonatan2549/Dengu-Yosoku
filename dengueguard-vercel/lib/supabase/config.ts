@@ -32,3 +32,14 @@ export function getAuthCookieOptions() {
     path: "/",
   };
 }
+
+export function isSameOriginRequest(headers: Headers): boolean {
+  const origin = headers.get("origin");
+  const host = headers.get("host");
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host.toLowerCase() === host.toLowerCase();
+  } catch {
+    return false;
+  }
+}
