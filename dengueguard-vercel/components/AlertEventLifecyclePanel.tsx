@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, Check, CircleCheck, Download, RotateCcw, ShieldAlert } from "lucide-react";
 import {
   ALERT_LIFECYCLE_STORAGE_KEY,
@@ -55,6 +55,9 @@ export function AlertEventLifecyclePanel({
   const [events, setEvents] = useState<AlertLifecycleEvent[]>([]);
   const [storageStatus, setStorageStatus] = useState<StorageStatus>("loading");
   const [resolutionNotes, setResolutionNotes] = useState<Record<string, string>>({});
+  const [provinceQuery, setProvinceQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | AlertLifecycleStatus>("all");
+  const [levelFilter, setLevelFilter] = useState<"all" | "WATCH" | "ALERT">("all");
 
   useEffect(() => {
     try {
@@ -113,6 +116,15 @@ export function AlertEventLifecyclePanel({
 
   const activeCount = events.filter((event) => event.status !== "resolved").length;
   const resolvedCount = events.length - activeCount;
+  const filteredEvents = useMemo(() => {
+    const query = provinceQuery.trim().toLocaleLowerCase("th");
+    return events.filter((event) => {
+      const matchesQuery = !query || event.province.toLocaleLowerCase("th").includes(query) || event.eventId.toLocaleLowerCase("en").includes(query);
+      const matchesStatus = statusFilter === "all" || event.status === statusFilter;
+      const matchesLevel = levelFilter === "all" || event.level === levelFilter;
+      return matchesQuery && matchesStatus && matchesLevel;
+    });
+  }, [events, provinceQuery, statusFilter, levelFilter]);
 
   return (
     <section className="alert-lifecycle-section" aria-label="การจัดการวงจรเหตุการณ์แจ้งเตือนจำลอง">
@@ -141,9 +153,15 @@ export function AlertEventLifecyclePanel({
         <p className="panel-note">ไม่สามารถบันทึก Event Lifecycle ในเบราว์เซอร์นี้ได้ การเปลี่ยนสถานะอาจไม่คงอยู่เมื่อปิดหน้าเว็บ</p>
       )}
 
+      <div className="alert-lifecycle-filters">
+        <label><span>ค้นหาจังหวัดหรือ Event ID</span><input type="search" value={provinceQuery} onChange={(change) => setProvinceQuery(change.target.value)} placeholder="พิมพ์ชื่อจังหวัดหรือรหัสเหตุการณ์" /></label>
+        <label><span>สถานะ</span><select value={statusFilter} onChange={(change) => setStatusFilter(change.target.value as "all" | AlertLifecycleStatus)}><option value="all">ทุกสถานะ</option><option value="new">ใหม่</option><option value="acknowledged">รับทราบแล้ว</option><option value="resolved">ปิดแล้ว</option><option value="reopened">เปิดอีกครั้ง</option></select></label>
+        <label><span>ระดับสัญญาณ</span><select value={levelFilter} onChange={(change) => setLevelFilter(change.target.value as "all" | "WATCH" | "ALERT")}><option value="all">ทุกระดับ</option><option value="WATCH">WATCH</option><option value="ALERT">ALERT</option></select></label>
+      </div>
+
       {events.length ? (
-        <div className="alert-lifecycle-list">
-          {events.slice(0, 20).map((event) => (
+        filteredEvents.length ? <div className="alert-lifecycle-list">
+          {filteredEvents.slice(0, 50).map((event) => (
             <article className="alert-lifecycle-card" key={event.eventId}>
               <div className="alert-lifecycle-card-heading">
                 <div>
@@ -162,6 +180,7 @@ export function AlertEventLifecyclePanel({
                 {" · "}เกณฑ์ {event.threshold.toLocaleString("th-TH", { maximumFractionDigits: 2 })}
                 {event.snapshotIsStale ? " · Snapshot ย้อนหลัง" : ""}
               </p>
+              <small>Event ID: {event.eventId}</small>
               <small>
                 Profile {event.ruleProfileVersion}
                 {" · "}Model SHA {event.lastSeenModelRevision ? event.lastSeenModelRevision.slice(0, 12) : "ไม่มี"}
@@ -220,11 +239,9 @@ export function AlertEventLifecyclePanel({
               </details>
             </article>
           ))}
-        </div>
+        </div> : <p className="panel-note">ไม่พบเหตุการณ์ที่ตรงกับตัวกรองที่เลือก</p>
       ) : (
-        <p className="panel-note">
-          ยังไม่มี Candidate event ให้ติดตาม ขณะนี้ Rule Profile ยังเป็น Draft จึงยังไม่สร้างเหตุการณ์จำลอง
-        </p>
+        <p className="panel-note">ยังไม่มี Candidate event ให้ติดตาม ขณะนี้ Rule Profile ยังเป็น Draft จึงยังไม่สร้างเหตุการณ์จำลอง</p>
       )}
 
       <p className="alert-audit-footnote">
