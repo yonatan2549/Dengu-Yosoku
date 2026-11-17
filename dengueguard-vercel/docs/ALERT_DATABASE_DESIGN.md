@@ -7,13 +7,16 @@ Status: schema and repository contract prepared; central persistence is **not co
 The current Alert Center is browser-local. There is no login/identity provider,
 database client, database environment configuration, or server-side event API
 in this repository. Do not expose a service credential in client code or create
-a public write endpoint. The SQL migration enables row-level security and
-deliberately creates no client policies, so access remains denied until a
+a public write endpoint. The SQL migrations enable row-level security and
+deliberately create no client policies, so access remains denied until a
 reviewer identity and server-side authorization policy are in place.
 
 ## PostgreSQL schema
 
-Migration: `database/migrations/001_alert_center.sql`
+Apply migrations in order:
+
+1. `database/migrations/001_alert_center.sql`
+2. `database/migrations/002_alert_integrity_hardening.sql`
 
 | Table | Purpose |
 | --- | --- |
@@ -25,9 +28,11 @@ Migration: `database/migrations/001_alert_center.sql`
 
 The schema enforces Sunday week starts, non-negative predictions/thresholds,
 ALERT > WATCH, valid model SHA shape, status values, and the invariant that
-external delivery remains disabled. It does not infer an alert level from a
-predicted case count. Complete 77-province threshold coverage and approval
-must also be checked transactionally by the eventual server repository.
+external delivery remains disabled. The hardening migration prevents edits to
+approved rule profiles and their thresholds, and prevents update/delete/truncate
+of transition history. It does not infer an alert level from a predicted case
+count. Complete 77-province threshold coverage and approval must also be checked
+transactionally by the eventual server repository.
 
 No patient records, symptom questionnaire answers, names, phone numbers, or
 other patient identifiers belong in these tables.
@@ -54,7 +59,7 @@ connection works or that the role has the correct grants.
    or administrator.
 3. Define who may create/edit/approve Rule Profiles and who may acknowledge or
    resolve an event.
-4. Apply the migration in a staging database, verify RLS using anonymous,
+4. Apply both migrations in a staging database, verify RLS using anonymous,
    authenticated, reviewer, and service roles, and test backup/retention.
 5. Implement a server-only adapter. Every write must derive actor identity from
    a verified session; never trust a client-supplied actor ID.
