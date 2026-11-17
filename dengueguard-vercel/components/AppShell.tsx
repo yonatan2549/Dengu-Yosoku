@@ -29,6 +29,7 @@ const navigationGroups = [
     items: [
       { href: "/dashboard", label: "ภาพรวมสถานการณ์", sub: "Forecast dashboard", icon: LayoutDashboard },
       { href: "/prevention", label: "ป้องกันเชิงรุก", sub: "Early warning & prevention", icon: ShieldCheck },
+      { href: "/alerts", label: "ศูนย์จัดการเหตุการณ์", sub: "Alert event center", icon: BellRing },
       { href: "/symptom-checker", label: "ประเมินอาการเบื้องต้น", sub: "Symptom checker", icon: ClipboardCheck },
       { href: "/health-assistant", label: "AI Health Assistant", sub: "Dengue health companion", icon: Bot, badge: "NEW" },
     ],
