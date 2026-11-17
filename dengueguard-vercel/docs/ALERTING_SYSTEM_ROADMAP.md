@@ -161,3 +161,13 @@ Nationwide automated alerts remain disabled until all of the following are met:
 - Always display the epidemiological week, source, retrieval/update time, and
   freshness state beside operational alert information.
 - Keep preventive advice available even when the alert module is disabled.
+
+
+## Central Alert Database preparation
+
+The PostgreSQL schema and server-side repository contract are prepared in
+`database/migrations/001_alert_center.sql` and
+`lib/alerting/database-contract.ts`. They are not connected to a live
+database. RLS is enabled with no client policies until an identity provider,
+reviewer roles, and server-side authorization are selected. See
+`docs/ALERT_DATABASE_DESIGN.md` before applying the migration.
