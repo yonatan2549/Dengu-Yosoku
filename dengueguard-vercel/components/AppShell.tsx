@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { SupportingPopup } from "@/components/SupportingPopup";
+import { AuthStatus } from "@/components/AuthStatus";
 import { useDengueData } from "@/components/DataProvider";
 import { getCurrentEpiWeekStart } from "@/lib/utils";
 
@@ -193,6 +194,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <strong>{pageLabel}</strong>
           </div>
           <div className="topbar-right">
+            <AuthStatus />
             <button
               type="button"
               className="theme-toggle"
