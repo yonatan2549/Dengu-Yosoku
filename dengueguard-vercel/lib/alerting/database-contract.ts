@@ -8,12 +8,12 @@ import type { AlertLifecycleAction, AlertLifecycleEvent } from "./lifecycle";
 
 /**
  * Persistence boundary for a future authenticated server-side Alert Center.
- * No database client is implemented or enabled by this contract alone.
+ * Supabase Auth is scaffolded; the Alert database adapter is not connected.
  */
 export const ALERT_DATABASE_SCHEMA_VERSION = 1;
 export const ALERT_DATABASE_ENVIRONMENT_VARIABLES = [
-  "DENGUEYOSOKU_ALERT_DATABASE_URL",
-  "DENGUEYOSOKU_ALERT_DATABASE_BACKEND_SECRET",
+  "SUPABASE_URL",
+  "SUPABASE_ANON_KEY",
 ] as const;
 
 export interface AlertEvaluationPersistenceInput {
@@ -77,15 +77,15 @@ export interface AlertEventRepository {
 }
 
 /**
- * Configuration is considered complete only when both server-side secrets are
- * present. This checks presence, not connectivity, database permissions, or
- * authentication correctness. It must only be evaluated on the server.
+ * Supabase project configuration is considered present only when its URL and
+ * anon key exist. This does not establish database connectivity, RLS behavior,
+ * or authorization correctness. It must only be evaluated on the server.
  */
 export function hasAlertDatabaseConfiguration(
   environment: Record<string, string | undefined>,
 ): boolean {
   return Boolean(
-    environment.DENGUEYOSOKU_ALERT_DATABASE_URL?.trim() &&
-    environment.DENGUEYOSOKU_ALERT_DATABASE_BACKEND_SECRET?.trim(),
+    environment.SUPABASE_URL?.trim() &&
+    environment.SUPABASE_ANON_KEY?.trim(),
   );
 }
