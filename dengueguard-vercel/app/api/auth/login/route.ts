@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthCookieOptions, getSupabaseServerConfig } from "@/lib/supabase/config";
+import { getAuthCookieOptions, getSupabaseServerConfig, isSameOriginRequest } from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!isSameOriginRequest(request.headers)) {
+    return NextResponse.json({ error: "คำขอไม่ผ่านการตรวจสอบแหล่งที่มา" }, { status: 403 });
+  }
   const config = getSupabaseServerConfig();
   if (!config) {
     return NextResponse.json(
@@ -47,7 +50,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = NextResponse.json({ ok: true });
+    const result = NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
     const cookieOptions = getAuthCookieOptions();
     result.cookies.set("dy-supabase-access", payload.access_token, {
       ...cookieOptions,
