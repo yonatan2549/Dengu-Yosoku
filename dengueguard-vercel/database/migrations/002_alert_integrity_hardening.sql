@@ -31,6 +31,10 @@ DECLARE
   target_profile_id uuid;
   target_profile_status text;
 BEGIN
+  IF TG_OP = 'UPDATE' AND NEW.profile_id IS DISTINCT FROM OLD.profile_id THEN
+    RAISE EXCEPTION 'Moving a threshold between rule profiles is not allowed';
+  END IF;
+
   IF TG_OP = 'DELETE' THEN
     target_profile_id := OLD.profile_id;
   ELSE
