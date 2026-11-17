@@ -193,7 +193,9 @@ function approvedCandidates(model = createModel(), profile = createApprovedProfi
 
 test("event identity remains stable when severity or rule version changes", () => {
   const firstProfile = createApprovedProfile();
-  const firstCandidates = approvedCandidates(createModel(), firstProfile);
+  const firstModel = createModel();
+  firstModel.forecast[0].prediction = 5;
+  const firstCandidates = approvedCandidates(firstModel, firstProfile);
   const watch = firstCandidates.find((event) => event.province === provinceNames[0]);
   assert.ok(watch);
   assert.equal(watch.level, "WATCH");
@@ -211,6 +213,7 @@ test("event identity remains stable when severity or rule version changes", () =
 
 test("lifecycle creates one stable event and records a severity escalation", () => {
   const model = createModel();
+  model.forecast[0].prediction = 5;
   const profile = createApprovedProfile();
   const candidates = approvedCandidates(model, profile);
   const created = reconcileAlertLifecycle(
@@ -281,23 +284,40 @@ test("reviewer must acknowledge and provide a reason before resolving an event",
   assert.equal(resolved.find((event) => event.eventId === targetId)?.status, "resolved");
 });
 
-test("a matching candidate reopens a resolved event and retains its history", () => {
+test("an unchanged replay keeps a resolved event closed; a changed snapshot reopens it", () => {
   const model = createModel();
   const candidates = approvedCandidates(model);
   const created = reconcileAlertLifecycle([], candidates, model.model_revision, new Date("2026-11-17T03:00:00.000Z"));
   const targetId = created[0].eventId;
-  const resolved = transitionAlertLifecycleEvent(
+  const acknowledged = transitionAlertLifecycleEvent(
     created,
+    targetId,
+    "acknowledge",
+    "ผู้ทบทวนรับทราบ",
+    new Date("2026-11-17T03:05:00.000Z"),
+  );
+  const resolved = transitionAlertLifecycleEvent(
+    acknowledged,
     targetId,
     "resolve",
     "สิ้นสุดการตรวจสอบจำลอง",
     new Date("2026-11-17T03:10:00.000Z"),
   );
-  const reopened = reconcileAlertLifecycle(
+  const unchangedReplay = reconcileAlertLifecycle(
     resolved,
     candidates,
     model.model_revision,
     new Date("2026-11-17T03:20:00.000Z"),
+  );
+  assert.equal(unchangedReplay.find((item) => item.eventId === targetId)?.status, "resolved");
+
+  const updatedModel = createModel();
+  updatedModel.forecast[0].prediction = 13;
+  const reopened = reconcileAlertLifecycle(
+    unchangedReplay,
+    approvedCandidates(updatedModel),
+    "b".repeat(40),
+    new Date("2026-11-17T03:30:00.000Z"),
   );
   const event = reopened.find((item) => item.eventId === targetId);
   assert.ok(event);
