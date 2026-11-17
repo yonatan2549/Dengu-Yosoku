@@ -56,7 +56,7 @@ export default function LoginPage() {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@example.com"
-              className="form-input"
+              className="dy-auth-input"
             />
           </label>
           <label style={{ display: "grid", gap: 6 }}>
@@ -72,7 +72,7 @@ export default function LoginPage() {
             />
           </label>
           {error && <div className="inline-callout warning" role="alert">{error}</div>}
-          <button type="submit" className="primary-button" disabled={loading}>
+          <button type="submit" className="dy-auth-submit" disabled={loading}>
             <LockKeyhole size={17} /> {loading ? "กำลังตรวจสอบ..." : "เข้าสู่ระบบ"}
           </button>
         </form>
