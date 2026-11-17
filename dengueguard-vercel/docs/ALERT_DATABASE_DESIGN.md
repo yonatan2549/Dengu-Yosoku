@@ -1,15 +1,14 @@
 # Alert Center database design
 
-Status: schema and repository contract prepared; central persistence is **not connected**.
+Status: Supabase Auth scaffold and PostgreSQL schema are prepared; project credentials and central Alert persistence are **not connected**.
 
 ## Why this stage is separate
 
-The current Alert Center is browser-local. There is no login/identity provider,
-database client, database environment configuration, or server-side event API
-in this repository. Do not expose a service credential in client code or create
-a public write endpoint. The SQL migrations enable row-level security and
-deliberately create no client policies, so access remains denied until a
-reviewer identity and server-side authorization policy are in place.
+The current Alert Center is browser-local. Supabase Auth sign-in and role-based
+read policies are scaffolded, but the Supabase project has not yet been
+configured and the server-side Alert event repository/API is not implemented.
+Do not expose a service credential in client code or create a public write
+endpoint. Alert tables have no browser-facing write policies.
 
 ## PostgreSQL schema
 
@@ -44,29 +43,28 @@ evaluation run, reconciling candidates, listing/filtering events, recording
 reviewer transitions, and checking database readiness. It is an interface only;
 there is no active adapter or API route in this stage.
 
-The backend configuration names are reserved:
-
-- `DENGUEYOSOKU_ALERT_DATABASE_URL`
-- `DENGUEYOSOKU_ALERT_DATABASE_BACKEND_SECRET`
-
-Both must remain server-only. The presence helper does not establish that a
-connection works or that the role has the correct grants.
+The application uses `SUPABASE_URL` and `SUPABASE_ANON_KEY` in server-side
+route handlers. These values must be configured in local and Vercel environments.
+The anon key is not a privileged secret; the service-role key must never be
+placed in browser code. This stage does not use a service-role key. The presence
+of configuration does not establish that database policies or role permissions
+are correct.
 
 ## Required decisions before connecting a live database
 
-1. Select the managed PostgreSQL provider and deployment project.
-2. Select the authentication provider and decide how a user becomes a reviewer
-   or administrator.
-3. Define who may create/edit/approve Rule Profiles and who may acknowledge or
+1. Create the Supabase project and configure its URL/anon key locally and in Vercel.
+2. Apply all three migrations in a staging project and test anonymous, viewer,
+   reviewer, and administrator access.
+3. Create accounts through the Supabase Dashboard; the application has no public
+   sign-up flow. New accounts default to `viewer`.
+4. Promote the first trusted administrator through the Supabase SQL Editor using
+   the documented bootstrap statement; then manage roles deliberately.
+5. Define who may create/edit/approve Rule Profiles and who may acknowledge or
    resolve an event.
-4. Apply both migrations in a staging database, verify RLS using anonymous,
-   authenticated, reviewer, and service roles, and test backup/retention.
-5. Implement a server-only adapter. Every write must derive actor identity from
-   a verified session; never trust a client-supplied actor ID.
-6. Add integration tests for transaction rollback, idempotent run fingerprints,
-   event deduplication, transition permissions, and immutable transition history.
-7. Only then enable centralized reads/writes in the Alert Center. Browser-local
-   records should remain exportable during the migration period.
+6. Implement a server-side repository using verified sessions and transactional
+   RPCs. Never trust a client-supplied actor ID.
+7. Add integration tests for rollback, idempotency, deduplication, permissions,
+   and immutable transition history before enabling central Alert persistence.
 
 ## Current behavior
 
