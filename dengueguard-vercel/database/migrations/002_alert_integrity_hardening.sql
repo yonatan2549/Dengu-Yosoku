@@ -12,7 +12,10 @@ BEGIN
   IF OLD.status = 'approved' THEN
     RAISE EXCEPTION 'Approved alert rule profiles are immutable';
   END IF;
-  RETURN OLD;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
