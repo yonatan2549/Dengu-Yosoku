@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthCookieOptions, getSupabaseServerConfig } from "@/lib/supabase/config";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function clearSession(response: NextResponse) {
   response.cookies.set("dy-supabase-access", "", { ...getAuthCookieOptions(), maxAge: 0 });
@@ -12,13 +13,13 @@ function clearSession(response: NextResponse) {
 export async function GET(request: NextRequest) {
   const config = getSupabaseServerConfig();
   if (!config) {
-    return NextResponse.json({ configured: false, authenticated: false, role: null });
+    return NextResponse.json({ configured: false, authenticated: false, role: null }, { headers: { "Cache-Control": "no-store" } });
   }
 
   let accessToken = request.cookies.get("dy-supabase-access")?.value;
   const refreshToken = request.cookies.get("dy-supabase-refresh")?.value;
   if (!accessToken && !refreshToken) {
-    return NextResponse.json({ configured: true, authenticated: false, role: null });
+    return NextResponse.json({ configured: true, authenticated: false, role: null }, { headers: { "Cache-Control": "no-store" } });
   }
 
   try {
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
       user: { id: user.id, email: user.email },
       role: profile?.role ?? "viewer",
       displayName: profile?.display_name ?? null,
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
 
     if (refreshed?.access_token && refreshed.refresh_token) {
       const options = getAuthCookieOptions();
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json(
       { configured: true, authenticated: false, role: null, error: "ตรวจสอบเซสชันไม่สำเร็จ" },
-      { status: 502 },
+      { status: 502, headers: { "Cache-Control": "no-store" } },
     );
   }
 }
