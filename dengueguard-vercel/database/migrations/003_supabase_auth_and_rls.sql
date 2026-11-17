@@ -72,18 +72,9 @@ CREATE POLICY user_profiles_read_self_or_admin
     OR public.current_dengueyosoku_role() = 'administrator'
   );
 
-DROP POLICY IF EXISTS user_profiles_admin_update
-  ON public.user_profiles;
-CREATE POLICY user_profiles_admin_update
-  ON public.user_profiles
-  FOR UPDATE
-  TO authenticated
-  USING (public.current_dengueyosoku_role() = 'administrator')
-  WITH CHECK (public.current_dengueyosoku_role() = 'administrator');
-
+-- Profile roles are changed only by a trusted project owner through
+-- the Supabase Dashboard/SQL Editor in this rollout. No client UPDATE grant.
 GRANT SELECT ON public.user_profiles TO authenticated;
-GRANT UPDATE (role, display_name, updated_at)
-  ON public.user_profiles TO authenticated;
 GRANT EXECUTE ON FUNCTION public.current_dengueyosoku_role()
   TO authenticated;
 
