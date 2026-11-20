@@ -1,14 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Info, MapPinned, SlidersHorizontal } from "lucide-react";
 import {
   CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
 import ModelDashboard from "@/components/ModelDashboard";
+import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { MapLoader } from "@/components/MapLoader";
-import { ALL_PROVINCES, formatCases, formatNumber, getCurrentRows, getUniqueYears, getWeeksForYear } from "@/lib/utils";
+import { ALL_PROVINCES, formatCases, formatNumber, getCurrentEpiWeekStart, getCurrentRows, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 import type { ForecastRow } from "@/lib/types";
 
 function sumPresent(rows: ForecastRow[], key: "target" | "pred" | "cases_roll4") {
@@ -168,6 +169,39 @@ function LegacyDashboardPage() {
 
 export default function DashboardPage() {
   const { data } = useDengueData();
-  if (data?.modelPredictions) return <ModelDashboard />;
-  return <LegacyDashboardPage />;
+  const [view, setView] = useState<"legacy" | "model">("legacy");
+  const modelWeek = data?.modelPredictions?.coverage.forecast_week ?? null;
+
+  useEffect(() => {
+    setView(modelWeek && modelWeek === getCurrentEpiWeekStart() ? "model" : "legacy");
+  }, [modelWeek]);
+
+  if (!data) return null;
+  const hasModel = Boolean(data.modelPredictions);
+
+  return (
+    <div className="page-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>เลือกระบบ Dashboard</h2>
+            <p>เลือกดูระบบเดิมของ สคร.4 หรือผลโมเดลใหม่ทั่วประเทศ โดยไม่ลบหรือเขียนทับข้อมูลทั้งสองชุด</p>
+          </div>
+        </div>
+        <div className="table-pagination-actions">
+          <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setView("legacy")} aria-pressed={view === "legacy"}>
+            ระบบเดิม · สคร.4 (8 จังหวัด)
+          </button>
+          <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setView("model")} disabled={!hasModel} aria-pressed={view === "model"}>
+            โมเดลใหม่ · 77 จังหวัด
+          </button>
+        </div>
+        {hasModel && modelWeek !== getCurrentEpiWeekStart() && (
+          <p className="panel-note">Snapshot ของโมเดลไม่ใช่สัปดาห์ระบาดวิทยาปัจจุบัน จึงเปิดระบบเดิมเป็นค่าเริ่มต้น หากเลือกโมเดลใหม่จะเห็นคำเตือนข้อมูลย้อนหลังในหน้าโมเดล</p>
+        )}
+        {!hasModel && <p className="panel-note">ยังไม่มี Model Snapshot ที่ผ่านการตรวจสอบ จึงแสดงระบบเดิมเป็นหลัก</p>}
+      </section>
+      {view === "model" && hasModel ? <ModelDashboard /> : <LegacyDashboardPage />}
+    </div>
+  );
 }

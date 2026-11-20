@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate website and model adapter
+    name: Validate website, application regression and model adapter
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -63,5 +63,72 @@ jobs:
       - name: Alert workflow and model gate regression tests
         run: npm run test:alert-workflows
 
+      - name: Assessment engine tests
+        run: npm run test:assessment
+
+
+
+
+
+      - name: Model validation tests
+        run: npm run test:model-validation
+
+
+      - name: Alert freshness tests
+        run: npm run test:alert-freshness
+
+      - name: Model server loader tests
+        run: npm run test:model-loader
+
+      - name: Model performance tests
+        run: npm run test:model-performance
+
+      - name: Model operations tests
+        run: npm run test:model-operations
+
+      - name: Health knowledge tests
+        run: npm run test:health-knowledge
+
+      - name: Model release integrity tests
+        run: npm run test:model-release-integrity
+
+      - name: Health Assistant evidence tests
+        run: npm run test:health-evidence
+
+      - name: Health Assistant chat tests
+        run: npm run test:health-assistant-chat
+
+      - name: Model temporal monitor tests
+        run: npm run test:model-temporal-monitor
+
+      - name: Health knowledge governance tests
+        run: npm run test:health-knowledge-governance
+
+      - name: Model refresh observability tests
+        run: npm run test:model-refresh-observability
+
+      - name: Model snapshot consistency tests
+        run: npm run test:model-snapshot-consistency
+
+      - name: Model consumer readiness tests
+        run: npm run test:model-consumer-readiness
+
+      - name: Health Assistant source policy tests
+        run: npm run test:health-assistant-source-policy
+
+      - name: Health knowledge RAG tests
+        run: npm run test:health-knowledge-rag
+
+
+      - name: Python model artifact and release regression tests
+        run: |
+          npm run test:model-artifact-pipeline
+          npm run test:model-source-probe
+          npm run test:model-release-guard
+          npm run test:model-release-inspection
+          python -m unittest scripts.test_classic_function_parity -v
+
+      - name: Model release source guard
+        run: npm run check:model-release-guard
       - name: Production build
         run: npm run build

@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
+import { ModelPerformanceDiagnostics } from "@/components/ModelPerformanceDiagnostics";
 import { getCurrentEpiWeekStart, getEpiWeekLagWeeks } from "@/lib/utils";
 import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow } from "@/lib/types";
@@ -493,6 +494,8 @@ export default function ModelDashboard() {
           </a>
         </article>
       </section>
+
+      <ModelPerformanceDiagnostics model={model} metrics={data?.modelMetrics ?? null} />
 
       <p className="disclaimer-line">
         <Info size={15} />
