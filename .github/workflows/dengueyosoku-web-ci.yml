@@ -57,5 +57,8 @@ jobs:
       - name: Alert dry-run engine tests
         run: npm run test:alerts
 
+      - name: Alert lifecycle contract tests
+        run: npm run test:alert-lifecycle
+
       - name: Production build
         run: npm run build
