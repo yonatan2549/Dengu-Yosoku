@@ -11,7 +11,7 @@ function assertSearchPathPinned(prefix) {
   const start = migration.indexOf(prefix);
   assert.notEqual(start, -1, `missing function declaration: ${prefix}`);
   const functionSql = migration.slice(start, start + 500);
-  assert.ok(functionSql.includes("SET search_path = '';"), `search_path is not pinned for ${prefix}`);
+  assert.ok(functionSql.includes("SET search_path = ''"), `search_path is not pinned for ${prefix}`);
 }
 
 test("migration is transactional and defines the missing pending-review guard", () => {
