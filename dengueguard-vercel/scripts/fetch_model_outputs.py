@@ -21,8 +21,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 try:
+    from .check_model_source import probe_model_source
     from .model_artifact_transaction import publish_file_bundle
 except ImportError:  # direct execution: python scripts/fetch_model_outputs.py
+    from check_model_source import probe_model_source
     from model_artifact_transaction import publish_file_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,15 +55,31 @@ def download(url: str) -> bytes:
 
 def main() -> int:
     try:
-        api_url = f"https://api.github.com/repos/{REPOSITORY}/commits/{REF}"
-        commit_payload = json.loads(download(api_url).decode("utf-8"))
-        commit_sha = commit_payload.get("sha")
+        if not isinstance(REF, str) or not REF.strip():
+            raise RuntimeError("DENGUYOSOKU_MODEL_REF must be a non-empty Git reference")
+
+        # Resolve and HEAD-check every required artifact before downloading any
+        # payload. This prevents a partial/needless download (especially the
+        # historical holdout actuals) when the forecast artifact is missing.
+        source_report = probe_model_source(ref=REF)
+        if source_report.get("status") != "available":
+            missing = [
+                item.get("source_path", "unknown path")
+                for item in source_report.get("artifacts", [])
+                if item.get("status") != "available"
+            ]
+            details = ", ".join(missing) or source_report.get("message", "source preflight failed")
+            raise RuntimeError(
+                f"Model source preflight {source_report.get('status', 'failed')}: {details}. "
+                "No artifact contents were downloaded and no destination files were changed."
+            )
+
+        commit_sha = source_report.get("commit_sha")
         if not isinstance(commit_sha, str) or len(commit_sha) != 40 or any(
             character not in "0123456789abcdefABCDEF" for character in commit_sha
         ):
-            raise RuntimeError("GitHub did not return a valid 40-character hexadecimal commit SHA")
-        if not isinstance(REF, str) or not REF.strip():
-            raise RuntimeError("DENGUYOSOKU_MODEL_REF must be a non-empty Git reference")
+            raise RuntimeError("Source preflight did not return a valid pinned commit SHA")
+        commit_sha = commit_sha.lower()
 
         pending: dict[str, bytes] = {}
         manifest_artifacts: dict[str, dict[str, object]] = {}
