@@ -6,17 +6,20 @@ import type {
   ModelMetricsPayload,
   ModelPredictionsPayload,
 } from "@/lib/types";
+import type { ModelArtifactFingerprints } from "@/lib/model/snapshot-consistency";
 
 interface DataContextValue {
   data: DengueData | null;
   loading: boolean;
   error: string | null;
   modelWarning: string | null;
+  modelArtifactFingerprints: ModelArtifactFingerprints;
 }
 
 interface OptionalJsonResult<T> {
   data: T | null;
   warning: string | null;
+  fingerprint: { available: boolean; sha256: string | null };
 }
 
 const DataContext = createContext<DataContextValue>({
@@ -24,6 +27,10 @@ const DataContext = createContext<DataContextValue>({
   loading: true,
   error: null,
   modelWarning: null,
+  modelArtifactFingerprints: {
+    predictions: { available: false, sha256: null },
+    metrics: { available: false, sha256: null },
+  },
 });
 
 async function readJson<T>(path: string): Promise<T> {
@@ -34,23 +41,42 @@ async function readJson<T>(path: string): Promise<T> {
 
 // Model exports are optional: a missing or invalid model file must not block
 // the legacy website systems from loading.
+async function sha256Text(value: string): Promise<string | null> {
+  try {
+    if (typeof globalThis.crypto === "undefined" || !globalThis.crypto.subtle) return null;
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return null;
+  }
+}
+
 async function readOptionalJson<T>(path: string): Promise<OptionalJsonResult<T>> {
   try {
     const response = await fetch(path, { cache: "no-store" });
-    if (response.status === 404) return { data: null, warning: null };
+    if (response.status === 404) return { data: null, warning: null, fingerprint: { available: false, sha256: null } };
     if (!response.ok) {
       return {
         data: null,
         warning: `โหลดไฟล์โมเดล ${path} ไม่สำเร็จ (HTTP ${response.status})`,
+        fingerprint: { available: false, sha256: null },
       };
     }
-    return { data: await response.json() as T, warning: null };
+    const text = await response.text();
+    const data = JSON.parse(text) as T;
+    const sha256 = await sha256Text(text);
+    return {
+      data,
+      warning: sha256 ? null : `ไม่สามารถคำนวณ SHA-256 ของ ${path} ในเบราว์เซอร์ได้`,
+      fingerprint: { available: true, sha256 },
+    };
   } catch (cause) {
     return {
       data: null,
       warning: cause instanceof Error
         ? `อ่านไฟล์โมเดล ${path} ไม่สำเร็จ: ${cause.message}`
         : `อ่านไฟล์โมเดล ${path} ไม่สำเร็จ`,
+      fingerprint: { available: false, sha256: null },
     };
   }
 }
@@ -252,6 +278,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modelWarning, setModelWarning] = useState<string | null>(null);
+  const [modelArtifactFingerprints, setModelArtifactFingerprints] = useState<ModelArtifactFingerprints>({
+    predictions: { available: false, sha256: null },
+    metrics: { available: false, sha256: null },
+  });
 
   useEffect(() => {
     let active = true;
@@ -288,6 +318,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         modelPredictionsResult.data,
         modelMetricsResult.data,
       );
+      setModelArtifactFingerprints({
+        predictions: modelPredictionsResult.fingerprint,
+        metrics: modelMetricsResult.fingerprint,
+      });
       const warnings = [
         modelPredictionsResult.warning,
         modelMetricsResult.warning,
@@ -319,8 +353,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ data, loading, error, modelWarning }),
-    [data, loading, error, modelWarning],
+    () => ({ data, loading, error, modelWarning, modelArtifactFingerprints }),
+    [data, loading, error, modelWarning, modelArtifactFingerprints],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
