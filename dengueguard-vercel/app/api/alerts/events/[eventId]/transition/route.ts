@@ -56,7 +56,7 @@ export async function POST(
     if (!response.ok) {
       const code = databaseCode(payload);
       if (code === "PGRST202" || code === "42883") {
-        return noStore(503, { error: "ยังไม่ได้ติดตั้ง Migration 007 สำหรับ Event Lifecycle", migrationRequired: true });
+        return noStore(503, { error: "ยังไม่ได้ติดตั้ง Migration 004 สำหรับ Event Lifecycle", migrationRequired: true });
       }
       if (code === "42501") return noStore(403, { error: "ฐานข้อมูลปฏิเสธสิทธิ์ Reviewer/Admin สำหรับเปลี่ยนสถานะ" });
       if (code === "P0002") return noStore(404, { error: "ไม่พบเหตุการณ์ที่ต้องการเปลี่ยนสถานะ" });
