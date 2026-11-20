@@ -63,6 +63,9 @@ jobs:
       - name: Alert workflow and model gate regression tests
         run: npm run test:alert-workflows
 
+      - name: Alert migration hardening contract tests
+        run: npm run test:alert-migration-hardening
+
       - name: Assessment engine tests
         run: npm run test:assessment
 
