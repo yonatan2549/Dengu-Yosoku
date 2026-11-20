@@ -344,9 +344,10 @@ class ModelArtifactFetchPreflightTests(unittest.TestCase):
             ],
         }
         error = io.StringIO()
-        with patch.object(fetcher, "probe_model_source", return_value=report), \\
-             patch.object(fetcher, "download") as download, \\
-             patch.object(fetcher, "publish_file_bundle") as publish:
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(fetcher, "probe_model_source", return_value=report))
+            download = stack.enter_context(patch.object(fetcher, "download"))
+            publish = stack.enter_context(patch.object(fetcher, "publish_file_bundle"))
             with contextlib.redirect_stderr(error):
                 result = fetcher.main()
 
@@ -380,9 +381,10 @@ class ModelArtifactFetchPreflightTests(unittest.TestCase):
 
         output = io.StringIO()
         error = io.StringIO()
-        with patch.object(fetcher, "probe_model_source", return_value=report), \\
-             patch.object(fetcher, "download", side_effect=fake_download), \\
-             patch.object(fetcher, "publish_file_bundle", side_effect=fake_publish):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(fetcher, "probe_model_source", return_value=report))
+            stack.enter_context(patch.object(fetcher, "download", side_effect=fake_download))
+            stack.enter_context(patch.object(fetcher, "publish_file_bundle", side_effect=fake_publish))
             with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
                 result = fetcher.main()
 
