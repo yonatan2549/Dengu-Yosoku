@@ -47,7 +47,7 @@ export function assessAlertWorkflowReadiness(
   }
 
   const migration005 = migrationStatus(rawMigrations.migration005);
-  const migration006 = migrationStatus(vawMigrations.migration006);
+  const migration006 = migrationStatus(rawMigrations.migration006);
   const role = typeof payload.role === "string" ? payload.role : null;
   const bothReady = migration005 === "ready" && migration006 === "ready";
   const anyMissing = migration005 === "missing" || migration006 === "missing";
