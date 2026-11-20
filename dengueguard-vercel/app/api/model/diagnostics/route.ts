@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getCurrentEpiWeekStart } from "@/lib/utils";
 import { loadPublicModelArtifacts } from "@/lib/model/server-loader";
 import { validateModelExports } from "@/lib/model/validation";
@@ -6,9 +6,9 @@ import { validateModelExports } from "@/lib/model/validation";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const artifacts = await loadPublicModelArtifacts(request.nextUrl.origin);
+    const artifacts = await loadPublicModelArtifacts();
     const report = validateModelExports(artifacts.predictions, artifacts.metrics, getCurrentEpiWeekStart());
     return NextResponse.json({
       ok: true,
