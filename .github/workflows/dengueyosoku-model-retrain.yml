@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dengueyosoku-model-retrain-\${{ github.ref }}
+  group: dengueyosoku-model-retrain-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -75,12 +75,12 @@ jobs:
       - name: Download the two source CSV snapshots to runner temp only
         shell: bash
         env:
-          SOURCE_SHA: \${{ steps.source.outputs.sha }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          data_dir="\${RUNNER_TEMP}/dengue-source"
+          data_dir="${RUNNER_TEMP}/dengue-source"
           mkdir -p "$data_dir"
-          base="https://raw.githubusercontent.com/johnlovepizza/DenguYosoku/\${SOURCE_SHA}"
+          base="https://raw.githubusercontent.com/johnlovepizza/DenguYosoku/${SOURCE_SHA}"
           curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
             "$base/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
             --output "$data_dir/dengue_cut_allweeks_2003-18_Oct_2026.csv"
@@ -93,22 +93,22 @@ jobs:
       - name: Audit training cut against full source and target week
         working-directory: dengueguard-vercel
         env:
-          SOURCE_SHA: \${{ steps.source.outputs.sha }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           mkdir -p artifacts
           python scripts/national_model_pipeline.py audit \
-            --train-csv "\${RUNNER_TEMP}/dengue-source/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
-            --full-csv "\${RUNNER_TEMP}/dengue-source/dengue_full.csv" \
+            --train-csv "${RUNNER_TEMP}/dengue-source/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
+            --full-csv "${RUNNER_TEMP}/dengue-source/dengue_full.csv" \
             --output artifacts/source-pair-audit.json
 
       - name: Train, cross-validate and evaluate the 77-province model
         working-directory: dengueguard-vercel
         env:
-          SOURCE_SHA: \${{ steps.source.outputs.sha }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           python scripts/national_model_pipeline.py train \
-            --train-csv "\${RUNNER_TEMP}/dengue-source/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
-            --full-csv "\${RUNNER_TEMP}/dengue-source/dengue_full.csv" \
+            --train-csv "${RUNNER_TEMP}/dengue-source/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
+            --full-csv "${RUNNER_TEMP}/dengue-source/dengue_full.csv" \
             --source-commit "$SOURCE_SHA" \
             --source-ref main \
             --source-description "TanRabad (ทันระบาด) / Department of Disease Control dengue surveillance data; source and repository-use permission confirmed by project maintainer; raw source files are not republished by this workflow" \
@@ -123,7 +123,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: dengueyosoku-77-province-model-development-\${{ github.run_id }}
+          name: dengueyosoku-77-province-model-development-${{ github.run_id }}
           path: |
             dengueguard-vercel/artifacts/source-pair-audit.json
             dengueguard-vercel/artifacts/national-model/data_audit.json
