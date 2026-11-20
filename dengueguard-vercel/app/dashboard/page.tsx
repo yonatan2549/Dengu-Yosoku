@@ -83,7 +83,7 @@ function LegacyDashboardPage() {
         </button>
       </div>
 
-<Info size={17} /><span>ชุดข้อมูลที่แนบเป็นข้อมูลย้อนหลัง ครอบคลุมถึงสัปดาห์ {new Date(`${latestWeek}T00:00:00`).toLocaleDateString("th-TH")} ({latestYear}) ตัวเลขนี้ยังไม่ใช่การพยากรณ์สถานการณ์ปัจจุบัน</span></div>
+<div className="historical-notice">\n        <Info size={17} /><span>ชุดข้อมูลที่แนบเป็นข้อมูลย้อนหลัง ครอบคลุมถึงสัปดาห์ {new Date(`${latestWeek}T00:00:00`).toLocaleDateString("th-TH")} ({latestYear}) ตัวเลขนี้ยังไม่ใช่การพยากรณ์สถานการณ์ปัจจุบัน</span></div>
       {activeYear < data.meta.test_year && <div className="inline-callout warning"><Info size={16} /><span>ปี {activeYear} เป็นข้อมูลที่โมเดลใช้เรียน ผลอาจดูแม่นยำเกินจริง ควรใช้ปีทดสอบ {data.meta.test_year} สำหรับการประเมินโมเดล</span></div>}
 
       <section className="filter-panel">
