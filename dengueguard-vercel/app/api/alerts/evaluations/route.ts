@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 
   // Server artifacts are authoritative; browser data is used only for consistency detection.
   let artifacts;
-  try { artifacts = await loadPublicModelArtifacts(request.nextUrl.origin); }
+  try { artifacts = await loadPublicModelArtifacts(); }
   catch (error) {
     return NextResponse.json({
       error: error instanceof Error ? error.message : "อ่านไฟล์ Model Snapshot จาก Server ไม่สำเร็จ",
