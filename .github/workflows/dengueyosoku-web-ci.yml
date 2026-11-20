@@ -60,5 +60,8 @@ jobs:
       - name: Alert lifecycle contract tests
         run: npm run test:alert-lifecycle
 
+      - name: Alert workflow and model gate regression tests
+        run: npm run test:alert-workflows
+
       - name: Production build
         run: npm run build
