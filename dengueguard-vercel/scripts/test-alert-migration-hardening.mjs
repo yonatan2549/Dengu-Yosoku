@@ -15,7 +15,7 @@ function assertSearchPathPinned(prefix) {
 }
 
 test("migration is transactional and defines the missing pending-review guard", () => {
-  assert.ok(migration.startsWith("BEGIN;"));
+  assert.ok(migration.includes("\\nBEGIN;\\n"));
   assert.ok(migration.trimEnd().endsWith("COMMIT;"));
   assert.ok(migration.includes("CREATE OR REPLACE FUNCTION public.prevent_pending_alert_rule_draft_mutation()"));
   assert.ok(migration.includes("REVOKE ALL ON FUNCTION public.prevent_pending_alert_rule_draft_mutation()"));
