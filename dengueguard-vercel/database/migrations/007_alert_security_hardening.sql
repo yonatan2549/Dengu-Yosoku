@@ -131,6 +131,17 @@ REVOKE ALL ON FUNCTION public.current_dengueyosoku_role()
 GRANT EXECUTE ON FUNCTION public.current_dengueyosoku_role()
   TO authenticated;
 
+-- The four privileged RPCs already schema-qualify every application
+-- relation and auth.uid(); remove public/auth from their search path entirely.
+ALTER FUNCTION public.dengueyosoku_record_alert_evaluation(jsonb, jsonb)
+  SET search_path = '';
+ALTER FUNCTION public.dengueyosoku_transition_alert_event(uuid, text, text)
+  SET search_path = '';
+ALTER FUNCTION public.dengueyosoku_save_alert_rule_draft(text, text, text, jsonb, text, boolean)
+  SET search_path = '';
+ALTER FUNCTION public.dengueyosoku_review_alert_rule_request(uuid, text, text, text, date)
+  SET search_path = '';
+
 -- Wrap stable identity/role lookups in scalar subqueries so Postgres can use
 -- init plans rather than invoking the function for every row.
 DO $migration$
