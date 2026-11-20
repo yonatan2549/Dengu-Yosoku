@@ -1,12 +1,9 @@
 "use client";
 
 import { BellRing, Info, ShieldCheck } from "lucide-react";
-import { AlertEventLifecyclePanel } from "@/components/AlertEventLifecyclePanel";
+import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
 import { useDengueData } from "@/components/DataProvider";
 import { ALERT_RULE_PROFILE } from "@/lib/alerting/profile";
-import type { AlertCandidateEvent } from "@/lib/alerting/types";
-
-const EMPTY_CANDIDATES: AlertCandidateEvent[] = [];
 
 export default function AlertCenterPage() {
   const { data, loading, error } = useDengueData();
@@ -52,13 +49,7 @@ export default function AlertCenterPage() {
         </article>
       </section>
 
-      <section className="panel alert-performance-panel">
-        <div className="panel-heading">
-          <div><h2>การจัดการและติดตามเหตุการณ์</h2><p>ค้นหาและกรองตามจังหวัด ระดับสัญญาณ และสถานะของเหตุการณ์</p></div>
-          <BellRing size={20} />
-        </div>
-        <AlertEventLifecyclePanel candidates={EMPTY_CANDIDATES} modelRevision={null} />
-      </section>
+      <AlertDryRunPanel model={model} />
 
       <p className="disclaimer-line"><Info size={15} /> ประวัติเหตุการณ์เก็บเฉพาะในเบราว์เซอร์นี้ ไม่ใช่ฐานข้อมูลกลางหรือหลักฐานยืนยันสถานการณ์ระบาด การปิดเหตุการณ์ต้องผ่านการรับทราบและมีเหตุผลประกอบ และระบบจะไม่ปิดเหตุการณ์อัตโนมัติ</p>
     </div>
