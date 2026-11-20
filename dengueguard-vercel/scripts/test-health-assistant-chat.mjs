@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { validateChatRequest, buildGroundedMessages, validateCitedAnswer, shouldAbstainForHistory, containsPersonalLabValue } from "../.next/health-assistant-chat-tests/lib/health-assistant/chat-contract.js";
 import { readChatProviderConfig, requestChatCompletion } from "../.next/health-assistant-chat-tests/lib/health-assistant/chat-provider.js";
 import { buildHealthEvidencePackage, classifyHealthQuery } from "../.next/health-assistant-chat-tests/lib/health-assistant/evidence.js";
 
 const evidence = buildHealthEvidencePackage("NS1 IgM และ IgG ต่างกันอย่างไร");
+const chatRouteSource = await readFile(new URL("../app/api/health-assistant/chat/route.ts", import.meta.url), "utf8");
 
 test("accepts a short general-education chat question", () => {
   const result = validateChatRequest({ query: "ไข้เลือดออกติดต่ออย่างไร?" });
@@ -115,4 +117,12 @@ test("handles provider errors and malformed responses without leaking secrets", 
     async () => new Response(JSON.stringify({ choices: [] }), { status: 200 }),
   );
   assert.equal(malformed.ok, false);
+});
+
+test("keeps Production interactive in evidence-only mode while clinical review is pending", () => {
+  assert.match(chatRouteSource, /mode: "evidence-only"/);
+  assert.match(chatRouteSource, /reviewStatus: "awaiting_clinical_review"/);
+  assert.match(chatRouteSource, /abstained: false/);
+  assert.match(chatRouteSource, /return evidenceOnlyResponse\(/);
+  assert.doesNotMatch(chatRouteSource, /ยังไม่เปิดใช้งาน เอกสารความรู้ยังรอผู้เชี่ยวชาญทบทวน/);
 });

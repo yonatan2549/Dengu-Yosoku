@@ -8,6 +8,7 @@ import {
 import { useDengueData } from "@/components/DataProvider";
 import ModelDashboard from "@/components/ModelDashboard";
 import { ProductHero } from "@/components/ProductHero";
+import { NationalSurveillancePanel } from "@/components/NationalSurveillancePanel";
 import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { MapLoader } from "@/components/MapLoader";
 import { ALL_PROVINCES, formatCases, formatNumber, getCurrentEpiWeekStart, getCurrentRows, getUniqueYears, getWeeksForYear } from "@/lib/utils";
@@ -112,12 +113,12 @@ function LegacyDashboardPage() {
 
       <section className="content-grid map-grid">
         <article className="panel map-panel">
-          <div className="panel-heading"><div><h2>แผนที่ระดับความเสี่ยง</h2><p>แสดงขอบเขตประเทศไทย 77 จังหวัด · มีผลพยากรณ์เฉพาะ 8 จังหวัด สคร.4</p></div><MapPinned size={20} /></div>
+          <div className="panel-heading"><div><h2>ขอบเขต 77 จังหวัดและข้อมูลย้อนหลัง</h2><p>พบข้อมูลพยากรณ์ในชุดเดิม {currentRows.length}/77 จังหวัด · สัปดาห์เป้าหมาย {activeWeek}</p></div><MapPinned size={20} /></div>
           <div className="map-legend">
             <span><i className="legend-dot normal" />ปกติ</span><span><i className="legend-dot watch" />เฝ้าระวัง</span><span><i className="legend-dot high" />เตือนระบาด</span><span><i className="legend-dot none" />ไม่มีข้อมูล</span>
           </div>
           <MapLoader geo={data.thailandGeo} currentRows={currentRows} />
-          <div className="panel-note">จังหวัดสีเทาไม่มีข้อมูลพยากรณ์ในชุดข้อมูลที่เลือก เลื่อนเมาส์เพื่อดูชื่อจังหวัดและค่าพยากรณ์</div>
+          <div className="panel-note">จังหวัดสีเทาไม่มีผลพยากรณ์ในชุดข้อมูลนี้ สีแสดงเกณฑ์จากข้อมูลเดิมของ สคร.4 ตามสัปดาห์ที่เลือกเท่านั้น ไม่ใช่สถานะความเสี่ยงปัจจุบันของ 77 จังหวัด</div>
         </article>
         <article className="panel province-table-panel">
           <div className="panel-heading"><div><h2>รายละเอียดรายจังหวัด</h2><p>เรียงตามจำนวนผู้ป่วยที่คาดการณ์</p></div></div>
@@ -129,7 +130,7 @@ function LegacyDashboardPage() {
       </section>
 
       <section className="panel chart-panel">
-        <div className="panel-heading"><div><h2>แนวโน้มผู้ป่วยรายสัปดาห์ · {activeYear}</h2><p>{selectedProvince === ALL_PROVINCES ? "ภาพรวมรวม 8 จังหวัด" : `จังหวัด${selectedProvince}`} · เปรียบเทียบผู้ป่วยจริง, AI Prediction และ Baseline</p></div></div>
+        <div className="panel-heading"><div><h2>แนวโน้มย้อนหลังรายสัปดาห์ · {activeYear}</h2><p>{selectedProvince === ALL_PROVINCES ? "ภาพรวมชุดข้อมูลเดิม 8 จังหวัด" : `จังหวัด${selectedProvince}`} · เปรียบเทียบผู้ป่วยจริง, AI Prediction และ Baseline ในชุดย้อนหลัง</p></div></div>
         <div className="chart-wrap">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={trendRows} margin={{ top: 12, right: 18, left: 4, bottom: 4 }}>
@@ -201,6 +202,8 @@ export default function DashboardPage() {
           { label: "Model Snapshot 77 จังหวัด", value: hasModel ? "พบไฟล์" : "ยังไม่มี", detail: hasModel ? "ต้องผ่านการตรวจสอบความใหม่ก่อนใช้" : "รอไฟล์เผยแพร่จากเจ้าของโมเดล" },
         ]}
       />
+
+      <NationalSurveillancePanel />
 
       <section className="panel dy-mode-switcher">
         <div className="dy-mode-switcher-copy">

@@ -18,7 +18,7 @@ type EvidencePassage = {
   publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string;
 };
 type ChatTurn = { role: "user" | "assistant"; content: string };
-type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean };
+type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; evidenceOnly?: boolean };
 
 const suggestions = [
   "ไข้เลือดออกติดต่อได้อย่างไร?",
@@ -72,7 +72,8 @@ export function HealthAssistantChatPanel() {
         citations: Array.isArray(payload?.citations) ? payload.citations : [],
         evidencePassages: Array.isArray(payload?.evidencePassages) ? payload.evidencePassages : [],
         disclaimer: typeof payload?.disclaimer === "string" ? payload.disclaimer : undefined,
-        abstained: payload?.abstained === true || payload?.generatedAnswer === false,
+        abstained: payload?.abstained === true,
+        evidenceOnly: payload?.mode === "evidence-only" && payload?.abstained !== true,
       }]);
     } catch {
       setError("ไม่สามารถเชื่อมต่อระบบถามตอบได้ กรุณาลองใหม่อีกครั้ง");
@@ -87,10 +88,10 @@ export function HealthAssistantChatPanel() {
         <div>
           <span className="dg-eyebrow"><MessageCircle size={14} /> GROUNDED CONVERSATIONAL ASSISTANT</span>
           <h2 id="health-assistant-chat-title">ถาม–ตอบความรู้ไข้เลือดออก</h2>
-          <p>ออกแบบให้สนทนาต่อเนื่องโดยยึดเอกสารอ้างอิง และไม่ตอบคำถามวินิจฉัยเฉพาะบุคคล</p>
+          <p>ค้นคืนเอกสารและประเด็นที่เกี่ยวข้อง พร้อมเปิดอ่านต้นฉบับได้ โดยไม่สังเคราะห์คำตอบทางการแพทย์ด้วย AI</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="dg-pill dg-pill-muted">HA-3 · Preview</span>
+          <span className="dg-pill dg-pill-muted">Evidence-only · Production</span>
           <button type="button" className="dg-chip" onClick={startNewConversation} disabled={busy || turns.length === 0} aria-label="เริ่มบทสนทนาใหม่">
             <Trash2 size={14} /> เริ่มบทสนทนาใหม่
           </button>
@@ -99,7 +100,7 @@ export function HealthAssistantChatPanel() {
 
       <div className="dg-note" style={{ marginTop: 14 }}>
         <ShieldAlert size={18} />
-        <div><strong>โหมดทดลองเพื่อการศึกษา</strong><div>คำตอบจาก AI ยังไม่ผ่านการทบทวนทางคลินิก ระบบไม่รับผลตรวจส่วนบุคคล ไม่วินิจฉัย และไม่แนะนำยา หากมีอาการรุนแรงให้ไปโรงพยาบาลโดยไม่รอแชต</div></div>
+        <div><strong>โหมดค้นคืนหลักฐาน</strong><div>ระบบแสดงเอกสารและประเด็นจากคลังความรู้ ยังไม่สร้างคำตอบด้วย AI เพราะแหล่งความรู้รอผู้เชี่ยวชาญทบทวน ระบบไม่รับผลตรวจส่วนบุคคล ไม่วินิจฉัย และไม่แนะนำยา หากมีอาการรุนแรงให้ไปโรงพยาบาลโดยไม่รอแชต</div></div>
       </div>
 
       <div aria-live="polite" style={{ display: "grid", gap: 12, marginTop: 18 }}>
@@ -108,6 +109,7 @@ export function HealthAssistantChatPanel() {
             <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, color: "#17685f", fontWeight: 700 }}>
               {turn.role === "assistant" ? <Bot size={17} /> : <MessageCircle size={17} />}
               {turn.role === "assistant" ? "DengueYosoku Assistant" : "คุณ"}
+              {turn.evidenceOnly && <span className="dg-pill dg-pill-muted">แสดงหลักฐานเท่านั้น</span>}
               {turn.abstained && <span className="dg-pill dg-pill-muted">งดตอบเพื่อความปลอดภัย</span>}
             </div>
             <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{turn.content}</div>
@@ -120,7 +122,7 @@ export function HealthAssistantChatPanel() {
                       <a className="dg-source-link" href={citation.sourceUrl} target="_blank" rel="noopener noreferrer">
                         {citation.marker} {citation.title}
                       </a>
-                      <span className="dg-source-meta"> · {citation.publisher} · {citation.publishedAt} · รอทบทวน</span>
+                      <span className="dg-source-meta"> · {citation.publisher} · {citation.publishedAt} · {citation.reviewStatus === "awaiting_clinical_review" ? "รอผู้เชี่ยวชาญทบทวน" : citation.reviewStatus}</span>
                     </li>
                   ))}
                 </ul>
@@ -175,7 +177,7 @@ export function HealthAssistantChatPanel() {
           <Send size={16} /> ส่ง
         </button>
       </form>
-      <div className="dg-source-meta" style={{ marginTop: 9 }}>บทสนทนาเก็บไว้ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูล เมื่อปิดหรือโหลดหน้าใหม่ ประวัติจะหายไป</div>
+      <div className="dg-source-meta" style={{ marginTop: 9 }}>บทสนทนาเก็บไว้ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูล เมื่อปิดหรือโหลดหน้าใหม่ ประวัติจะหายไป · โหมดนี้ใช้ค้นหลักฐาน ไม่ใช่คำตอบที่สร้างโดย AI</div>
     </section>
   );
 }

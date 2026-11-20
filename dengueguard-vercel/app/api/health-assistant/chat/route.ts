@@ -70,20 +70,40 @@ export async function POST(request: Request) {
       }, { headers: noStore });
     }
 
-    // The current knowledge registry has not completed clinical review.
-    // Draft answer generation is deliberately limited to local development.
-    if (process.env.NODE_ENV === "production" || process.env.HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS !== "true") {
-      return NextResponse.json({
-        error: "ระบบถามตอบด้วย AI ยังไม่เปิดใช้งาน เอกสารความรู้ยังรอผู้เชี่ยวชาญทบทวน",
-        mode: "evidence-only",
-        generatedAnswer: false,
-        citations: evidence.citations,
-      }, { status: 503, headers: noStore });
+    // Clinical review is pending. Keep Production useful as retrieval-only;
+    // do not generate an AI-synthesized medical answer from unreviewed material.
+    const draftAnswersEnabled =
+      process.env.NODE_ENV !== "production" &&
+      process.env.HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS === "true";
+
+    const evidenceOnlyResponse = (reason: string) => NextResponse.json({
+      mode: "evidence-only",
+      generatedAnswer: false,
+      abstained: false,
+      intent: evidence.intent,
+      safetyLevel: "education",
+      safetyMessage: reason,
+      answer: null,
+      citations: evidence.citations,
+      evidencePassages,
+      retrievalMethod: "curated-registry-lexical",
+      fullDocumentRag: false,
+      reviewStatus: "awaiting_clinical_review",
+      sourcePolicy,
+      message: evidence.results.length
+        ? "ค้นคืนเอกสารที่เกี่ยวข้องแล้ว อ่านประเด็นสำคัญและเปิดต้นฉบับจากรายการอ้างอิงด้านล่าง"
+        : "ยังไม่พบเอกสารที่ตรงกับคำค้น จึงงดสรุปหรือคาดเดาคำตอบ",
+    }, { headers: noStore });
+
+    if (!draftAnswersEnabled) {
+      return evidenceOnlyResponse(
+        "โหมดใช้งานจริงแสดงหลักฐานจากคลังความรู้เท่านั้น ยังไม่สังเคราะห์คำตอบด้วย AI เพราะเอกสารยังรอผู้เชี่ยวชาญทบทวน"
+      );
     }
 
     const provider = readChatProviderConfig(process.env, process.env.NODE_ENV);
     if (!provider.ok) {
-      return NextResponse.json({ error: provider.error, mode: "evidence-only", generatedAnswer: false, citations: evidence.citations }, { status: 503, headers: noStore });
+      return evidenceOnlyResponse(provider.error);
     }
 
     const messages = buildGroundedMessages(validated.value.query, validated.value.history, evidence, evidencePassages);

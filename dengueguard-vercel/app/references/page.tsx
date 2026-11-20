@@ -5,7 +5,7 @@ const references = [
     organization: "กรมควบคุมโรค กระทรวงสาธารณสุข",
     title: "แนวทางและคู่มือปฏิบัติงานโรคไข้เลือดออก",
     detail: "หน้ารวมแนวทางและคู่มือ เช่น แนวทางวินิจฉัย ดูแลรักษา มาตรการเฝ้าระวัง และเอกสารสำหรับประชาชน",
-    accessed: "เข้าถึงเมื่อ 14 พฤศจิกายน 2569",
+    accessed: "เข้าถึงเมื่อ 21 พฤศจิกายน 2569",
     href: "https://ddc.moph.go.th/dvb/pagecontent.php?page=17",
   },
   {
@@ -14,6 +14,20 @@ const references = [
     detail: "ข้อมูลภาพรวม อาการ สัญญาณของโรครุนแรง การวินิจฉัย การรักษา และการป้องกัน",
     accessed: "เข้าถึงเมื่อ 14 พฤศจิกายน 2569",
     href: "https://www.who.int/en/news-room/fact-sheets/detail/dengue-and-severe-dengue",
+  },
+  {
+    organization: "World Health Organization · South-East Asia Region",
+    title: "23rd (2026) Epidemiological Bulletin · Thailand dengue situation",
+    detail: "รายงานสถานการณ์ ณ 16 พฤศจิกายน 2569: ผู้ป่วยสงสัยรายใหม่ 694 รายในสัปดาห์ที่ 46 ลดลง 52% จากสัปดาห์ก่อน และไม่มีผู้เสียชีวิตรายใหม่ในสัปดาห์นั้น",
+    accessed: "เผยแพร่ 18 พฤศจิกายน 2569 · ช่วงรายงาน 2–15 พฤศจิกายน 2569",
+    href: "https://cdn.who.int/media/docs/default-source/searo/whe/wherepib/2026_23_searo_epi_bulletin.pdf",
+  },
+  {
+    organization: "TRENDS · Zenodo research dataset",
+    title: "Thailand province-level weekly surveillance dataset (2016–2025)",
+    detail: "ชุดข้อมูลย้อนหลัง 77 จังหวัด × 527 สัปดาห์ รวม 40,579 ระเบียน ครอบคลุมถึง 31 ธันวาคม 2568 ใช้ศึกษาแนวโน้มย้อนหลังและวิจัย ไม่ใช่ข้อมูลปัจจุบันปี 2569",
+    accessed: "เผยแพร่ 19 พฤษภาคม 2569 · DOI: 10.5281/zenodo.20269896",
+    href: "https://zenodo.org/records/20269896",
   },
   {
     organization: "กรมควบคุมโรค กระทรวงสาธารณสุข",

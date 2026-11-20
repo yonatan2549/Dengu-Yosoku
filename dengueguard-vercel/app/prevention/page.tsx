@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
 import { ProductHero } from "@/components/ProductHero";
+import { NationalSurveillancePanel } from "@/components/NationalSurveillancePanel";
 import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
 import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear, normalizeProvince } from "@/lib/utils";
@@ -11,6 +12,50 @@ import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart,
 function RiskPill({ level }: { level: string }) {
   const cls = level === "เตือนระบาด" ? "risk-high" : level === "เฝ้าระวัง" ? "risk-watch" : "risk-normal";
   return <span className={`risk-pill ${cls}`}><span />{level}</span>;
+}
+
+const preventionChecklistTasks = [
+  { id: "home", title: "เก็บบ้าน", detail: "จัดบ้านให้สะอาด โปร่ง และลดจุดที่ยุงลายเกาะพัก" },
+  { id: "waste", title: "เก็บขยะ", detail: "เก็บภาชนะเหลือใช้ กระป๋อง ยางรถ และสิ่งที่อาจขังน้ำ" },
+  { id: "water", title: "เก็บน้ำ", detail: "ปิดฝาภาชนะเก็บน้ำ เทน้ำขัง และขัดล้างภาชนะก่อนเติมน้ำใหม่" },
+  { id: "bite", title: "ป้องกันยุงกัด", detail: "ใช้มุ้งลวด มุ้ง เสื้อผ้าปกปิด และผลิตภัณฑ์ไล่ยุงตามฉลาก" },
+  { id: "patient", title: "ป้องกันยุงกัดผู้ป่วย", detail: "เมื่อมีผู้ป่วยสงสัยไข้เลือดออก ให้ป้องกันไม่ให้ยุงกัดผู้ป่วยและทำตามคำแนะนำสถานพยาบาล" },
+];
+
+function WeeklyPreventionChecklist() {
+  const [completed, setCompleted] = useState<string[]>([]);
+  const progress = Math.round((completed.length / preventionChecklistTasks.length) * 100);
+  return (
+    <section className="panel dy-prevention-checklist" aria-labelledby="dy-prevention-checklist-title">
+      <div className="dy-checklist-heading">
+        <div>
+          <span className="dy-product-eyebrow">WEEKLY HOUSEHOLD ACTION PLAN</span>
+          <h2 id="dy-prevention-checklist-title">เช็กลิสต์ป้องกันยุงลายประจำสัปดาห์</h2>
+          <p>ทำซ้ำทุกสัปดาห์ โดยเน้นมาตรการ 3 เก็บ และการป้องกันยุงกัด</p>
+        </div>
+        <div className="dy-checklist-progress"><strong>{completed.length}/{preventionChecklistTasks.length}</strong><small>ทำแล้ว</small></div>
+      </div>
+      <div className="dy-checklist-progress-track" role="progressbar" aria-label="ความคืบหน้าการป้องกันประจำสัปดาห์" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <div className="dy-checklist-grid">
+        {preventionChecklistTasks.map((task) => (
+          <label className={`dy-check-task${completed.includes(task.id) ? " is-done" : ""}`} key={task.id}>
+            <input type="checkbox" checked={completed.includes(task.id)}
+              onChange={(event) => setCompleted((current) => event.target.checked
+                ? [...current, task.id]
+                : current.filter((item) => item !== task.id))}
+            />
+            <span className="dy-check-task-copy"><strong>{task.title}</strong><small>{task.detail}</small></span>
+          </label>
+        ))}
+      </div>
+      <div className="dy-checklist-footer">
+        <span>{progress === 100 ? "ทำครบทุกข้อแล้ว · ตรวจซ้ำอีกครั้งในสัปดาห์หน้า" : "ติ๊กเมื่อทำกิจกรรมในพื้นที่จริงแล้วเท่านั้น"}</span>
+        <button type="button" className="button button-secondary" onClick={() => setCompleted([])} disabled={completed.length === 0}>เริ่มเช็กลิสต์ใหม่</button>
+      </div>
+    </section>
+  );
 }
 
 function LegacyPreventionPage() {
@@ -477,6 +522,8 @@ export default function PreventionPage() {
         )}
         {!hasModel && <p className="panel-note">ยังไม่มี Model Snapshot ที่ผ่านการตรวจสอบ จึงแสดงระบบเดิมเป็นหลัก</p>}
       </section>
+      <NationalSurveillancePanel compact />
+      <WeeklyPreventionChecklist />
       {view === "model" && hasModel ? <ModelPreventionPage /> : <LegacyPreventionPage />}
     </div>
   );

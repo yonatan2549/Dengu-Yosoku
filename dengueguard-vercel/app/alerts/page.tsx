@@ -7,6 +7,7 @@ import { AlertRuleDraftManager } from "@/components/AlertRuleDraftManager";
 import { AlertExpertReviewPanel } from "@/components/AlertExpertReviewPanel";
 import { useDengueData } from "@/components/DataProvider";
 import { ProductHero } from "@/components/ProductHero";
+import { NationalSurveillancePanel } from "@/components/NationalSurveillancePanel";
 
 export default function AlertCenterPage() {
   const { data, loading, error } = useDengueData();
@@ -27,6 +28,8 @@ export default function AlertCenterPage() {
           { label: "การแจ้งเตือนภายนอก", value: "ปิดใช้งาน", detail: "ไม่มีการส่ง LINE, Email หรือ SMS" },
         ]}
       />
+
+      <NationalSurveillancePanel compact />
 
       <div className="inline-callout warning">
         <Info size={17} />
