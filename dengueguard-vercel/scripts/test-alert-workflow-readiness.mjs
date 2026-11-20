@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { assessAlertWorkflowReadiness } from "../.next/alert-workflow-readiness-tests/lib/alerting/workflow-readiness.js";
+const ready={ok:true,role:"administrator",workflowMigrations:{migration005:"ready",migration006:"ready"}};
+test("reports both workflow migrations ready",()=>{const r=assessAlertWorkflowReadiness(200,ready);assert.equal(r.status,"ready");assert.equal(r.migration005,"ready");assert.equal(r.migration006,"ready");assert.equal(r.role,"administrator");});
+test("reports partial workflow when one migration is missing",()=>{assert.equal(assessAlertWorkflowReadiness(503,{workflowMigrations:{migration005:"missing",migration006:"ready"}}).status,"partial");assert.equal(assessAlertWorkflowReadiness(503,{workflowMigrations:{migration005:"ready",migration006:"missing"}}).status,"partial");});
+test("blocks when both migrations are missing",()=>{assert.equal(assessAlertWorkflowReadiness(503,{workflowMigrations:{migration005:"missing",migration006:"missing"}}).status,"blocked");});
+test("does not infer missing migrations when probes were skipped",()=>{const r=assessAlertWorkflowReadiness(200,{ok:true,workflowMigrations:{migration005:"not_checked",migration006:"not_checked"}});assert.equal(r.status,"unavailable");});
+test("preserves signed-out and forbidden responses",()=>{assert.equal(assessAlertWorkflowReadiness(401,{}).status,"signed_out");assert.equal(assessAlertWorkflowReadiness(403,{}).status,"forbidden");});
+test("reports unavailable on database and payload errors",()=>{const r=assessAlertWorkflowReadiness(502,{error:"database unavailable"});assert.equal(r.status,"unavailable");assert.equal(r.migration005,"unavailable");assert.equal(r.migration006,"unavailable");});
