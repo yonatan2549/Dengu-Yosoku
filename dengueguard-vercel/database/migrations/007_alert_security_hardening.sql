@@ -55,6 +55,64 @@ BEGIN
 END;
 $function$;
 
+-- Migration 006 defines two pending-review draft-lock triggers. The connected
+-- project has the review tables but these guards are absent, so reconcile them
+-- here as part of the security hardening migration. This makes re-application
+-- safe and ensures a submitted snapshot cannot be edited before review.
+CREATE OR REPLACE FUNCTION public.prevent_pending_alert_rule_draft_mutation()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $function$
+DECLARE
+  v_profile_id uuid;
+BEGIN
+  IF TG_TABLE_NAME = 'alert_rule_thresholds' THEN
+    v_profile_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.profile_id ELSE NEW.profile_id END;
+  ELSE
+    v_profile_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.alert_rule_profile_review_requests AS rr
+    WHERE rr.profile_id = v_profile_id
+      AND rr.status = 'pending'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM public.alert_rule_profile_review_decisions AS decision
+        WHERE decision.review_request_id = rr.id
+      )
+  ) THEN
+    RAISE EXCEPTION 'An expert review request is pending; the submitted Draft snapshot is locked';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.prevent_pending_alert_rule_draft_mutation()
+  FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS alert_rule_thresholds_lock_pending_review
+  ON public.alert_rule_thresholds;
+CREATE TRIGGER alert_rule_thresholds_lock_pending_review
+  BEFORE INSERT OR UPDATE OR DELETE ON public.alert_rule_thresholds
+  FOR EACH ROW
+  EXECUTE FUNCTION public.prevent_pending_alert_rule_draft_mutation();
+
+DROP TRIGGER IF EXISTS alert_rule_profile_lock_pending_review
+  ON public.alert_rule_profiles;
+CREATE TRIGGER alert_rule_profile_lock_pending_review
+  BEFORE UPDATE OF methodology ON public.alert_rule_profiles
+  FOR EACH ROW
+  WHEN (OLD.status = 'draft')
+  EXECUTE FUNCTION public.prevent_pending_alert_rule_draft_mutation();
+
 -- These functions are privileged implementation details, not API endpoints.
 -- The user-creation trigger continues to work for Supabase Auth and service code.
 ALTER FUNCTION public.create_dengueyosoku_user_profile()
