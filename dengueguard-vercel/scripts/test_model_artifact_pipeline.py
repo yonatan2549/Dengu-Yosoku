@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import scripts.convert_model_outputs as converter
+import scripts.fetch_model_outputs as fetcher
 from scripts.model_artifact_transaction import publish_file_bundle
 
 
@@ -311,6 +312,88 @@ class ModelConversionPreflightTests(unittest.TestCase):
         self.assertEqual(predictions["model_revision"], metrics["model_revision"])
         self.assertEqual(len(predictions["forecast"]), 77)
         self.assertIn("staged bundle with rollback", output.getvalue())
+
+
+class ModelArtifactFetchPreflightTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.originals = {
+            "ROOT": fetcher.ROOT,
+            "DESTINATION": fetcher.DESTINATION,
+            "REF": fetcher.REF,
+        }
+        fetcher.ROOT = self.root
+        fetcher.DESTINATION = self.root / "source-data" / "model"
+        fetcher.REF = "main"
+
+    def tearDown(self):
+        for name, value in self.originals.items():
+            setattr(fetcher, name, value)
+        self.temporary.cleanup()
+
+    def test_missing_source_artifact_stops_before_download_or_publication(self):
+        report = {
+            "status": "missing",
+            "commit_sha": "a" * 40,
+            "message": "required source artifact is missing",
+            "artifacts": [
+                {"source_path": "DenguYosoku/holdout_predictions.csv", "status": "available"},
+                {"source_path": "predict_week/predictions.csv", "status": "missing"},
+                {"source_path": "DenguYosoku/metrics.json", "status": "available"},
+            ],
+        }
+        error = io.StringIO()
+        with patch.object(fetcher, "probe_model_source", return_value=report), \\
+             patch.object(fetcher, "download") as download, \\
+             patch.object(fetcher, "publish_file_bundle") as publish:
+            with contextlib.redirect_stderr(error):
+                result = fetcher.main()
+
+        self.assertEqual(result, 1)
+        self.assertIn("predict_week/predictions.csv", error.getvalue())
+        self.assertIn("No artifact contents were downloaded", error.getvalue())
+        download.assert_not_called()
+        publish.assert_not_called()
+        self.assertFalse(fetcher.DESTINATION.exists())
+
+    def test_successful_preflight_pins_all_downloads_to_the_resolved_commit(self):
+        commit_sha = "c" * 40
+        report = {
+            "status": "available",
+            "commit_sha": commit_sha,
+            "message": "all required artifacts are reachable",
+            "artifacts": [
+                {"source_path": path, "status": "available"}
+                for path in fetcher.ARTIFACTS
+            ],
+        }
+        downloaded = []
+        published = {}
+
+        def fake_download(url):
+            downloaded.append(url)
+            return ("payload:" + url.rsplit("/", 1)[-1]).encode("utf-8")
+
+        def fake_publish(bundle):
+            published.update(bundle)
+
+        output = io.StringIO()
+        error = io.StringIO()
+        with patch.object(fetcher, "probe_model_source", return_value=report), \\
+             patch.object(fetcher, "download", side_effect=fake_download), \\
+             patch.object(fetcher, "publish_file_bundle", side_effect=fake_publish):
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+                result = fetcher.main()
+
+        self.assertEqual(result, 0, error.getvalue())
+        self.assertEqual(len(downloaded), 3)
+        self.assertTrue(all(f"/{commit_sha}/" in url for url in downloaded))
+        self.assertEqual(len(published), 4)  # three artifacts plus source manifest
+        manifest_path = fetcher.DESTINATION / "source_manifest.json"
+        manifest = json.loads(published[manifest_path].decode("utf-8"))
+        self.assertEqual(manifest["commit_sha"], commit_sha)
+        self.assertIn("Downloaded model artifacts", output.getvalue())
 
 
 if __name__ == "__main__":
