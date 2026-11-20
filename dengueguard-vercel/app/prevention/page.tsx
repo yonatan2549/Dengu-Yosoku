@@ -61,7 +61,7 @@ function LegacyPreventionPage() {
   const selectedWeatherDays = new Set(selectedWeather.map((row) => row.date)).size;
 
   return (
-    <div className="page-stack">
+    <div className="page-stack dy-prevention-page">
       <ProductHero
         eyebrow="PROACTIVE PREVENTION · ODPC 4"
         title="ป้องกันโรคเชิงรุก"
@@ -76,7 +76,8 @@ function LegacyPreventionPage() {
         ]}
       />
 
-<Info size={17} /><span>ข้อมูลพยากรณ์ในชุดที่แนบเป็นข้อมูลย้อนหลังถึง 25 ธันวาคม 2022 ส่วนข้อมูลอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ไม่ใช่พยากรณ์อากาศปัจจุบัน</span></div>
+      <div className="historical-notice">
+        <Info size={17} /><span>ข้อมูลพยากรณ์ในชุดที่แนบเป็นข้อมูลย้อนหลังถึง 25 ธันวาคม 2022 ส่วนข้อมูลอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ไม่ใช่พยากรณ์อากาศปัจจุบัน</span></div>
 
       <section className="filter-panel compact-filters">
         <div className="filter-title"><Wind size={17} /><strong>ช่วงเวลาที่ต้องการติดตาม</strong></div>
@@ -194,7 +195,7 @@ function ModelPreventionPage() {
   const total = rows.reduce((sum, row) => sum + row.prediction, 0);
 
   return (
-    <div className="page-stack">
+    <div className="page-stack dy-prevention-page">
       <ModelValidationPanel compact />
       <ProductHero
         eyebrow="PROACTIVE PREVENTION · 77 PROVINCES"
@@ -208,7 +209,7 @@ function ModelPreventionPage() {
           { label: "ยอดพยากรณ์รวม", value: total.toLocaleString("th-TH", { maximumFractionDigits: 1 }), detail: "จำนวนผู้ป่วยคาดการณ์ ไม่ใช่ระดับความเสี่ยง" },
           { label: "สัปดาห์เป้าหมาย", value: new Date(`${forecastWeek}T00:00:00`).toLocaleDateString("th-TH"), detail: "เทียบกับสัปดาห์ระบาดวิทยาปัจจุบัน" },
         ]}
-      />n>
+      />
 
       <div className="inline-callout warning">
         <Info size={17} />
@@ -455,15 +456,15 @@ export default function PreventionPage() {
   const hasModel = Boolean(data.modelPredictions);
 
   return (
-    <div className="page-stack">
-      <section className="panel">
+    <div className="page-stack dy-prevention-selector">
+      <section className="panel dy-mode-switcher">
         <div className="panel-heading">
           <div>
             <h2>เลือกระบบป้องกันโรค</h2>
             <p>เลือกใช้คำแนะนำและเกณฑ์เดิมของ สคร.4 หรือดูผลโมเดลใหม่ 77 จังหวัดแยกจากกัน</p>
           </div>
         </div>
-        <div className="table-pagination-actions">
+        <div className="table-pagination-actions dy-mode-switcher-actions">
           <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setView("legacy")} aria-pressed={view === "legacy"}>
             ระบบเดิม · สคร.4 (8 จังหวัด)
           </button>

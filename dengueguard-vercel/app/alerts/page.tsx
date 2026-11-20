@@ -28,7 +28,7 @@ export default function AlertCenterPage() {
         ]}
       />
 
-
+      <div className="inline-callout warning">
         <Info size={17} />
         <span>
           <strong>โหมด Dry-run เท่านั้น · ยังไม่ใช่ระบบแจ้งเตือนการระบาดจริง</strong>
