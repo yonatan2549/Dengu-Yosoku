@@ -231,7 +231,7 @@ export function evaluateAlertDryRun(
         threshold: triggerThreshold,
         ruleProfileId: profile.profileId,
         ruleProfileVersion: profile.version,
-        snapshotIsStale: freshness === "stale",
+        snapshotIsStale: false, // Stale snapshots are blocked before candidates are created.
         delivery: "not_sent_dry_run_only",
       });
     }
