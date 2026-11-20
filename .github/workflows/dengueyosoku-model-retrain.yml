@@ -1,0 +1,136 @@
+name: DengueYosoku 77-province model retraining
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/phase9-12-final-review
+    paths:
+      - "dengueguard-vercel/scripts/national_model_pipeline.py"
+      - "dengueguard-vercel/scripts/test_national_model_pipeline.py"
+      - "dengueguard-vercel/scripts/requirements-model-pipeline.txt"
+      - "dengueguard-vercel/scripts/phase13-model-source-bundle.zip"
+      - ".github/workflows/dengueyosoku-model-retrain.yml"
+      - "dengueguard-vercel/docs/MODEL_RETRAINING_PHASE13_TH.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dengueyosoku-model-retrain-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    name: Audit sources and train 77-province model
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out DengueYosoku integration branch
+        uses: actions/checkout@v4
+
+      - name: Expand versioned model source bundle
+        run: unzip -o dengueguard-vercel/scripts/phase13-model-source-bundle.zip -d "$GITHUB_WORKSPACE"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: dengueguard-vercel/scripts/requirements-model-pipeline.txt
+
+      - name: Install model dependencies
+        working-directory: dengueguard-vercel
+        run: python -m pip install --upgrade pip && python -m pip install -r scripts/requirements-model-pipeline.txt
+
+      - name: Compile model pipeline and run contract tests
+        working-directory: dengueguard-vercel
+        run: |
+          python -m py_compile scripts/national_model_pipeline.py scripts/test_national_model_pipeline.py
+          python -m unittest scripts.test_national_model_pipeline -v
+
+      - name: Resolve and pin upstream source revision
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(python - <<'PY'
+          import json
+          import urllib.request
+          request = urllib.request.Request(
+              "https://api.github.com/repos/johnlovepizza/DenguYosoku/commits/main",
+              headers={"User-Agent": "DengueYosoku-Model-Retraining/1.0"},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          sha = payload.get("sha", "")
+          if len(sha) != 40 or any(ch not in "0123456789abcdef" for ch in sha.lower()):
+              raise SystemExit("GitHub did not return a valid upstream commit SHA")
+          print(sha.lower())
+          PY
+          )"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned upstream model source revision: $source_sha"
+
+      - name: Download the two source CSV snapshots to runner temp only
+        shell: bash
+        env:
+          SOURCE_SHA: \${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          data_dir="\${RUNNER_TEMP}/dengue-source"
+          mkdir -p "$data_dir"
+          base="https://raw.githubusercontent.com/johnlovepizza/DenguYosoku/\${SOURCE_SHA}"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            "$base/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
+            --output "$data_dir/dengue_cut_allweeks_2003-18_Oct_2026.csv"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            "$base/dengue_full.csv" \
+            --output "$data_dir/dengue_full.csv"
+          echo "Source CSVs downloaded to ephemeral runner storage; raw CSVs will not be uploaded as workflow artifacts."
+          ls -lh "$data_dir"
+
+      - name: Audit training cut against full source and target week
+        working-directory: dengueguard-vercel
+        env:
+          SOURCE_SHA: \${{ steps.source.outputs.sha }}
+        run: |
+          mkdir -p artifacts
+          python scripts/national_model_pipeline.py audit \
+            --train-csv "\${RUNNER_TEMP}/dengue-source/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
+            --full-csv "\${RUNNER_TEMP}/dengue-source/dengue_full.csv" \
+            --output artifacts/source-pair-audit.json
+
+      - name: Train, cross-validate and evaluate the 77-province model
+        working-directory: dengueguard-vercel
+        env:
+          SOURCE_SHA: \${{ steps.source.outputs.sha }}
+        run: |
+          python scripts/national_model_pipeline.py train \
+            --train-csv "\${RUNNER_TEMP}/dengue-source/dengue_cut_allweeks_2003-18_Oct_2026.csv" \
+            --full-csv "\${RUNNER_TEMP}/dengue-source/dengue_full.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref main \
+            --source-description "TanRabad (ทันระบาด) / Department of Disease Control dengue surveillance data; source and repository-use permission confirmed by project maintainer; raw source files are not republished by this workflow" \
+            --output-dir artifacts/national-model \
+            --holdout-weeks 26 \
+            --cv-folds 4 \
+            --cv-weeks 8 \
+            --gap-weeks 4 \
+            --rounds 400,600,800
+
+      - name: Upload derived model-development artifacts only
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dengueyosoku-77-province-model-development-\${{ github.run_id }}
+          path: |
+            dengueguard-vercel/artifacts/source-pair-audit.json
+            dengueguard-vercel/artifacts/national-model/data_audit.json
+            dengueguard-vercel/artifacts/national-model/metrics.json
+            dengueguard-vercel/artifacts/national-model/training_manifest.json
+            dengueguard-vercel/artifacts/national-model/holdout_predictions.csv
+            dengueguard-vercel/artifacts/national-model/predictions.csv
+            dengueguard-vercel/artifacts/national-model/model.txt
+          if-no-files-found: error
+          retention-days: 30
