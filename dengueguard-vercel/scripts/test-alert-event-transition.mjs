@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const contract = require("../.next/alert-transition-tests/lib/alerting/api-contract-validation.js");
 const route = readFileSync(new URL("../app/api/alerts/events/[eventId]/transition/route.ts", import.meta.url), "utf8");
-const migration = readFileSync(new URL("../database/migrations/007_alert_event_transition_rpc.sql", import.meta.url), "utf8");
+const migration = readFileSync(new URL("../database/migrations/004_alert_event_server_persistence.sql", import.meta.url), "utf8");
 
 test("accepts only the three supported lifecycle actions", () => {
   for (const action of ["acknowledge", "resolve", "reopen"]) {
