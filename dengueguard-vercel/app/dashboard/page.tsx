@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
 import ModelDashboard from "@/components/ModelDashboard";
+import { ProductHero } from "@/components/ProductHero";
 import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { MapLoader } from "@/components/MapLoader";
 import { ALL_PROVINCES, formatCases, formatNumber, getCurrentEpiWeekStart, getCurrentRows, getUniqueYears, getWeeksForYear } from "@/lib/utils";
@@ -74,19 +75,15 @@ function LegacyDashboardPage() {
   const latestYear = Number(latestWeek.slice(0, 4));
 
   return (
-    <div className="page-stack">
-      <section className="page-heading-row">
-        <div>
-          <div className="eyebrow">SURVEILLANCE DASHBOARD</div>
-          <h1>ภาพรวมสถานการณ์ไข้เลือดออก</h1>
-          <p>ติดตามการพยากรณ์และระดับความเสี่ยงรายจังหวัดในพื้นที่ สคร.4</p>
-        </div>
+    <div className="page-stack dy-dashboard-data">
+      <div className="dy-dashboard-toolbar">
+        <span><strong>ระบบข้อมูลย้อนหลัง · สคร.4</strong><small>เลือกปีและสัปดาห์เพื่อสำรวจข้อมูลเดิม</small></span>
         <button className="button button-secondary" onClick={() => downloadCsv(data.predictions.filter((row) => Number(row.year) === activeYear), `dengue_forecast_${activeYear}.csv`)}>
           <Download size={16} /> ดาวน์โหลด CSV
         </button>
-      </section>
+      </div>
 
-      <div className="historical-notice"><Info size={17} /><span>ชุดข้อมูลที่แนบเป็นข้อมูลย้อนหลัง ครอบคลุมถึงสัปดาห์ {new Date(`${latestWeek}T00:00:00`).toLocaleDateString("th-TH")} ({latestYear}) ตัวเลขนี้ยังไม่ใช่การพยากรณ์สถานการณ์ปัจจุบัน</span></div>
+<Info size={17} /><span>ชุดข้อมูลที่แนบเป็นข้อมูลย้อนหลัง ครอบคลุมถึงสัปดาห์ {new Date(`${latestWeek}T00:00:00`).toLocaleDateString("th-TH")} ({latestYear}) ตัวเลขนี้ยังไม่ใช่การพยากรณ์สถานการณ์ปัจจุบัน</span></div>
       {activeYear < data.meta.test_year && <div className="inline-callout warning"><Info size={16} /><span>ปี {activeYear} เป็นข้อมูลที่โมเดลใช้เรียน ผลอาจดูแม่นยำเกินจริง ควรใช้ปีทดสอบ {data.meta.test_year} สำหรับการประเมินโมเดล</span></div>}
 
       <section className="filter-panel">
@@ -178,17 +175,39 @@ export default function DashboardPage() {
 
   if (!data) return null;
   const hasModel = Boolean(data.modelPredictions);
+  const latestWeek = data.predictions.reduce(
+    (latest, row) => row.target_week_start > latest ? row.target_week_start : latest,
+    "",
+  );
+  const provinceCount = new Set(data.predictions.map((row) => row.province)).size;
+  const currentModel = Boolean(modelWeek && modelWeek === getCurrentEpiWeekStart());
+  const latestLabel = latestWeek
+    ? new Date(`${latestWeek}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
+    : "ไม่มีข้อมูล";
 
   return (
-    <div className="page-stack">
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>เลือกระบบ Dashboard</h2>
-            <p>เลือกดูระบบเดิมของ สคร.4 หรือผลโมเดลใหม่ทั่วประเทศ โดยไม่ลบหรือเขียนทับข้อมูลทั้งสองชุด</p>
-          </div>
+    <div className="page-stack dy-dashboard-page">
+      <ProductHero
+        eyebrow="DENGUE SURVEILLANCE · COMMAND CENTER"
+        title="ภาพรวมสถานการณ์ไข้เลือดออก"
+        description="ติดตามข้อมูลเฝ้าระวังรายจังหวัด ผลพยากรณ์ และความพร้อมของโมเดล โดยแยกข้อมูลย้อนหลังออกจากข้อมูลที่ยืนยันแล้วอย่างชัดเจน"
+        status={currentModel ? "พบ Snapshot ของสัปดาห์ปัจจุบัน" : hasModel ? "พบ Snapshot แต่ยังต้องตรวจสอบความใหม่" : "กำลังใช้ข้อมูลย้อนหลัง · รอ Snapshot โมเดล 77 จังหวัด"}
+        statusTone={currentModel ? "ready" : "warning"}
+        icon={MapPinned}
+        stats={[
+          { label: "จังหวัดที่มีข้อมูล", value: `${provinceCount}/77`, detail: "ครอบคลุมเฉพาะชุดข้อมูลเดิม สคร.4" },
+          { label: "ข้อมูลล่าสุดในชุดเดิม", value: latestLabel, detail: "ข้อมูลย้อนหลัง ไม่ใช่สถานการณ์ปัจจุบัน" },
+          { label: "Model Snapshot 77 จังหวัด", value: hasModel ? "พบไฟล์" : "ยังไม่มี", detail: hasModel ? "ต้องผ่านการตรวจสอบความใหม่ก่อนใช้" : "รอไฟล์เผยแพร่จากเจ้าของโมเดล" },
+        ]}
+      />
+
+      <section className="panel dy-mode-switcher">
+        <div className="dy-mode-switcher-copy">
+          <span className="dy-product-eyebrow">DATASET SELECTOR</span>
+          <h2>เลือกชุดข้อมูลที่ต้องการสำรวจ</h2>
+          <p>แยก Dashboard ระบบเดิมออกจาก Snapshot โมเดลใหม่ เพื่อไม่ให้ข้อมูลคนละช่วงเวลาปะปนกัน</p>
         </div>
-        <div className="table-pagination-actions">
+        <div className="dy-mode-switcher-actions">
           <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setView("legacy")} aria-pressed={view === "legacy"}>
             ระบบเดิม · สคร.4 (8 จังหวัด)
           </button>
@@ -196,11 +215,12 @@ export default function DashboardPage() {
             โมเดลใหม่ · 77 จังหวัด
           </button>
         </div>
+        {!hasModel && <p className="panel-note">ปุ่มโมเดลใหม่จะเปิดใช้งานเมื่อมีไฟล์ Forecast และ Metrics ที่ผ่านการตรวจสอบครบถ้วนเท่านั้น</p>}
         {hasModel && modelWeek !== getCurrentEpiWeekStart() && (
-          <p className="panel-note">Snapshot ของโมเดลไม่ใช่สัปดาห์ระบาดวิทยาปัจจุบัน จึงเปิดระบบเดิมเป็นค่าเริ่มต้น หากเลือกโมเดลใหม่จะเห็นคำเตือนข้อมูลย้อนหลังในหน้าโมเดล</p>
+          <p className="panel-note">Snapshot ที่พบไม่ใช่สัปดาห์ระบาดวิทยาปัจจุบัน ระบบจึงยังไม่เลือกเป็นค่าเริ่มต้น</p>
         )}
-        {!hasModel && <p className="panel-note">ยังไม่มี Model Snapshot ที่ผ่านการตรวจสอบ จึงแสดงระบบเดิมเป็นหลัก</p>}
       </section>
+
       {view === "model" && hasModel ? <ModelDashboard /> : <LegacyDashboardPage />}
     </div>
   );

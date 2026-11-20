@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, Bot, BookOpen, ShieldCheck, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Bot, BookOpen, ShieldCheck } from "lucide-react";
 import { HealthAssistantKnowledgePanel } from "@/components/HealthAssistantKnowledgePanel";
+import { ProductHero } from "@/components/ProductHero";
 import { HealthAssistantChatPanel } from "@/components/HealthAssistantChatPanel";
 import { HealthAssistantGovernancePanel } from "@/components/HealthAssistantGovernancePanel";
 
@@ -14,21 +15,21 @@ const topics = [
 export default function HealthAssistantPage() {
   return (
     <div className="dg-page">
-      <section className="dg-hero">
-        <div className="dg-hero-grid">
-          <div>
-            <span className="dg-eyebrow"><Sparkles size={14} /> DENGUE HEALTH COMPANION</span>
-            <h1>AI Health Assistant</h1>
-            <p className="dg-lede">ผู้ช่วยค้นหาความรู้เฉพาะด้านไข้เลือดออก โดยเริ่มจากเอกสารอ้างอิงที่เชื่อถือได้ แสดงที่มา และระบุข้อจำกัดของเนื้อหาอย่างชัดเจน</p>
-            <div className="dg-pill dg-pill-muted" style={{ marginTop: 17 }}>
-              <span className="status-dot" style={{ background: "#b58b3b" }} /> HA-1 · Knowledge Retrieval Preview · ยังไม่สร้างคำตอบด้วย AI
-            </div>
-          </div>
-          <div className="dg-hero-art"><Bot size={86} strokeWidth={1.15} /></div>
-        </div>
-      </section>
+      <ProductHero
+        eyebrow="DENGUE HEALTH COMPANION · GROUNDED KNOWLEDGE"
+        title="ผู้ช่วยความรู้ไข้เลือดออก"
+        description="ค้นหาคำอธิบายด้านโรค อาการ และผลตรวจ โดยอิงเอกสารที่เปิดเผยแหล่งที่มา พร้อมแสดงข้อความที่ใช้ประกอบคำตอบ"
+        status="โหมดทดลองเพื่อการศึกษา · คำตอบยังไม่ผ่านการรับรองทางคลินิก"
+        statusTone="warning"
+        icon={Bot}
+        stats={[
+          { label: "ขอบเขต", value: "ความรู้ทั่วไป", detail: "โรค การป้องกัน และห้องปฏิบัติการ" },
+          { label: "หลักฐาน", value: "แสดงแหล่งที่มา", detail: "เปิดดูต้นฉบับและสถานะทบทวนได้" },
+          { label: "การวินิจฉัย", value: "ไม่รองรับ", detail: "ไม่ใช้แทนการประเมินจากแพทย์" },
+        ]}
+      />
 
-      <HealthAssistantKnowledgePanel />
+
 
       <HealthAssistantGovernancePanel />
 

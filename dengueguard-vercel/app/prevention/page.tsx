@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
+import { ProductHero } from "@/components/ProductHero";
 import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
 import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear, normalizeProvince } from "@/lib/utils";
@@ -61,12 +62,21 @@ function LegacyPreventionPage() {
 
   return (
     <div className="page-stack">
-      <section className="page-heading-row">
-        <div><div className="eyebrow">PROACTIVE DISEASE PREVENTION</div><h1>ป้องกันโรคเชิงรุกและแจ้งเตือนล่วงหน้า</h1><p>ใช้ผลพยากรณ์รายจังหวัดเพื่อสนับสนุนการเฝ้าระวังและการป้องกันก่อนเกิดการระบาด</p></div>
-        <div className="heading-icon-card"><ShieldCheck size={26} /><span>PREVENTION</span></div>
-      </section>
+      <ProductHero
+        eyebrow="PROACTIVE PREVENTION · ODPC 4"
+        title="ป้องกันโรคเชิงรุก"
+        description="ใช้ข้อมูลเฝ้าระวังรายจังหวัดเพื่อจัดลำดับการป้องกัน พร้อมคำแนะนำที่นำไปใช้ได้จริงในบ้าน โรงเรียน และชุมชน"
+        status={`ข้อมูลย้อนหลัง · สัปดาห์เป้าหมาย ${week ? new Date(`${week}T00:00:00`).toLocaleDateString("th-TH") : "ไม่มีข้อมูล"}`}
+        statusTone="warning"
+        icon={ShieldCheck}
+        stats={[
+          { label: "พื้นที่ติดตาม", value: "8 จังหวัด", detail: "สคร.4 · ไม่ใช่ข้อมูลทั่วประเทศ" },
+          { label: "เตือนระบาด", value: `${regional.alertCount} จังหวัด`, detail: "ตามเกณฑ์ในชุดข้อมูลที่เลือก" },
+          { label: "เฝ้าระวัง", value: `${regional.watchCount} จังหวัด`, detail: "ควรติดตามและเพิ่มมาตรการป้องกัน" },
+        ]}
+      />
 
-      <div className="historical-notice"><Info size={17} /><span>ข้อมูลพยากรณ์ในชุดที่แนบเป็นข้อมูลย้อนหลังถึง 25 ธันวาคม 2022 ส่วนข้อมูลอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ไม่ใช่พยากรณ์อากาศปัจจุบัน</span></div>
+<Info size={17} /><span>ข้อมูลพยากรณ์ในชุดที่แนบเป็นข้อมูลย้อนหลังถึง 25 ธันวาคม 2022 ส่วนข้อมูลอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ไม่ใช่พยากรณ์อากาศปัจจุบัน</span></div>
 
       <section className="filter-panel compact-filters">
         <div className="filter-title"><Wind size={17} /><strong>ช่วงเวลาที่ต้องการติดตาม</strong></div>
@@ -186,14 +196,19 @@ function ModelPreventionPage() {
   return (
     <div className="page-stack">
       <ModelValidationPanel compact />
-      <section className="page-heading-row">
-        <div>
-          <div className="eyebrow">PROACTIVE DISEASE PREVENTION · 77 PROVINCES</div>
-          <h1>ป้องกันโรคเชิงรุกทั่วประเทศไทย</h1>
-          <p>ใช้ผลพยากรณ์จำนวนผู้ป่วยจาก DenguYosoku เป็นข้อมูลประกอบการวางแผนเฝ้าระวัง</p>
-        </div>
-        <div className="heading-icon-card"><ShieldCheck size={26} /><span>PREVENTION</span></div>
-      </section>
+      <ProductHero
+        eyebrow="PROACTIVE PREVENTION · 77 PROVINCES"
+        title="ป้องกันโรคเชิงรุกทั่วประเทศไทย"
+        description="สำรวจจำนวนผู้ป่วยที่โมเดลคาดการณ์รายจังหวัด เพื่อประกอบการวางแผนป้องกัน โดยไม่แปลงค่าพยากรณ์เป็นระดับเตือนภัยที่ยังไม่ได้รับอนุมัติ"
+        status={stale ? `Snapshot ล้าหลัง ${forecastLagWeeks} สัปดาห์` : "ตรวจพบ Snapshot · โปรดตรวจสอบช่วงเวลาข้อมูล"}
+        statusTone={stale ? "warning" : "ready"}
+        icon={ShieldCheck}
+        stats={[
+          { label: "จังหวัดใน Snapshot", value: `${rows.length}/77`, detail: "ต้องมีครบทุกจังหวัดก่อนใช้งานระดับประเทศ" },
+          { label: "ยอดพยากรณ์รวม", value: total.toLocaleString("th-TH", { maximumFractionDigits: 1 }), detail: "จำนวนผู้ป่วยคาดการณ์ ไม่ใช่ระดับความเสี่ยง" },
+          { label: "สัปดาห์เป้าหมาย", value: new Date(`${forecastWeek}T00:00:00`).toLocaleDateString("th-TH"), detail: "เทียบกับสัปดาห์ระบาดวิทยาปัจจุบัน" },
+        ]}
+      />n>
 
       <div className="inline-callout warning">
         <Info size={17} />
@@ -384,7 +399,7 @@ function ModelPreventionPage() {
               ? `แสดง ${(safePage - 1) * pageSize + 1}–${Math.min(safePage * pageSize, filteredRows.length)} จาก ${filteredRows.length} จังหวัด`
               : "ไม่มีข้อมูล"}
           </span>
-          <div className="table-pagination-actions">
+          <div className="table-pagination-actions dy-mode-switcher-actions">
             <button type="button" className="button button-secondary" onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage <= 1}>
               <ChevronLeft size={14} /> ก่อนหน้า
             </button>

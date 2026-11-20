@@ -6,23 +6,29 @@ import { AlertReadinessPanel } from "@/components/AlertReadinessPanel";
 import { AlertRuleDraftManager } from "@/components/AlertRuleDraftManager";
 import { AlertExpertReviewPanel } from "@/components/AlertExpertReviewPanel";
 import { useDengueData } from "@/components/DataProvider";
+import { ProductHero } from "@/components/ProductHero";
 
 export default function AlertCenterPage() {
   const { data, loading, error } = useDengueData();
   const model = data?.modelPredictions ?? null;
 
   return (
-    <div className="page-stack">
-      <section className="page-heading-row">
-        <div>
-          <div className="eyebrow">ALERT EVENT MANAGEMENT · SERVER AUDIT</div>
-          <h1>ศูนย์จัดการเหตุการณ์แจ้งเตือน</h1>
-          <p>ประเมินความพร้อมของโมเดล บันทึกผลตรวจสอบ และจัดการ Event Lifecycle ผ่านฐานข้อมูลกลาง</p>
-        </div>
-        <div className="heading-icon-card"><BellRing size={26} /><span>ALERT CENTER</span></div>
-      </section>
+    <div className="page-stack dy-alert-page">
+      <ProductHero
+        eyebrow="ALERT CENTER · GOVERNED WORKFLOW"
+        title="ศูนย์จัดการเหตุการณ์แจ้งเตือน"
+        description="ตรวจสอบความพร้อมของข้อมูลและเกณฑ์แจ้งเตือน จัดทำร่างกฎ ส่งให้ผู้เชี่ยวชาญทบทวน และทดลองประเมินก่อนใช้งานจริง"
+        status="Dry-run เท่านั้น · ยังไม่ส่งข้อความภายนอก"
+        statusTone="warning"
+        icon={BellRing}
+        stats={[
+          { label: "Model Snapshot", value: model ? "ตรวจพบ" : "ยังไม่มี", detail: "ต้องผ่าน freshness และ validation gate" },
+          { label: "กระบวนการอนุมัติ", value: "รอผู้เชี่ยวชาญ", detail: "Draft ไม่ใช่เกณฑ์ที่อนุมัติแล้ว" },
+          { label: "การแจ้งเตือนภายนอก", value: "ปิดใช้งาน", detail: "ไม่มีการส่ง LINE, Email หรือ SMS" },
+        ]}
+      />
 
-      <div className="inline-callout warning">
+
         <Info size={17} />
         <span>
           <strong>โหมด Dry-run เท่านั้น · ยังไม่ใช่ระบบแจ้งเตือนการระบาดจริง</strong>
