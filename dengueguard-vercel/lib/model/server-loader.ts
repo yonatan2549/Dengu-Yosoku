@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import path from "node:path";
+import { join } from "node:path";
 
 export interface LoadedModelArtifacts {
   predictions: unknown | null;
@@ -18,7 +18,7 @@ const MAX_MODEL_ARTIFACT_BYTES = 30 * 1024 * 1024;
  * A missing file is an expected diagnostics state, not a network failure.
  */
 async function readPublishedAsset(fileName: string): Promise<string | null> {
-  const filePath = path.join(process.cwd(), "public", "data", fileName);
+  const filePath = join(process.cwd(), "public", "data", fileName);
   try {
     return await readFile(filePath, "utf8");
   } catch (error) {
