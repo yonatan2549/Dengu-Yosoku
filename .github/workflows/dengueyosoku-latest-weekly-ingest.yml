@@ -8,6 +8,7 @@ on:
     paths:
       - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
       - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
+      - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
 
 permissions:
   contents: read
