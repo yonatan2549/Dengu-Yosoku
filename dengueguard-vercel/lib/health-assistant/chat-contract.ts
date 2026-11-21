@@ -135,8 +135,8 @@ export function validateCitedAnswer(
     .filter(Boolean)
     .filter((paragraph) =>
       !/^#{1,6}\s/.test(paragraph) &&
-      !/^(?:คำเตือน|หมายเหตุ|ข้อจำกัด|disclaimer)\\b/i.test(paragraph) &&
-      !/\\[S\\d+\\]/.test(paragraph)
+      !/^(?:คำเตือน|หมายเหตุ|ข้อจำกัด|disclaimer)\b/i.test(paragraph) &&
+      !/\[S\d+\]/.test(paragraph)
     );
   if (uncitedParagraphs.length > 0) {
     return { ok: false, error: "คำตอบมีบางย่อหน้าที่ไม่มี marker อ้างอิงหลักฐาน" };
