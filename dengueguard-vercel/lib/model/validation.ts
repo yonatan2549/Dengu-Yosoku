@@ -17,6 +17,7 @@ export interface ModelValidationReport {
   historyWeeks: number;
   modelName: string | null;
   sourceRepository: string | null;
+  releaseStatus: "review_only" | "approved" | null;
   modelRevision: string | null;
   generatedAtUtc: string | null;
   sourceRetrievedAtUtc: string | null;
@@ -46,7 +47,7 @@ export function validateModelExports(predictionsInput:unknown,metricsInput:unkno
   const add=(id:string,label:string,status:ModelCheckStatus,detail:string)=>checks.push({id,label,status,detail});
   const blank:Omit<ModelValidationReport,"status"|"summary"|"checks"|"canUseForDryRun"|"canUseForCurrentAlerting">={
     currentEpiWeek,freshness:"unknown",forecastLagWeeks:null,forecastWeek:null,historyStartWeek:null,historyEndWeek:null,
-    provinceCount:0,forecastRows:0,historyRows:0,historyWeeks:0,modelName:null,sourceRepository:null,modelRevision:null,
+    provinceCount:0,forecastRows:0,historyRows:0,historyWeeks:0,modelName:null,sourceRepository:null,releaseStatus:null,modelRevision:null,
     generatedAtUtc:null,sourceRetrievedAtUtc:null,convertedAtUtc:null,metricsAvailable:false,metricsMatch:false,mae:null,rmse:null,evalCutoff:null
   };
   if(!isRecord(predictionsInput)){
@@ -62,6 +63,12 @@ export function validateModelExports(predictionsInput:unknown,metricsInput:unkno
   const freshnessMeta=isRecord(p.freshness)?p.freshness:{};
   const modelName=typeof p.model_name==="string"&&p.model_name.trim()?p.model_name:null;
   const sourceRepository=typeof p.source_repository==="string"&&p.source_repository.trim()?p.source_repository:null;
+  const releaseStatus=p.release_status==="review_only"||p.release_status==="approved"?p.release_status:null;
+  const requiresExplicitReleaseStatus=Number(p.schema_version)>=3;
+  const releaseStatusMatches=!requiresExplicitReleaseStatus||
+    (releaseStatus!==null&&isRecord(metricsInput)&&metricsInput.release_status===releaseStatus);
+  const releaseApproved=!requiresExplicitReleaseStatus||
+    (releaseStatus==="approved"&&releaseStatusMatches);
   const modelRevision=typeof p.model_revision==="string"?p.model_revision.toLowerCase():null;
   const generatedAtUtc=typeof p.generated_at_utc==="string"?p.generated_at_utc:null;
   const sourceRetrievedAtUtc=typeof freshnessMeta.source_retrieved_at_utc==="string"?freshnessMeta.source_retrieved_at_utc:null;
@@ -139,18 +146,31 @@ export function validateModelExports(predictionsInput:unknown,metricsInput:unkno
   }
   add("metrics-integrity","Metrics และ Model Revision",metricStatus,metricDetail);
 
+  add(
+    "release-approval",
+    "สถานะการอนุมัติ Model Snapshot",
+    releaseApproved ? "pass" : "warning",
+    !requiresExplicitReleaseStatus
+      ? "Snapshot รุ่นเดิมไม่มี release approval field; ใช้กติกาเดิม"
+      : releaseStatus === "approved" && releaseStatusMatches
+        ? "Snapshot ได้รับการอนุมัติสำหรับ Model/Data Gate"
+        : releaseStatus === "review_only"
+          ? "Snapshot นี้เป็น Review-only: แสดงบน Dashboard ได้ แต่ยังไม่อนุญาตให้ใช้สร้าง Alert Candidate"
+          : "ไม่พบสถานะอนุมัติที่ตรงกันระหว่าง Predictions และ Metrics; บล็อกการใช้กับ Alert",
+  );
+
   const blocked=checks.some(c=>c.status==="blocked"),warned=checks.some(c=>c.status==="warning");
   const status:ModelValidationReport["status"]=blocked?"blocked":warned?"warning":"valid";
   const coreIds=["payload-shape","province-master","forecast-integrity","holdout-integrity","forecast-chronology","model-revision","repository","freshness-metadata"];
   const coreValid=coreIds.every(id=>checks.find(c=>c.id===id)?.status==="pass");
   const canUseForDryRun=!blocked&&coreValid;
-  const canUseForCurrentAlerting=canUseForDryRun&&!warned&&metricsMatch&&freshness==="current_or_future"&&freshnessMetaValid;
+  const canUseForCurrentAlerting=canUseForDryRun&&!warned&&metricsMatch&&freshness==="current_or_future"&&freshnessMetaValid&&releaseApproved;
   return {
     ...blank,status,
     summary:blocked?"Model Snapshot ไม่ผ่านการตรวจสอบ จึงไม่ควรใช้เป็นข้อมูลอ้างอิงสำหรับ Alert Evaluation":warned?"Model Snapshot ผ่านโครงสร้างหลัก แต่มีข้อควรระวัง ต้องพิจารณาความใหม่และ Metrics ก่อนใช้งาน":"Model Snapshot และ Metrics ผ่านการตรวจสอบตาม Contract",
     currentEpiWeek,freshness,forecastLagWeeks:lag,forecastWeek,historyStartWeek,historyEndWeek,
     provinceCount:provinceSet.size,forecastRows:forecast.length,historyRows:history.length,historyWeeks:historyWeekList.length,
-    modelName,sourceRepository,modelRevision,generatedAtUtc,sourceRetrievedAtUtc,convertedAtUtc,
+    modelName,sourceRepository,releaseStatus,modelRevision,generatedAtUtc,sourceRetrievedAtUtc,convertedAtUtc,
     metricsAvailable,metricsMatch,mae,rmse,evalCutoff,canUseForDryRun,canUseForCurrentAlerting,checks
   };
 }
