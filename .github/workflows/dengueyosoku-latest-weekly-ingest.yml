@@ -44,7 +44,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download latest-week TanRabad CSV to ephemeral runner storage
+      - name: Download latest-week TanRabad workbook or CSV to ephemeral runner storage
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
         env:
@@ -57,19 +57,19 @@ jobs:
             exit 1
           fi
 
-          python -m pip install --disable-pip-version-check "gdown==6.5.2"
-          csv_path="${RUNNER_TEMP}/tanrabad-latest-week.csv"
+          python -m pip install --disable-pip-version-check "gdown==6.5.2" "openpyxl==3.1.5"
+          source_path="${RUNNER_TEMP}/tanrabad-latest-week-source"
 
           gdown --quiet --no-cookies --continue \
             "$DRIVE_FILE_ID" \
-            -O "$csv_path"
+            -O "$source_path"
 
-          if [[ ! -s "$csv_path" ]]; then
+          if [[ ! -s "$source_path" ]]; then
             echo "::error::Google Drive download produced an empty or missing file."
             exit 1
           fi
 
-          if head -c 1024 "$csv_path" | grep -Eiq '<!doctype html|<html'; then
+          if head -c 1024 "$source_path" | grep -Eiq '<!doctype html|<html'; then
             echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
             exit 1
           fi
@@ -82,147 +82,246 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - "${RUNNER_TEMP}/tanrabad-latest-week.csv" "${RUNNER_TEMP}/tanrabad-weekly-structure-audit.json" <<'PY'
+          python - "$RUNNER_TEMP/tanrabad-latest-week-source" "$RUNNER_TEMP/tanrabad-weekly-structure-audit.json" <<'PY'
           import csv
           import hashlib
           import json
           import re
           import sys
+          import zipfile
           from pathlib import Path
 
           source = Path(sys.argv[1])
           destination = Path(sys.argv[2])
 
-          def normalize(value: str) -> str:
-              return re.sub(r"[^a-z0-9ก-๙]", "", value.lower())
+          def normalize(value):
+              return re.sub(r"[^a-z0-9ก-๙]", "", str(value or "").lower())
 
-          with source.open("rb") as raw_handle:
-              signature = raw_handle.read(16)
-              raw_handle.seek(0)
-              sample_bytes = raw_handle.read(8192)
-
-          if signature.startswith(b"PK\\x03\\x04"):
-              raise SystemExit("Downloaded source is an OOXML/ZIP workbook (likely XLSX), not a plain CSV.")
-          if signature.startswith(bytes.fromhex("D0CF11E0A1B11AE1")):
-              raise SystemExit("Downloaded source is an OLE workbook (likely XLS), not a plain CSV.")
-
-          encoding = None
-          for candidate in ("utf-8-sig", "utf-16", "utf-32", "utf-16-le", "utf-16-be", "cp874", "tis-620"):
-              try:
-                  sample_bytes.decode(candidate)
-                  encoding = candidate
-                  break
-              except (UnicodeDecodeError, LookupError):
-                  continue
-
-          if encoding is None:
-              from charset_normalizer import from_bytes
-              detected = from_bytes(sample_bytes).best()
-              if detected is not None:
-                  try:
-                      sample_bytes.decode(detected.encoding)
-                      encoding = detected.encoding
-                  except (UnicodeDecodeError, LookupError):
-                      pass
-
-          if encoding is None:
-              print(f"Unsupported source encoding; file signature={signature.hex()}")
-              raise SystemExit("CSV encoding is not recognized; manual review is required.")
-
-          with source.open("r", encoding=encoding, newline="") as handle:
-              sample = handle.read(8192)
-              handle.seek(0)
-              try:
-                  dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
-              except csv.Error:
-                  dialect = csv.excel
-
-              reader = csv.DictReader(handle, dialect=dialect)
-              headers = reader.fieldnames or []
-              if not headers or not any((h or "").strip() for h in headers):
-                  raise SystemExit("CSV has no readable header row.")
-
-              normalized = {h: normalize(h or "") for h in headers}
-              province_cols = [
-                  h for h, n in normalized.items()
-                  if any(token in n for token in ("province", "changwat", "จังหวัด"))
-              ]
-              week_cols = [
-                  h for h, n in normalized.items()
-                  if any(token in n for token in ("date", "week", "epiweek", "year", "วันที่", "สัปดาห์", "ปี"))
-              ]
-              case_cols = [
-                  h for h, n in normalized.items()
-                  if any(token in n for token in ("case", "count", "patient", "ผู้ป่วย", "จำนวน"))
-              ]
-
-              direct_identifier_exact = {
-                  "hn", "cid", "pid", "an", "vn", "patientid", "patientnumber",
-                  "personid", "personnumber", "citizenid", "nationalid", "idcard",
-                  "passport", "firstname", "lastname", "patientname", "fullname",
-                  "telephone", "phonenumber", "mobile", "email", "dob", "dateofbirth",
-                  "birthdate", "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
-                  "เลขโรงพยาบาล", "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "ชื่อ", "นามสกุล",
-                  "ชื่อจริง", "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร",
-                  "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
-              }
-              direct_identifier_fragments = (
-                  "hospitalnumber", "patientid", "personid", "citizenid",
-                  "nationalid", "idcard", "passport", "firstname", "lastname",
-                  "patientname", "fullname", "telephone", "phonenumber",
-                  "email", "dateofbirth", "birthdate",
-                  "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขโรงพยาบาล",
-                  "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "นามสกุล", "ชื่อจริง",
-                  "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร", "หมายเลขโทรศัพท์",
-                  "บ้านเลขที่",
-              )
-              possible_identifiers = [
-                  h for h, n in normalized.items()
-                  if n in direct_identifier_exact or any(token in n for token in direct_identifier_fragments)
-              ]
-
-              province_values = set()
-              row_count = 0
-              for row in reader:
-                  if not any(str(value or "").strip() for value in row.values()):
-                      continue
-                  row_count += 1
-                  if province_cols:
-                      value = str(row.get(province_cols[0]) or "").strip()
-                      if value:
-                          province_values.add(value)
-
-          hasher = hashlib.sha256()
-          with source.open("rb") as binary:
-              for chunk in iter(lambda: binary.read(1024 * 1024), b""):
-                  hasher.update(chunk)
-          digest = hasher.hexdigest()
-          report = {
-              "file_name": source.name,
-              "file_size_bytes": source.stat().st_size,
-              "encoding": encoding,
-              "sha256": digest,
-              "row_count": row_count,
-              "column_count": len(headers),
-              "columns": headers,
-              "province_column_candidates": province_cols,
-              "distinct_province_count": len(province_values) if province_cols else None,
-              "week_or_date_column_candidates": week_cols,
-              "case_count_column_candidates": case_cols,
-              "possible_direct_identifier_columns": possible_identifiers,
-              "raw_records_included": False,
-              "status": "blocked_pending_privacy_review" if possible_identifiers else "structure_only_review",
+          identifier_exact = {
+              "hn", "cid", "pid", "an", "vn", "patientid", "patientnumber",
+              "personid", "personnumber", "citizenid", "nationalid", "idcard",
+              "passport", "firstname", "lastname", "patientname", "fullname",
+              "telephone", "phonenumber", "mobile", "email", "dob", "dateofbirth",
+              "birthdate", "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
+              "เลขโรงพยาบาล", "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "ชื่อ", "นามสกุล",
+              "ชื่อจริง", "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร",
+              "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
           }
-          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          identifier_fragments = (
+              "hospitalnumber", "patientid", "personid", "citizenid",
+              "nationalid", "idcard", "passport", "firstname", "lastname",
+              "patientname", "fullname", "telephone", "phonenumber",
+              "email", "dateofbirth", "birthdate", "เลขบัตรประชาชน",
+              "เลขประจำตัวประชาชน", "เลขโรงพยาบาล", "หมายเลขผู้ป่วย",
+              "ชื่อผู้ป่วย", "นามสกุล", "ชื่อจริง", "ชื่อสกุล",
+              "ชื่อและนามสกุล", "เบอร์โทร", "หมายเลขโทรศัพท์", "บ้านเลขที่",
+          )
 
-          print(f"CSV structure inspected: {row_count:,} data rows, {len(headers)} columns.")
-          print(f"Distinct provinces: {report['distinct_province_count'] if report['distinct_province_count'] is not None else 'not detected'}")
+          def classify_headers(headers):
+              normalized = {h: normalize(h) for h in headers}
+              province = [h for h, n in normalized.items()
+                          if any(t in n for t in ("province", "changwat", "จังหวัด"))]
+              week = [h for h, n in normalized.items()
+                      if any(t in n for t in ("date", "week", "epiweek", "year", "วันที่", "สัปดาห์", "ปี"))]
+              cases = [h for h, n in normalized.items()
+                       if any(t in n for t in ("case", "count", "patient", "ผู้ป่วย", "จำนวน"))]
+              identifiers = [
+                  h for h, n in normalized.items()
+                  if n in identifier_exact or any(t in n for t in identifier_fragments)
+              ]
+              return province, week, cases, identifiers
+
+          def file_sha256(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def summarize_csv(path):
+              with path.open("rb") as raw:
+                  sample_bytes = raw.read(8192)
+              encoding = None
+              for candidate in ("utf-8-sig", "utf-16", "utf-32", "utf-16-le",
+                                "utf-16-be", "cp874", "tis-620"):
+                  try:
+                      sample_bytes.decode(candidate)
+                      encoding = candidate
+                      break
+                  except (UnicodeDecodeError, LookupError):
+                      continue
+              if encoding is None:
+                  from charset_normalizer import from_bytes
+                  detected = from_bytes(sample_bytes).best()
+                  if detected is not None:
+                      try:
+                          sample_bytes.decode(detected.encoding)
+                          encoding = detected.encoding
+                      except (UnicodeDecodeError, LookupError):
+                          pass
+              if encoding is None:
+                  raise SystemExit("CSV encoding is not recognized; manual review is required.")
+
+              with path.open("r", encoding=encoding, newline="") as handle:
+                  sample = handle.read(8192)
+                  handle.seek(0)
+                  try:
+                      dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+                  except csv.Error:
+                      dialect = csv.excel
+                  reader = csv.DictReader(handle, dialect=dialect)
+                  headers = reader.fieldnames or []
+                  if not headers or not any((h or "").strip() for h in headers):
+                      raise SystemExit("CSV has no readable header row.")
+                  province_cols, week_cols, case_cols, identifiers = classify_headers(headers)
+                  province_values = set()
+                  row_count = 0
+                  for row in reader:
+                      if not any(str(v or "").strip() for v in row.values()):
+                          continue
+                      row_count += 1
+                      if province_cols:
+                          value = str(row.get(province_cols[0]) or "").strip()
+                          if value:
+                              province_values.add(value)
+              return {
+                  "sheet_name": None,
+                  "header_row": 1,
+                  "column_count": len(headers),
+                  "columns": headers,
+                  "row_count": row_count,
+                  "province_column_candidates": province_cols,
+                  "distinct_province_count": len(province_values) if province_cols else None,
+                  "week_or_date_column_candidates": week_cols,
+                  "case_count_column_candidates": case_cols,
+                  "possible_direct_identifier_columns": identifiers,
+                  "encoding": encoding,
+              }
+
+          def summarize_xlsx(path):
+              from openpyxl import load_workbook
+              workbook = load_workbook(path, read_only=True, data_only=True)
+              summaries = []
+              try:
+                  for worksheet in workbook.worksheets:
+                      limit = min(max(worksheet.max_row or 20, 1), 30)
+                      preview = list(worksheet.iter_rows(min_row=1, max_row=limit, values_only=True))
+                      best = None
+                      best_score = -1
+                      for row_index, row in enumerate(preview, start=1):
+                          values = [str(v).strip() if v is not None else "" for v in row]
+                          headers_candidate = [v for v in values if v]
+                          if len(headers_candidate) < 2:
+                              continue
+                          province, week, cases, identifiers = classify_headers(headers_candidate)
+                          score = (3 * bool(province)) + (2 * bool(week)) + (2 * bool(cases))
+                          if score > best_score:
+                              best = (row_index, values, province, week, cases, identifiers)
+                              best_score = score
+                      if best is None:
+                          summaries.append({
+                              "sheet_name": worksheet.title,
+                              "header_detected": False,
+                              "column_count": 0,
+                              "columns": [],
+                              "row_count": 0,
+                              "province_column_candidates": [],
+                              "distinct_province_count": None,
+                              "week_or_date_column_candidates": [],
+                              "case_count_column_candidates": [],
+                              "possible_direct_identifier_columns": [],
+                          })
+                          continue
+
+                      header_row, header_values, province_cols, week_cols, case_cols, identifiers = best
+                      headers = [v for v in header_values if v]
+                      province_index = next(
+                          (i for i, value in enumerate(header_values) if value and value in province_cols), None
+                      )
+                      row_count = 0
+                      province_values = set()
+                      for row in worksheet.iter_rows(min_row=header_row + 1, values_only=True):
+                          if not any(v is not None and str(v).strip() for v in row):
+                              continue
+                          row_count += 1
+                          if province_index is not None and province_index < len(row):
+                              value = row[province_index]
+                              if value is not None and str(value).strip():
+                                  province_values.add(str(value).strip())
+                      summaries.append({
+                          "sheet_name": worksheet.title,
+                          "header_detected": True,
+                          "header_row": header_row,
+                          "column_count": len(headers),
+                          "columns": headers,
+                          "row_count": row_count,
+                          "province_column_candidates": province_cols,
+                          "distinct_province_count": len(province_values) if province_cols else None,
+                          "week_or_date_column_candidates": week_cols,
+                          "case_count_column_candidates": case_cols,
+                          "possible_direct_identifier_columns": identifiers,
+                      })
+              finally:
+                  workbook.close()
+              return summaries
+
+          if not source.is_file() or source.stat().st_size < 100:
+              raise SystemExit("Downloaded source file is missing or unexpectedly small.")
+
+          if zipfile.is_zipfile(source):
+              file_format = "xlsx_or_ooxml"
+              sheet_reports = summarize_xlsx(source)
+              if not sheet_reports:
+                  raise SystemExit("Workbook has no readable worksheets.")
+              all_identifiers = sorted({
+                  column for sheet in sheet_reports
+                  for column in sheet.get("possible_direct_identifier_columns", [])
+              })
+              total_rows = sum(sheet.get("row_count", 0) for sheet in sheet_reports)
+              total_columns = sum(sheet.get("column_count", 0) for sheet in sheet_reports)
+              report = {
+                  "file_name": source.name,
+                  "file_format": file_format,
+                  "file_size_bytes": source.stat().st_size,
+                  "sha256": file_sha256(source),
+                  "sheet_count": len(sheet_reports),
+                  "total_data_rows": total_rows,
+                  "total_columns_across_sheets": total_columns,
+                  "sheets": sheet_reports,
+                  "possible_direct_identifier_columns": all_identifiers,
+                  "raw_records_included": False,
+                  "status": "blocked_pending_privacy_review" if all_identifiers else "structure_only_review",
+              }
+          else:
+              with source.open("rb") as raw:
+                  signature = raw.read(8)
+              if signature.startswith(bytes.fromhex("D0CF11E0A1B11AE1")):
+                  raise SystemExit("Legacy XLS workbook detected; this intake reader requires XLSX or CSV.")
+              sheet = summarize_csv(source)
+              report = {
+                  "file_name": source.name,
+                  "file_format": "csv",
+                  "file_size_bytes": source.stat().st_size,
+                  "sha256": file_sha256(source),
+                  "sheet_count": 1,
+                  "total_data_rows": sheet["row_count"],
+                  "total_columns_across_sheets": sheet["column_count"],
+                  "sheets": [sheet],
+                  "possible_direct_identifier_columns": sheet["possible_direct_identifier_columns"],
+                  "raw_records_included": False,
+                  "status": "blocked_pending_privacy_review" if sheet["possible_direct_identifier_columns"] else "structure_only_review",
+              }
+
+          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(f"Source structure inspected: format={report['file_format']}, rows={report['total_data_rows']:,}, sheets={report['sheet_count']}.")
+          for sheet in report["sheets"]:
+              count = sheet.get("distinct_province_count")
+              print(f"Sheet={sheet.get('sheet_name') or 'CSV'}; columns={sheet['column_count']}; provinces={count if count is not None else 'not detected'}.")
           print("Raw patient records and sample rows were not printed or exported.")
-          if possible_identifiers:
+          if report["possible_direct_identifier_columns"]:
               print("Potential direct-identifier columns detected; stop before modeling.")
               raise SystemExit(2)
           PY
-
       - name: Upload structure-only audit report
         if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
