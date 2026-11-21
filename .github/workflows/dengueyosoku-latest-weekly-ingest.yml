@@ -661,6 +661,146 @@ jobs:
               raise SystemExit(1)
           PY
 
+      - name: Compare incoming provinces and weather coverage with Phase 13 source
+        if: steps.drive_secret.outputs.available == 'true'
+        id: model_compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' > "$RUNNER_TEMP/upstream-sha.txt"
+          import json
+          import urllib.request
+          request = urllib.request.Request(
+              "https://api.github.com/repos/johnlovepizza/DenguYosoku/commits/main",
+              headers={"User-Agent": "DengueYosoku-TanRabad-Compatibility/1.0"},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          sha = payload.get("sha", "")
+          if len(sha) != 40:
+              raise SystemExit("Unable to resolve a valid upstream source SHA.")
+          print(sha)
+          PY
+          SOURCE_SHA="$(cat "$RUNNER_TEMP/upstream-sha.txt")"
+          echo "Upstream source revision: $SOURCE_SHA"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            "https://raw.githubusercontent.com/johnlovepizza/DenguYosoku/$SOURCE_SHA/dengue_full.csv" \
+            --output "$RUNNER_TEMP/dengue-upstream-full.csv"
+
+          python - "$RUNNER_TEMP/dengue-upstream-full.csv" "$RUNNER_TEMP/tanrabad-province-week.csv" "$RUNNER_TEMP/model-input-compatibility.json" "$SOURCE_SHA" <<'PY'
+          import csv
+          import datetime as dt
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          historical_path = Path(sys.argv[1])
+          incoming_path = Path(sys.argv[2])
+          report_path = Path(sys.argv[3])
+          source_sha = sys.argv[4]
+
+          def norm(value):
+              return re.sub(r"\s+", "", str(value or "").strip()).casefold()
+
+          with incoming_path.open("r", encoding="utf-8-sig", newline="") as handle:
+              incoming = list(csv.DictReader(handle))
+          incoming_provinces = {norm(row.get("province")) for row in incoming if row.get("province")}
+          incoming_weeks = sorted({
+              (int(row["year"]), int(row["week"])) for row in incoming
+          })
+
+          required_key_aliases = {
+              "province": {"province", "changwat"},
+              "week_start": {"week_start", "weekstart", "target_week_start"},
+              "weather": {"w_apparent_temperature_mean"},
+          }
+
+          with historical_path.open("r", encoding="utf-8-sig", newline="") as handle:
+              reader = csv.DictReader(handle)
+              headers = reader.fieldnames or []
+              norm_to_original = {norm(header): header for header in headers}
+              selected = {
+                  key: next((norm_to_original[name] for name in aliases if name in norm_to_original), None)
+                  for key, aliases in required_key_aliases.items()
+              }
+              if not all(selected.values()):
+                  report = {
+                      "source_commit": source_sha,
+                      "historical_header_count": len(headers),
+                      "required_contract_fields_found": selected,
+                      "incoming_province_count": len(incoming_provinces),
+                      "incoming_week_keys": [{"year": y, "week": w} for y, w in incoming_weeks],
+                      "ready_for_current_model": False,
+                      "blockers": ["Historical source does not expose the documented province/week_start/apparent-temperature contract fields."],
+                      "status": "blocked_schema_contract",
+                  }
+              else:
+                  province_col = selected["province"]
+                  week_col = selected["week_start"]
+                  weather_col = selected["weather"]
+                  historical_provinces = set()
+                  max_week = None
+                  weather_coverage = {}
+                  for row in reader:
+                      province = norm(row.get(province_col))
+                      if province:
+                          historical_provinces.add(province)
+                      raw_date = str(row.get(week_col) or "").strip()[:10]
+                      try:
+                          week_date = dt.date.fromisoformat(raw_date)
+                      except ValueError:
+                          continue
+                      if max_week is None or week_date > max_week:
+                          max_week = week_date
+                      for year, week in incoming_weeks:
+                          if year == 2026 and week in (44, 45):
+                              expected_start = dt.date(2026, 11, 1) + dt.timedelta(days=7 * (week - 44))
+                              if week_date == expected_start and row.get(weather_col) not in (None, ""):
+                                  weather_coverage.setdefault((year, week), set()).add(province)
+
+                  matched = incoming_provinces & historical_provinces
+                  unmatched = incoming_provinces - historical_provinces
+                  weather_by_week = [
+                      {
+                          "year": year,
+                          "week": week,
+                          "weather_province_count": len(weather_coverage.get((year, week), set())),
+                      }
+                      for year, week in incoming_weeks
+                  ]
+                  blockers = []
+                  if len(incoming_provinces) != 77:
+                      blockers.append("Incoming case panel does not contain exactly 77 provinces.")
+                  if len(matched) != 77:
+                      blockers.append("Incoming province labels do not fully match the canonical Phase 13 source.")
+                  if any(item["weather_province_count"] != 77 for item in weather_by_week):
+                      blockers.append("The historical full source does not contain apparent-temperature values for every incoming province-week.")
+                  report = {
+                      "source_commit": source_sha,
+                      "historical_max_week_start": max_week.isoformat() if max_week else None,
+                      "historical_province_count": len(historical_provinces),
+                      "incoming_province_count": len(incoming_provinces),
+                      "matched_province_count": len(matched),
+                      "unmatched_province_count": len(unmatched),
+                      "incoming_week_keys": [{"year": y, "week": w} for y, w in incoming_weeks],
+                      "weather_feature_column": weather_col,
+                      "weather_coverage_by_week": weather_by_week,
+                      "ready_for_current_model": not blockers,
+                      "blockers": blockers,
+                      "status": "passed" if not blockers else "blocked_waiting_for_compatible_weather_or_source",
+                  }
+
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Model-source cross-check: incoming provinces={report.get('incoming_province_count')}, "
+              f"historical provinces={report.get('historical_province_count')}, "
+              f"weather coverage={report.get('weather_coverage_by_week')}, status={report['status']}."
+          )
+          for blocker in report["blockers"]:
+              print(f"Model-input blocker: {blocker}")
+          PY
+
       - name: Upload structure-only audit report
         if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
@@ -669,6 +809,7 @@ jobs:
           path: |
             ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
             ${{ runner.temp }}/tanrabad-weekly-validation.json
+            ${{ runner.temp }}/model-input-compatibility.json
           if-no-files-found: ignore
           retention-days: 7
 
