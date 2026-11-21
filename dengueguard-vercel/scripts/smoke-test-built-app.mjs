@@ -88,6 +88,19 @@ async function assertHealthAssistantProductionPolicy() {
   console.log("PASS Health Assistant Production evidence-only policy");
 }
 
+async function assertOversizedChatRejected() {
+  const payload = JSON.stringify({ query: "x".repeat(33_000) });
+  const response = await request("/api/health-assistant/chat", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: payload,
+  });
+  if (response.status !== 413) {
+    throw new Error(`Oversized Health Assistant request should return HTTP 413, received ${response.status}`);
+  }
+  console.log("PASS Health Assistant request body size limit");
+}
+
 async function assertModelSafetyGates() {
   const response = await request("/api/model/diagnostics");
   if (!response.ok) throw new Error(`Model diagnostics returned HTTP ${response.status}`);
@@ -132,6 +145,7 @@ async function main() {
       await assertPage(path);
     }
     await assertHealthAssistantProductionPolicy();
+    await assertOversizedChatRejected();
     await assertModelSafetyGates();
     console.log(`PASS built-app smoke tests (${pages.length} pages + API safety checks)`);
   } finally {
