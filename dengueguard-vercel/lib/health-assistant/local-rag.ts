@@ -46,6 +46,16 @@ const DEFAULT_BASE_URL = "http://127.0.0.1:11434";
 const DEFAULT_CHAT_MODEL = "qwen3.5:0.8b";
 const DEFAULT_EMBEDDING_MODEL = "qwen3-embedding:0.6b";
 const DEFAULT_MIN_SIMILARITY = 0.3;
+const ALLOWED_HEALTH_SOURCE_HOSTS = new Set([
+  "who.int",
+  "www.who.int",
+  "cdc.gov",
+  "www.cdc.gov",
+  "ddc.moph.go.th",
+]);
+
+const QUERY_RETRIEVAL_INSTRUCTION =
+  "Instruct: Given a question about dengue fever, retrieve the most relevant authoritative health-education passages that answer the question.\\nQuery: ";
 
 export function isLocalHealthRagEnabled(env: LocalHealthRagEnvironment): boolean {
   return env.HEALTH_ASSISTANT_PROVIDER === "ollama-local" &&
@@ -73,6 +83,15 @@ function parseSimilarity(value?: string): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return DEFAULT_MIN_SIMILARITY;
   return Math.max(0.05, Math.min(0.9, parsed));
+}
+
+export function isAllowedHealthSourceUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && ALLOWED_HEALTH_SOURCE_HOSTS.has(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 export function cosineSimilarity(left: number[], right: number[]): number {
@@ -334,7 +353,7 @@ export async function runLocalHealthRag(
   try {
     const embedded = await postOllama(settings.baseUrl, "/api/embed", {
       model: settings.embeddingModel,
-      input: query,
+      input: QUERY_RETRIEVAL_INSTRUCTION + query,
       truncate: false,
       keep_alive: "2m",
     });
@@ -347,7 +366,7 @@ export async function runLocalHealthRag(
     const passages = rankLocalHealthChunks(queryVector, index.chunks, 6, settings.minSimilarity, 2);
     const safePassages = passages.filter((item) =>
       item.source?.reviewStatus === "awaiting_clinical_review" &&
-      item.source.sourceUrl.startsWith("https://") &&
+      isAllowedHealthSourceUrl(item.source.sourceUrl) &&
       item.reviewStatus === "awaiting_clinical_review"
     );
 
