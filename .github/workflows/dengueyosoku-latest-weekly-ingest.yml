@@ -7,7 +7,6 @@ on:
       - integration/phase9-12-final-review
       - review/national-alerts-independent-audit-2026-11-21
     paths:
-      - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
       - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
       - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
       - "dengueguard-vercel/scripts/prepare_current_model_snapshot.py"
@@ -18,7 +17,6 @@ on:
       - "dengueguard-vercel/scripts/merge_model_snapshot_history.py"
       - "dengueguard-vercel/scripts/test_merge_model_snapshot_history.py"
       - "dengueguard-vercel/scripts/test_experimental_case_only_nowcast.py"
-      - "dengueguard-vercel/public/data/model_predictions.json"
 
 permissions:
   contents: write
