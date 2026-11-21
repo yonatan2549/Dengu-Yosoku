@@ -39,6 +39,7 @@ class AlertThresholdDraftTests(unittest.TestCase):
             "one_case_increment_fallback_count",
             "one_case_increment_fallback_provinces",
             "weekly_candidate_counts",
+            "prediction_vs_observed_threshold_exceedance",
         ):
             self.assertEqual(expected_split[key], actual_split[key], key)
 
