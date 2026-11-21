@@ -98,7 +98,7 @@ Holdout ใน repository เป็นข้อมูลย้อนหลัง
 
 เหตุผล: TanRabad export นี้มีเฉพาะจำนวนผู้ป่วยรายจังหวัด-สัปดาห์ 4 คอลัมน์ ขณะที่ Phase 13 model contract ใช้ lagged cases ร่วมกับ lagged apparent-temperature feature `w_apparent_temperature_mean` และ calendar seasonality จึงยังต้องจัดหาและตรวจอากาศรายจังหวัดสำหรับสัปดาห์ 44–45 ให้สอดคล้องกับนิยาม/แหล่งข้อมูลของ training data ก่อน ห้ามเติมอุณหภูมิด้วยค่าเดา, forward-fill โดยไม่มีหลักฐาน, หรือใช้ข้อมูลสัปดาห์เป้าหมายเป็น feature
 
-ชุดข้อมูลนี้จึงเป็น **validated aggregate case panel** ที่พร้อมสำหรับขั้น schema adapter และ weather join แต่ยังไม่ใช่ model-ready input และไม่ได้สร้าง Forecast, เปลี่ยน public data, เปิด alerts หรือ deploy
+ชุดข้อมูลนี้จึงเป็น **validated aggregate case panel** ที่พร้อมสำหรับขั้น schema adapter และ weather join แต่ยังไม่ใช่ input ที่เข้ากับโมเดล 12 features เดิมโดยตรง ไม่มีการเปลี่ยน public data, เปิด alerts หรือ deploy
 
 ### ขั้นตอนถัดไป
 
@@ -117,4 +117,33 @@ Holdout ใน repository เป็นข้อมูลย้อนหลัง
 - Result: the original 12-feature model cannot consume the new panel without obtaining a compatible apparent-temperature series for weeks 44–45.
 
 The upstream model README currently describes the weather column as a weather source but leaves the provider/version/date as a placeholder. Before importing an alternate weather provider, the project must confirm the intended source, units, calculation window, and provenance. Do not substitute a different weather series silently.
+### Experimental case-only model — research preview (2026-11-21)
 
+เนื่องจาก weather coverage ของสัปดาห์ 44–45 เป็น 0/77 ทั้งสองสัปดาห์ จึงสร้างโมเดลทดลองแยกต่างหากที่ตัด `w_apparent_temperature_mean_L1` ออกทั้งหมด ไม่แก้ไขหรือแทนที่โมเดล Phase 13:
+
+- GitHub Actions run: `44849797105`
+- Experimental script: `dengueguard-vercel/scripts/experimental_case_only_nowcast.py`
+- Model: LightGBM Quantile 0.5, 11 case/calendar features
+- Training rows หลัง lag warm-up: 95,018
+- Temporal CV: 4 folds, validation 8 สัปดาห์ต่อ fold, gap 4 สัปดาห์
+- Candidate rounds: 400 / 600 / 800; selected 400
+- Mean CV MAE: 3.5394
+- Retrospective rolling-origin holdout 26 สัปดาห์ (17 พ.ค.–8 พ.ย. 2026): 2,002 province-weeks
+- Holdout MAE: 3.9331; persistence MAE: 4.3387; relative skill vs persistence: +9.35%
+- Holdout RMSE: 6.3282; WAPE: 27.10%
+- Preview target: MMWR week 46, week start 15 พ.ย. 2026
+- Preview panel: 77/77 จังหวัด, 77 แถว, missing prediction values 0, negative predictions 0
+- National experimental point total: 1,213.48 cases (rounded 1,213)
+- National persistence comparator from week 45: 1,298 cases
+
+**การจัดประเภทผล:** `candidate_ready_for_review` แต่ `preview_only_not_for_public_health_release` เท่านั้น ผล holdout เป็น retrospective rolling-origin บนข้อมูลย้อนหลังที่มี actual ของสัปดาห์ก่อนหน้าให้ใช้เป็น lag ไม่ใช่ sealed blind test และไม่ได้เป็นหลักฐานว่าความแม่นยำจะคงเดิมในสัปดาห์อนาคต
+
+ผล 1,213 รายเป็นค่าผลรวมเชิงทดลองจากโมเดล case-only ไม่ใช่จำนวนผู้ป่วยจริง ไม่ใช่ระดับความเสี่ยงทางระบาดวิทยา และไม่ควรใช้แทนเกณฑ์แจ้งเตือน/จัดสรรทรัพยากรโดยไม่มีการทบทวนจากผู้เชี่ยวชาญ
+
+### Artifacts และการเผยแพร่
+
+Artifact: `dengueyosoku-tanrabad-weekly-model-review-44849797105` (GitHub Actions run #44849797105)
+
+ประกอบด้วย metrics, validation/compatibility reports, retrospective holdout predictions, 77-province experimental preview, และ experimental model file โดยไม่มี TanRabad ZIP ต้นฉบับหรือ aggregate input panel ถูก upload
+
+ไฟล์ preview และ model ถูกเก็บเป็น GitHub Actions Artifact เพื่อการตรวจทานเท่านั้น ไม่ได้คัดลอกเข้า `public/data`, ไม่ได้เปลี่ยน source manifest ของเว็บไซต์, ไม่ได้เปิด Alert Center และไม่ได้ Deploy Production
