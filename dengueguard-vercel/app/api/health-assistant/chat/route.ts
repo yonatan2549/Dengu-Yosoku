@@ -10,12 +10,44 @@ import {
 } from "@/lib/health-assistant/chat-contract";
 import { readChatProviderConfig, requestChatCompletion } from "@/lib/health-assistant/chat-provider";
 import { evaluateDraftSourcePolicy } from "@/lib/health-assistant/source-policy";
+import { isDraftAnswersEnabled } from "@/lib/health-assistant/runtime-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
+
+function providerConfig(request: Request) {
+  return readChatProviderConfig(
+    process.env,
+    process.env.NODE_ENV,
+    request.headers.get("x-vercel-oidc-token"),
+  );
+}
+
+export async function GET(request: Request) {
+  const provider = providerConfig(request);
+  const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
+  const generatedAnswersEnabled = draftAnswersEnabled && provider.ok;
+
+  return NextResponse.json({
+    mode: generatedAnswersEnabled ? "grounded-ai-preview" : "evidence-only",
+    generatedAnswersEnabled,
+    provider: provider.ok ? "Vercel AI Gateway / OpenAI-compatible" : null,
+    model: provider.ok ? provider.config.model : null,
+    draftAnswersEnabled,
+    reviewStatus: "awaiting_clinical_review",
+    productionPolicy: "evidence-only-until-clinical-approval",
+    message: generatedAnswersEnabled
+      ? "พร้อมสร้างร่างคำตอบด้วย AI ใน Preview โดยอ้างอิงเฉพาะคลังความรู้ที่ผ่าน Source Policy"
+      : process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview"
+        ? "Production เปิดเฉพาะ Evidence-only จนกว่าคลังความรู้จะผ่านการทบทวนทางคลินิก"
+        : provider.ok
+          ? "พบ AI Provider แต่ยังไม่ได้เปิด HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS สำหรับสภาพแวดล้อมนี้"
+          : provider.error,
+  }, { headers: noStore });
+}
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -70,11 +102,9 @@ export async function POST(request: Request) {
       }, { headers: noStore });
     }
 
-    // Clinical review is pending. Keep Production useful as retrieval-only;
-    // do not generate an AI-synthesized medical answer from unreviewed material.
-    const draftAnswersEnabled =
-      process.env.NODE_ENV !== "production" &&
-      process.env.HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS === "true";
+    // Explicitly enable generated draft answers in local development or in a
+    // protected Vercel Preview branch. Production remains retrieval-only.
+    const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
 
     const evidenceOnlyResponse = (reason: string) => NextResponse.json({
       mode: "evidence-only",
@@ -101,7 +131,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const provider = readChatProviderConfig(process.env, process.env.NODE_ENV);
+    const provider = providerConfig(request);
     if (!provider.ok) {
       return evidenceOnlyResponse(provider.error);
     }
