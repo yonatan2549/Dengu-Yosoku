@@ -137,6 +137,8 @@ jobs:
           npm run test:model-source-probe
           npm run test:model-release-guard
           npm run test:model-release-inspection
+          python scripts/build_alert_threshold_draft.py --check
+          python -m unittest scripts.test_alert_threshold_draft -v
           python -m unittest scripts.test_classic_function_parity -v
           python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
           python -m unittest scripts.test_prepare_current_model_snapshot -v
