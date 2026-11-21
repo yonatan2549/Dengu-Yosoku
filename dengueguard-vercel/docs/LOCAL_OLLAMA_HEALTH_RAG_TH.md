@@ -17,7 +17,7 @@
 - CDC, Clinical Features of Dengue, updated 15 May 2025: https://www.cdc.gov/dengue/hcp/clinical-signs/index.html
 - CDC, Clinical Care of Dengue, 15 April 2026: https://www.cdc.gov/dengue/hcp/clinical-care/
 - CDC, Clinical Testing Guidance for Dengue, 26 August 2025: https://www.cdc.gov/dengue/hcp/diagnosis-testing/index.html
-- กรมควบคุมโรค, แนวทางและคู่มือปฏิบัติงานโรคไข้เลือดออก (หน้าแหล่งรวมเอกสาร; ตรวจพบการปรับปรุง 20 พฤศจิกายน 2569): https://ddc.moph.go.th/dvb/pagecontent.php?dept=dvb164&page=17
+- กรมควบคุมโรค, แนวทางและคู่มือปฏิบัติงานโรคไข้เลือดออก (หน้าแหล่งรวมเอกสาร; ตรวจพบการปรับปรุง 20 พฤศจิกายน 2569): https://ddc.moph.go.th/dvb/pagecontent.php?dept=dvb&page=17
 
 ข้อจำกัด: dataset นี้เป็นข้อความสรุปภาษาไทยที่เรียบเรียงใหม่ ไม่ใช่การดาวน์โหลดหรือทำดัชนีเอกสารฉบับเต็ม จึงต้องเรียกว่า curated-source vector RAG ไม่ใช่ full-document RAG เอกสารทุกชิ้นยังมีสถานะ awaiting_clinical_review
 
