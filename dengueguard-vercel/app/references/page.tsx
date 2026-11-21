@@ -23,6 +23,14 @@ const references = [
     href: "https://cdn.who.int/media/docs/default-source/searo/whe/wherepib/2026_23_searo_epi_bulletin.pdf",
   },
   {
+    organization: "Open-Meteo · Historical Weather API",
+    title: "Historical Weather API · Archive endpoint",
+    detail: "ข้อมูล reanalysis ย้อนหลังที่ใช้สร้าง feature อุณหภูมิปรากฏย้อนหลังรายสัปดาห์ของโมเดล 77 จังหวัด โดยใช้ best_match และตรวจความสอดคล้องกับ weather source เดิม 52 สัปดาห์ (4,004 province-week pairs) ก่อนนำไปสร้าง input; ไม่ใช่พยากรณ์อากาศแบบ real-time",
+    accessed: "เข้าถึงเมื่อ 21 พฤศจิกายน 2569 · ข้อมูลภายใต้ CC BY 4.0",
+    href: "https://open-meteo.com/en/docs/historical-weather-api",
+    licenseHref: "https://creativecommons.org/licenses/by/4.0/",
+  },
+  {
     organization: "TRENDS · Zenodo research dataset",
     title: "Thailand province-level weekly surveillance dataset (2016–2025)",
     detail: "ชุดข้อมูลย้อนหลัง 77 จังหวัด × 527 สัปดาห์ รวม 40,579 ระเบียน ครอบคลุมถึง 31 ธันวาคม 2568 ใช้ศึกษาแนวโน้มย้อนหลังและวิจัย ไม่ใช่ข้อมูลปัจจุบันปี 2569",
@@ -74,9 +82,16 @@ export default function ReferencesPage() {
               <h3>{reference.title}</h3>
               <p>{reference.detail}</p>
               <span className="dg-source-meta">{reference.accessed}</span>
-              <a className="dg-source-link" href={reference.href} target="_blank" rel="noreferrer">
-                เปิดแหล่งข้อมูล <ArrowUpRight size={14} />
-              </a>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                <a className="dg-source-link" href={reference.href} target="_blank" rel="noreferrer">
+                  เปิดแหล่งข้อมูล <ArrowUpRight size={14} />
+                </a>
+                {"licenseHref" in reference && reference.licenseHref && (
+                  <a className="dg-source-link" href={reference.licenseHref} target="_blank" rel="noreferrer">
+                    ใบอนุญาต CC BY 4.0 <ArrowUpRight size={14} />
+                  </a>
+                )}
+              </div>
             </article>
           ))}
         </div>
