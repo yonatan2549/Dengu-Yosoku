@@ -156,7 +156,7 @@
 1. มีเพียง 26 สัปดาห์ (ประมาณ 6 เดือน) ยังไม่ครบรอบฤดูกาล 52 สัปดาห์
 2. ใช้จำนวนผู้ป่วยแบบ absolute count ไม่ได้ปรับด้วยประชากร ความครอบคลุมการตรวจ ปริมาณการรายงาน หรือบริบทการระบาด
 3. Threshold เป็น baseline เชิงสถิติ ไม่ใช่เกณฑ์ทางระบาดวิทยาอย่างเป็นทางการ และไม่ได้พิสูจน์การวินิจฉัยหรือการระบาด
-4. Snapshot ต้นทางเป็น `review_only`, เป้าหมาย 15 พ.ย. 2026 และเก่ากว่าสัปดาห์ระบาดวิทยาเริ่ม 22 พ.ย. 2026
+4. Snapshot ต้นทางเป็น `review_only`, เป้าหมาย 15 พ.ย. 2026 และสร้างเมื่อสัปดาห์ระบาดวิทยา 15 พ.ย. ยังเป็นสัปดาห์ปัจจุบัน (วันที่ 21 พ.ย. 2026); ต้อง refresh สำหรับสัปดาห์ใหม่ที่เริ่ม 22 พ.ย. 2026 และห้ามนำ snapshot เดิมไปใช้กับสัปดาห์ถัดไป
 5. การตรวจนี้เป็น automated quantitative review สองชุดคำนวณและ temporal/sensitivity checks ไม่ใช่ independent epidemiologist sign-off หรือ clinical approval
 
 **Governance:** ยังคง `status=draft`, `approval_reference=null`, `effective_from_week=null`, `external_notifications_enabled=false`. ระบบไม่สร้าง Alert Candidate และไม่จำแนกระดับความเสี่ยงทั่วประเทศจากเกณฑ์ชุดนี้
