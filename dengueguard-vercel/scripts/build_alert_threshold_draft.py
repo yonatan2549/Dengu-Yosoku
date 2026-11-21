@@ -59,6 +59,56 @@ def _round(value: float) -> float:
     return 0.0 if rounded == 0 else rounded
 
 
+def _binary_metrics(rows: list[dict[str, Any]], threshold_key: str, prediction_key: str) -> dict[str, Any]:
+    tp = fp = fn = tn = 0
+    for row in rows:
+        actual_positive = float(row["actual_cases"]) >= float(row[threshold_key])
+        predicted_positive = float(row[prediction_key]) >= float(row[threshold_key])
+        if actual_positive and predicted_positive:
+            tp += 1
+        elif not actual_positive and predicted_positive:
+            fp += 1
+        elif actual_positive and not predicted_positive:
+            fn += 1
+        else:
+            tn += 1
+
+    def ratio(numerator: int, denominator: int) -> float:
+        return numerator / denominator if denominator else 0.0
+
+    precision = ratio(tp, tp + fp)
+    recall = ratio(tp, tp + fn)
+    specificity = ratio(tn, tn + fp)
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    return {
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
+        "tn": tn,
+        "precision": _round(precision),
+        "recall": _round(recall),
+        "specificity": _round(specificity),
+        "f1": _round(f1),
+    }
+
+
+def _macro_binary_metrics(
+    rows: list[dict[str, Any]],
+    provinces: list[str],
+    threshold_key: str,
+    prediction_key: str,
+) -> dict[str, float]:
+    fields = ("precision", "recall", "specificity", "f1")
+    per_province: list[dict[str, Any]] = []
+    for province in provinces:
+        subset = [row for row in rows if row["province"] == province]
+        per_province.append(_binary_metrics(subset, threshold_key, prediction_key))
+    return {
+        field: _round(sum(float(item[field]) for item in per_province) / len(provinces))
+        for field in fields
+    }
+
+
 def _threshold_pair(
     values: list[float],
     *,
@@ -167,6 +217,7 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
     watch_count = 0
     alert_count = 0
     temporal_fallback_provinces: list[str] = []
+    temporal_validation_rows: list[dict[str, Any]] = []
     for province in provinces:
         fit_values = [grouped[province][week] for week in fit_weeks]
         watch, alert, adjustment = _threshold_pair(
@@ -176,13 +227,63 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
         if adjustment == "one_case_increment_no_higher_fit_observation":
             temporal_fallback_provinces.append(province)
         for week in validation_weeks:
+            source_row = next(
+                row for row in history
+                if row["province"] == province and row["week_start"] == week
+            )
             observed = grouped[province][week]
+            predicted = source_row.get("prediction")
+            persistence = source_row.get("persistence")
+            if (
+                not isinstance(predicted, (int, float)) or not math.isfinite(float(predicted)) or float(predicted) < 0 or
+                not isinstance(persistence, (int, float)) or not math.isfinite(float(persistence)) or float(persistence) < 0
+            ):
+                raise ValueError("Temporal validation requires finite non-negative prediction and persistence values.")
             if observed >= watch:
                 watch_count += 1
                 weekly_counts[week]["watch"] += 1
             if observed >= alert:
                 alert_count += 1
                 weekly_counts[week]["alert"] += 1
+            temporal_validation_rows.append({
+                "province": province,
+                "week_start": week,
+                "actual_cases": observed,
+                "prediction": float(predicted),
+                "persistence": float(persistence),
+                "watch_threshold": watch,
+                "alert_threshold": alert,
+            })
+
+    prediction_signal_validation = {
+        "label_definition": "actual_cases >= the same province-specific threshold fitted using only the first 18 training weeks",
+        "sample_n": len(temporal_validation_rows),
+        "micro": {
+            "watch": {
+                "model_forecast": _binary_metrics(temporal_validation_rows, "watch_threshold", "prediction"),
+                "persistence_baseline": _binary_metrics(temporal_validation_rows, "watch_threshold", "persistence"),
+            },
+            "alert": {
+                "model_forecast": _binary_metrics(temporal_validation_rows, "alert_threshold", "prediction"),
+                "persistence_baseline": _binary_metrics(temporal_validation_rows, "alert_threshold", "persistence"),
+            },
+        },
+        "macro_mean_across_77_provinces": {
+            "watch": {
+                "model_forecast": _macro_binary_metrics(temporal_validation_rows, provinces, "watch_threshold", "prediction"),
+                "persistence_baseline": _macro_binary_metrics(temporal_validation_rows, provinces, "watch_threshold", "persistence"),
+            },
+            "alert": {
+                "model_forecast": _macro_binary_metrics(temporal_validation_rows, provinces, "alert_threshold", "prediction"),
+                "persistence_baseline": _macro_binary_metrics(temporal_validation_rows, provinces, "alert_threshold", "persistence"),
+            },
+        },
+        "interpretation": (
+            "These are metrics for predicting a province-specific statistical threshold exceedance, not outbreak "
+            "diagnosis or official alert accuracy. Macro metrics give each province equal weight; zero-denominator "
+            "precision/recall/specificity is represented as 0 for macro averaging."
+        ),
+    }
 
     watch_spans = [row["leave_one_out_watch_span"] for row in thresholds]
     alert_spans = [row["leave_one_out_alert_span"] for row in thresholds]
@@ -274,6 +375,7 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "one_case_increment_fallback_count": len(temporal_fallback_provinces),
                 "one_case_increment_fallback_provinces": temporal_fallback_provinces,
                 "weekly_candidate_counts": list(weekly_counts.values()),
+                "prediction_vs_observed_threshold_exceedance": prediction_signal_validation,
             },
         },
         "governance": {
@@ -287,7 +389,8 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
             "limitations": [
                 "Only 26 weeks are available (about six months), not a full 52-week seasonal cycle.",
                 "Thresholds are absolute weekly counts and do not adjust for population, testing volume, reporting completeness, or outbreak context.",
-                "Temporal split rates are exceedance frequencies, not sensitivity, specificity, PPV, or proof of outbreak detection.",
+                "Temporal split confusion matrices measure prediction of a statistical threshold exceedance, not sensitivity/specificity for disease outbreak detection or clinical diagnosis.",
+            "On the 8-week temporal validation, the model forecast micro-F1 is lower than the persistence baseline for both Watch and Alert; macro recall across provinces is substantially lower and must be considered before any operational use.",
                 "The source model snapshot is review_only and targets 2026-11-15; it is stale for the epidemiological week beginning 2026-11-22.",
                 "Automated quantitative review is not an independent epidemiologist's sign-off or clinical approval.",
             ],
@@ -346,7 +449,7 @@ def main() -> int:
             "observed_cases_at_or_above_alert_percent",
             "one_case_increment_fallback_count",
             "one_case_increment_fallback_provinces",
-            "weekly_candidate_counts",
+            "weekly_candidate_counts", "prediction_vs_observed_threshold_exceedance",
         )
         for key in split_keys:
             if actual_split.get(key) != expected_split.get(key):
