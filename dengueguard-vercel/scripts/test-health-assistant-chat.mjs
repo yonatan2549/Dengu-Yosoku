@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { validateChatRequest, buildGroundedMessages, validateCitedAnswer, shouldAbstainForHistory, containsPersonalLabValue } from "../.next/health-assistant-chat-tests/lib/health-assistant/chat-contract.js";
 import { readChatProviderConfig, requestChatCompletion } from "../.next/health-assistant-chat-tests/lib/health-assistant/chat-provider.js";
 import { buildHealthEvidencePackage, classifyHealthQuery } from "../.next/health-assistant-chat-tests/lib/health-assistant/evidence.js";
+import { isDraftAnswersEnabled } from "../.next/health-assistant-chat-tests/lib/health-assistant/runtime-policy.js";
 
 const evidence = buildHealthEvidencePackage("NS1 IgM และ IgG ต่างกันอย่างไร");
 const chatRouteSource = await readFile(new URL("../app/api/health-assistant/chat/route.ts", import.meta.url), "utf8");
@@ -75,15 +76,29 @@ test("rejects empty or oversized provider answers", () => {
   assert.equal(validateCitedAnswer("คำตอบ ".repeat(1000) + "[S1]", evidence).ok, false);
 });
 
-test("requires endpoint, server API key, and model configuration", () => {
+test("uses Vercel AI Gateway defaults and accepts server-side credentials", () => {
   assert.equal(readChatProviderConfig({}, "development").ok, false);
-  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "https://api.example.test/v1/chat/completions", HEALTH_ASSISTANT_API_KEY: "secret", HEALTH_ASSISTANT_MODEL: "model-a" }, "development").ok, true);
+  const gateway = readChatProviderConfig({ AI_GATEWAY_API_KEY: "gateway-secret" }, "development");
+  assert.equal(gateway.ok, true);
+  if (gateway.ok) {
+    assert.equal(gateway.config.endpoint, "https://ai-gateway.vercel.sh/v1/chat/completions");
+    assert.equal(gateway.config.model, "google/gemini-4-neon");
+  }
+  assert.equal(readChatProviderConfig({}, "production", "vercel-oidc-token").ok, true);
+  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "https://api.example.test/v1/chat/completions", HEALTH_ASSISTANT_API_KEY: "legacy-secret", HEALTH_ASSISTANT_MODEL: "model-a" }, "development").ok, true);
 });
 
 test("rejects malformed URLs and non-HTTPS production endpoints", () => {
-  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "not-a-url", HEALTH_ASSISTANT_API_KEY: "x", HEALTH_ASSISTANT_MODEL: "m" }, "development").ok, false);
-  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "http://api.example.test/chat", HEALTH_ASSISTANT_API_KEY: "x", HEALTH_ASSISTANT_MODEL: "m" }, "production").ok, false);
-  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "http://localhost:11434/v1/chat/completions", HEALTH_ASSISTANT_API_KEY: "x", HEALTH_ASSISTANT_MODEL: "m" }, "production").ok, false);
+  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "not-a-url", AI_GATEWAY_API_KEY: "x" }, "development").ok, false);
+  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "http://api.example.test/chat", AI_GATEWAY_API_KEY: "x" }, "production").ok, false);
+  assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "http://localhost:11434/v1/chat/completions", AI_GATEWAY_API_KEY: "x" }, "production").ok, false);
+});
+
+test("enables AI draft generation only in local development or explicitly enabled Vercel Preview", () => {
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "development", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), true);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), true);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "production", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), false);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "false" }), false);
 });
 
 test("sends the API key only in the server-side Authorization header", async () => {
@@ -119,10 +134,12 @@ test("handles provider errors and malformed responses without leaking secrets", 
   assert.equal(malformed.ok, false);
 });
 
-test("keeps Production interactive in evidence-only mode while clinical review is pending", () => {
+test("keeps Production evidence-only while enabling explicitly gated Preview drafts", () => {
+  assert.match(chatRouteSource, /isDraftAnswersEnabled\(process\.env\)/);
   assert.match(chatRouteSource, /mode: "evidence-only"/);
   assert.match(chatRouteSource, /reviewStatus: "awaiting_clinical_review"/);
-  assert.match(chatRouteSource, /abstained: false/);
+  assert.match(chatRouteSource, /mode: "grounded-draft-answer"/);
+  assert.match(chatRouteSource, /draftOnly: true/);
   assert.match(chatRouteSource, /return evidenceOnlyResponse\(/);
-  assert.doesNotMatch(chatRouteSource, /ยังไม่เปิดใช้งาน เอกสารความรู้ยังรอผู้เชี่ยวชาญทบทวน/);
+  assert.match(chatRouteSource, /x-vercel-oidc-token/);
 });
