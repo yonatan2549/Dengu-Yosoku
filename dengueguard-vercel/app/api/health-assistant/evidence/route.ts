@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readBoundedJson } from "@/lib/health-assistant/request-body";
 import { buildHealthEvidencePackage } from "@/lib/health-assistant/evidence";
 import { retrieveHealthKnowledgeChunks } from "@/lib/health-assistant/chunk-retrieval";
 import { validateKnowledgeQuery } from "@/lib/health-assistant/knowledge";
@@ -8,14 +9,12 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "คำขอต้องอยู่ในรูปแบบ JSON" }, { status: 400 });
+  const parsedBody = await readBoundedJson(request);
+  if (!parsedBody.ok) {
+    return NextResponse.json({ error: parsedBody.error }, { status: parsedBody.status, headers: { "Cache-Control": "no-store, max-age=0" } });
   }
 
-  const validated = validateKnowledgeQuery(body);
+  const validated = validateKnowledgeQuery(parsedBody.value);
   if (!validated.ok) return NextResponse.json({ error: validated.error }, { status: 400 });
 
   try {
