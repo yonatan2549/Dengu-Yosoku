@@ -107,7 +107,7 @@ jobs:
                   "patientname", "fullname", "telephone", "phonenumber", "mobile",
                   "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
                   "เลขโรงพยาบาล", "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "ชื่อ", "นามสกุล",
-                  "เบอร์โทร", "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
+                  "ชื่อจริง", "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร", "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
               )
               possible_identifiers = [
                   h for h, n in normalized.items()
@@ -117,15 +117,19 @@ jobs:
               province_values = set()
               row_count = 0
               for row in reader:
-                  if not any((value or "").strip() for value in row.values()):
+                  if not any(str(value or "").strip() for value in row.values()):
                       continue
                   row_count += 1
                   if province_cols:
-                      value = (row.get(province_cols[0]) or "").strip()
+                      value = str(row.get(province_cols[0]) or "").strip()
                       if value:
                           province_values.add(value)
 
-          digest = hashlib.sha256(source.read_bytes()).hexdigest()
+          hasher = hashlib.sha256()
+          with source.open("rb") as binary:
+              for chunk in iter(lambda: binary.read(1024 * 1024), b""):
+                  hasher.update(chunk)
+          digest = hasher.hexdigest()
           report = {
               "file_name": source.name,
               "file_size_bytes": source.stat().st_size,
