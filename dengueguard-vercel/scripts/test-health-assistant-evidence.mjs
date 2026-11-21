@@ -35,6 +35,13 @@ test("routes breathing difficulty to urgent safety notice", () => {
   assert.equal(result.safetyLevel, "urgent");
 });
 
+test("routes loss of consciousness, shock and severe thirst to urgent safety notice", () => {
+  for (const query of ["หมดสติ", "ผู้ป่วยมีอาการช็อก", "กระหายน้ำมาก"]) {
+    assert.equal(classifyHealthQuery(query), "emergency-warning", query);
+    assert.equal(buildHealthEvidencePackage(query).safetyLevel, "urgent", query);
+  }
+});
+
 test("emergency safety route takes priority over a personal medical query", () => {
   const result = buildHealthEvidencePackage("ลูกของฉันอาเจียนต่อเนื่อง");
   assert.equal(result.intent, "emergency-warning");
