@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 API_URL = "https://archive-api.open-meteo.com/v1/archive"
-MODELS = ("era5_land", "ecmwf_ifs", "best_match")
+MODELS = ("era5_land", "best_match")
 
 
 def parse_args():
@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument("--source-commit", default="unknown")
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--validation-weeks", type=int, default=8)
-    parser.add_argument("--batch-size", type=int, default=10)
+    parser.add_argument("--batch-size", type=int, default=77)
     return parser.parse_args()
 
 
@@ -44,7 +44,7 @@ def as_float(value, field):
     return number
 
 
-def fetch_json(url, retries=3):
+def fetch_json(url, retries=2):
     last_error = None
     for attempt in range(retries):
         try:
@@ -55,7 +55,7 @@ def fetch_json(url, retries=3):
                     "Accept": "application/json",
                 },
             )
-            with urllib.request.urlopen(request, timeout=90) as response:
+            with urllib.request.urlopen(request, timeout=45) as response:
                 payload = json.load(response)
             if isinstance(payload, dict) and payload.get("error"):
                 raise RuntimeError(payload.get("reason", "Open-Meteo API returned an error."))
@@ -185,7 +185,12 @@ def main():
             if model_name != "best_match":
                 params["models"] = model_name
             url = API_URL + "?" + urllib.parse.urlencode(params)
-            payload = fetch_json(url)
+            try:
+                payload = fetch_json(url)
+            except RuntimeError as exc:
+                model_error = str(exc)
+                print(f"Open-Meteo {model_name} request failure for batch starting at province {offset + 1}: {exc}")
+                break
             if isinstance(payload, dict):
                 responses = [payload]
             elif isinstance(payload, list):
@@ -212,6 +217,26 @@ def main():
                     )
                 for week_start, value in weekly_mean(daily).items():
                     model_weather[(province, week_start)] = value
+
+        if "model_error" in locals() and model_error:
+            comparisons[model_name] = {
+                "model": model_name,
+                "matched_province_weeks": 0,
+                "mae_c": None,
+                "rmse_c": None,
+                "mean_bias_c": None,
+                "pearson_correlation": None,
+                "per_week": [],
+                "status": "api_request_failed",
+                "error": model_error,
+            }
+            diagnostics[model_name] = {
+                "api_week_coverage": {},
+                "api_week_key_count": 0,
+                "request_error": model_error,
+            }
+            del model_error
+            continue
 
         actuals, predicted = [], []
         per_week = []
