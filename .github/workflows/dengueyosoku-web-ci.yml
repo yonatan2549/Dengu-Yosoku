@@ -1,6 +1,7 @@
 name: DengueYosoku web CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - feature/dengueguard-improvements
@@ -39,7 +40,7 @@ jobs:
           python-version: "3.12"
 
       - name: Compile model adapter scripts
-        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py
+        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
 
 
       - name: Set up Node.js
@@ -132,6 +133,7 @@ jobs:
           npm run test:model-release-inspection
           python -m unittest scripts.test_classic_function_parity -v
           python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
+          python -m unittest scripts.test_prepare_current_model_snapshot -v
 
       - name: Model release source guard
         run: npm run check:model-release-guard
