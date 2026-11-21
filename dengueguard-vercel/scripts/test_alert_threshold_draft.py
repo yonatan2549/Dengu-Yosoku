@@ -20,9 +20,14 @@ class AlertThresholdDraftTests(unittest.TestCase):
         expected = build_candidate(SNAPSHOT)
         self.assertEqual(expected["thresholds"], CANDIDATE["thresholds"])
         self.assertEqual(
+            expected["computational_review"]["checks"],
+            CANDIDATE["computational_review"]["checks"],
+        )
+        self.assertEqual(
             expected["computational_review"]["leave_one_week_out_sensitivity"],
             CANDIDATE["computational_review"]["leave_one_week_out_sensitivity"],
         )
+        self.assertEqual(expected["governance"]["limitations"], CANDIDATE["governance"]["limitations"])
         self.assertEqual(
             expected["computational_review"]["quantile_definition_sensitivity"],
             CANDIDATE["computational_review"]["quantile_definition_sensitivity"],
