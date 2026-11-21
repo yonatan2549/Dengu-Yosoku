@@ -2,6 +2,11 @@ name: DengueYosoku TanRabad latest-week data intake
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - integration/phase9-12-final-review
+    paths:
+      - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
 
 permissions:
   contents: read
@@ -19,12 +24,28 @@ jobs:
       - name: Check out DengueYosoku
         uses: actions/checkout@v4
 
+      - name: Check whether the private Drive source is configured
+        id: drive_secret
+        shell: bash
+        env:
+          DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
+        run: |
+          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Drive secret is not configured. Intake will safely skip without accessing any file."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Drive source is configured."
+          fi
+
       - name: Set up Python
+        if: steps.drive_secret.outputs.available == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Download latest-week TanRabad CSV to ephemeral runner storage
+        if: steps.drive_secret.outputs.available == 'true'
         shell: bash
         env:
           DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
@@ -56,6 +77,7 @@ jobs:
           echo "Downloaded CSV to temporary runner storage. Raw data will not be printed or uploaded."
 
       - name: Inspect schema without printing patient records
+        if: steps.drive_secret.outputs.available == 'true'
         id: audit
         shell: bash
         run: |
@@ -156,7 +178,7 @@ jobs:
           PY
 
       - name: Upload structure-only audit report
-        if: always()
+        if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: dengueyosoku-tanrabad-weekly-structure-audit-${{ github.run_id }}
@@ -165,5 +187,5 @@ jobs:
           retention-days: 7
 
       - name: Confirm intake is ready for model-specific mapping
-        if: success()
+        if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
         run: echo "Structure-only intake audit completed. No training, prediction, deployment, or raw-data publication was performed."
