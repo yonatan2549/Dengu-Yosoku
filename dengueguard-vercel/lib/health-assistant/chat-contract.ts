@@ -130,11 +130,11 @@ export function validateCitedAnswer(
     return { ok: false, error: "คำตอบอ้างอิงแหล่งข้อมูลที่ไม่ได้อยู่ในผลค้น" };
   }
   const uncitedParagraphs = normalized
-    .split(/\\n\\s*\\n/)
+    .split(/\n\s*\n/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
     .filter((paragraph) =>
-      !/^#{1,6}\\s/.test(paragraph) &&
+      !/^#{1,6}\s/.test(paragraph) &&
       !/^(?:คำเตือน|หมายเหตุ|ข้อจำกัด|disclaimer)\\b/i.test(paragraph) &&
       !/\\[S\\d+\\]/.test(paragraph)
     );
