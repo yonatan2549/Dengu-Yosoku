@@ -43,6 +43,32 @@
 
 ผลนี้เป็นเพียง exceedance frequency ไม่ใช่ sensitivity, specificity, PPV หรือผลยืนยันความสามารถตรวจจับการระบาด
 
+### การทดสอบการทำนายการเกิน Threshold เทียบ Persistence
+
+ใช้ threshold ที่ fit จาก 18 สัปดาห์แรก แล้วทดสอบ 8 สัปดาห์สุดท้าย 616 province-week observations โดยนิยาม actual-positive = จำนวนผู้ป่วยจริง ≥ threshold รายจังหวัด และ predicted-positive = ค่าพยากรณ์/ค่า persistence ≥ threshold เดียวกัน
+
+**Micro-average (รวม 616 province-week observations):**
+
+| เกณฑ์ | ตัวทำนาย | TP | FP | FN | TN | Precision | Recall | Specificity | F1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Watch | Model forecast | 75 | 18 | 83 | 440 | 80.6% | 47.5% | 96.1% | 59.8% |
+| Watch | Persistence | 97 | 60 | 61 | 398 | 61.8% | 61.4% | 86.9% | 61.6% |
+| Alert | Model forecast | 38 | 8 | 59 | 511 | 82.6% | 39.2% | 98.5% | 53.1% |
+| Alert | Persistence | 57 | 34 | 40 | 485 | 62.6% | 58.8% | 93.4% | 60.6% |
+
+**Macro-average (เฉลี่ย 77 จังหวัด โดยให้น้ำหนักแต่ละจังหวัดเท่ากัน):**
+
+| เกณฑ์ | ตัวทำนาย | Precision | Recall | Specificity | F1 |
+|---|---|---:|---:|---:|---:|
+| Watch | Model forecast | 23.8% | 17.0% | 87.5% | 18.9% |
+| Watch | Persistence | 26.5% | 24.8% | 74.7% | 25.4% |
+| Alert | Model forecast | 16.4% | 9.3% | 95.5% | 11.4% |
+| Alert | Persistence | 18.0% | 15.7% | 86.8% | 16.5% |
+
+**ข้อค้นพบ:** Model forecast มี micro precision/specificity สูงกว่า แต่ recall และ F1 ต่ำกว่า persistence ทั้ง Watch และ Alert โดย macro recall ของ Alert อยู่ที่ 9.3% เทียบกับ persistence 15.7% ตัวเลขนี้หมายถึงความสามารถทำนายการเกินเกณฑ์สถิติใน split นี้เท่านั้น ไม่ใช่ sensitivity ต่อการระบาดจริง
+
+จึงยังไม่ผ่าน operational alert gate แม้ threshold จะครบ 77 จังหวัด; ต้องพิจารณาความไวต่ำในระดับจังหวัดและ sample size เพียง 8 สัปดาห์ validation ก่อนพิจารณาการใช้เชิงปฏิบัติการ
+
 ## Threshold ครบ 77 จังหวัด
 
 | จังหวัด | Watch (ราย/สัปดาห์) | Alert (ราย/สัปดาห์) | n | หมายเหตุ |
