@@ -99,9 +99,17 @@ test("rejects fabricated citation markers", () => {
   assert.equal(result.ok, false);
 });
 
-test("rejects paragraphs without citations", () => {
-  const result = validateLocalRagAnswer("โรคนี้เกิดจากไวรัส [S1]\n\nควรดื่มน้ำมาก ๆ", [chunk("a1", "A", [1, 0])]);
-  assert.equal(result.ok, false);
+test("rejects paragraphs and individual bullet lines without citations", () => {
+  const item = chunk("a1", "A", [1, 0]);
+  const paragraph = validateLocalRagAnswer("โรคนี้เกิดจากไวรัส [S1]\n\nควรดื่มน้ำมาก ๆ", [item]);
+  const bullet = validateLocalRagAnswer("ข้อมูลจากแหล่งอ้างอิง [S1]\n- ข้อกล่าวอ้างที่ไม่มี citation", [item]);
+  assert.equal(paragraph.ok, false);
+  assert.equal(bullet.ok, false);
+});
+
+test("accepts individually cited factual bullet lines", () => {
+  const result = validateLocalRagAnswer("## สาเหตุ\n- โรคเกิดจากไวรัสเดงกี [S1]\n- แพร่ผ่านยุงลายที่มีเชื้อ [S1]", [chunk("a1", "A", [1, 0])]);
+  assert.equal(result.ok, true);
 });
 
 test("rejects leaked analysis or thinking text", () => {
