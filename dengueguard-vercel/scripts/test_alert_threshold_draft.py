@@ -73,6 +73,38 @@ class AlertThresholdDraftTests(unittest.TestCase):
         self.assertEqual(split["one_case_increment_fallback_count"], 1)
         self.assertEqual(split["one_case_increment_fallback_provinces"], ["สิงห์บุรี"])
 
+    def test_temporal_threshold_exceedance_validation_compares_model_with_persistence(self):
+        split = CANDIDATE["computational_review"]["temporal_split_validation"]
+        evaluation = split["prediction_vs_observed_threshold_exceedance"]
+        self.assertEqual(evaluation["sample_n"], 616)
+        watch = evaluation["micro"]["watch"]
+        self.assertEqual(
+            [watch["model_forecast"][k] for k in ("tp", "fp", "fn", "tn")],
+            [75, 18, 83, 440],
+        )
+        self.assertEqual(
+            [watch["persistence_baseline"][k] for k in ("tp", "fp", "fn", "tn")],
+            [97, 60, 61, 398],
+        )
+        alert = evaluation["micro"]["alert"]
+        self.assertEqual(
+            [alert["model_forecast"][k] for k in ("tp", "fp", "fn", "tn")],
+            [38, 8, 59, 511],
+        )
+        self.assertEqual(
+            [alert["persistence_baseline"][k] for k in ("tp", "fp", "fn", "tn")],
+            [57, 34, 40, 485],
+        )
+        macro = evaluation["macro_mean_across_77_provinces"]
+        self.assertEqual(macro["watch"]["model_forecast"]["recall"], 0.170)
+        self.assertEqual(macro["watch"]["persistence_baseline"]["recall"], 0.248)
+        self.assertEqual(macro["alert"]["model_forecast"]["recall"], 0.093)
+        self.assertEqual(macro["alert"]["persistence_baseline"]["recall"], 0.157)
+        self.assertLess(
+            evaluation["micro"]["alert"]["model_forecast"]["f1"],
+            evaluation["micro"]["alert"]["persistence_baseline"]["f1"],
+        )
+
     def test_small_sample_sensitivity_is_reported(self):
         sensitivity = CANDIDATE["computational_review"]["leave_one_week_out_sensitivity"]
         self.assertEqual(sensitivity["median_alert_threshold_span"], 1)
