@@ -4,16 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Clock3, Info, MapPinned, X } from "lucide-react";
 import Link from "next/link";
 import { useDengueData } from "@/components/DataProvider";
-import { getCurrentEpiWeekStart } from "@/lib/utils";
+import { formatEpiWeekLabel } from "@/lib/epi-week";
 
 const STORAGE_KEY = "DengueYosoku-next-week-forecast-popup-v2";
 const EXPECTED_PROVINCES = 77;
-
-function addSevenDays(value: string) {
-  const date = new Date(value + "T00:00:00.000Z");
-  date.setUTCDate(date.getUTCDate() + 7);
-  return date.toISOString().slice(0, 10);
-}
 
 function formatWeek(value?: string | null) {
   if (!value) return "ไม่มีข้อมูล";
@@ -29,13 +23,13 @@ export function SupportingPopup() {
   const [open, setOpen] = useState(false);
   const [checkedSession, setCheckedSession] = useState(false);
 
-  const currentWeek = getCurrentEpiWeekStart();
-  const nextWeek = addSevenDays(currentWeek);
   const model = data?.modelPredictions ?? null;
+  const forecastWeek = model?.coverage.forecast_week ?? "";
+  const forecastWeekLabel = forecastWeek ? formatEpiWeekLabel(forecastWeek) : "ไม่มีสัปดาห์เป้าหมาย";
 
   const forecastRows = useMemo(
-    () => model?.forecast.filter((row) => row.week_start === nextWeek) ?? [],
-    [model, nextWeek],
+    () => model?.forecast.filter((row) => row.week_start === forecastWeek) ?? [],
+    [model, forecastWeek],
   );
   const forecastComplete =
     forecastRows.length === EXPECTED_PROVINCES &&
@@ -85,10 +79,10 @@ export function SupportingPopup() {
         type="button"
         className="floating-info-button"
         onClick={() => setOpen(true)}
-        aria-label="ดูพยากรณ์ไข้เลือดออกสัปดาห์หน้า"
+        aria-label="ดูผลพยากรณ์ล่าสุดของโมเดล"
       >
         <Info size={17} />
-        <span>พยากรณ์สัปดาห์หน้า</span>
+        <span>{forecastWeek ? `พยากรณ์ ${forecastWeekLabel}` : "ผลพยากรณ์ล่าสุด"}</span>
       </button>
 
       {open && (
@@ -104,8 +98,8 @@ export function SupportingPopup() {
               <div className="brand-mark small-mark">DY</div>
               <div className="modal-heading">
                 <span className="eyebrow">DENGUEYOSOKU · 77 PROVINCES</span>
-                <h2 id="support-modal-title">รายงานพยากรณ์ไข้เลือดออกสัปดาห์หน้า</h2>
-                <p>สัปดาห์เป้าหมาย {formatWeek(nextWeek)} · ทั่วประเทศ 77 จังหวัด</p>
+                <h2 id="support-modal-title">รายงานพยากรณ์ไข้เลือดออก {forecastWeekLabel}</h2>
+                <p>เป้าหมาย {formatWeek(forecastWeek)} · ทั่วประเทศ 77 จังหวัด</p>
               </div>
               <button type="button" className="icon-button modal-close" onClick={dismiss} aria-label="ปิดหน้าต่าง">
                 <X size={20} />
@@ -145,12 +139,19 @@ export function SupportingPopup() {
                   </ol>
                 </div>
               </>
+              <div className="inline-callout warning" role="status">
+                <Info size={16} />
+                <span>
+                  ยังไม่มีข้อมูลผู้ป่วยจริงรายจังหวัดของ {forecastWeekLabel}
+                  ผลรวมและค่ารายจังหวัดด้านบนเป็นค่าพยากรณ์ ไม่ใช่ยอดผู้ป่วยที่รายงานยืนยันแล้ว
+                </span>
+              </div>
             ) : (
               <div className="support-empty-state" role="status">
                 <div className="support-empty-icon"><Clock3 size={22} /></div>
-                <strong>ยังไม่มีผลพยากรณ์ที่ตรงกับสัปดาห์หน้า</strong>
+                <strong>ยังไม่มีผลพยากรณ์ครบ 77 จังหวัดสำหรับสัปดาห์เป้าหมาย</strong>
                 <p>
-                  ระบบต้องมี Model Snapshot ที่ระบุสัปดาห์เป้าหมาย {formatWeek(nextWeek)}
+                  ระบบต้องมี Model Snapshot ที่ระบุสัปดาห์เป้าหมาย {forecastWeek ? formatWeek(forecastWeek) : "ที่ระบุได้"}
                   และมีผลครบ 77 จังหวัดก่อน จึงจะแสดงตัวเลขในรายงานนี้
                 </p>
                 <p className="support-latest-snapshot">
