@@ -220,8 +220,32 @@ def build_inputs(
     historical_csv: Path,
     incoming_csv: Path,
     weather_csv: Path,
+    weather_report_json: Path,
     output_dir: Path,
 ) -> dict[str, Any]:
+    try:
+        weather_report = json.loads(weather_report_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BuildInputError(f"Unable to read Open-Meteo compatibility report: {exc}") from exc
+    comparison = weather_report.get("api_comparison", {}).get(WEATHER_MODEL, {})
+    validation_weeks = weather_report.get("validation_weeks", [])
+    if (
+        comparison.get("status") != "comparison_complete"
+        or weather_report.get("best_historical_match_by_mae") != WEATHER_MODEL
+        or comparison.get("matched_province_weeks") != 52 * EXPECTED_PROVINCES
+        or len(validation_weeks) != 52
+    ):
+        raise BuildInputError("Open-Meteo best_match has not passed the full 52-week historical source comparison.")
+    mae = float(comparison.get("mae_c"))
+    rmse = float(comparison.get("rmse_c"))
+    bias = abs(float(comparison.get("mean_bias_c")))
+    correlation = float(comparison.get("pearson_correlation"))
+    if not (mae <= 0.01 and rmse <= 0.01 and bias <= 0.01 and correlation >= 0.999):
+        raise BuildInputError(
+            f"Open-Meteo weather equivalence gate failed: MAE={mae}, RMSE={rmse}, "
+            f"absolute bias={bias}, correlation={correlation}."
+        )
+
     historical_fields, historical_rows = _read_csv(historical_csv)
     canonical_provinces, historical_weeks = _validate_historical(historical_rows, historical_fields)
     case_map, case_coverage = _read_incoming(incoming_csv, canonical_provinces)
@@ -301,12 +325,13 @@ def build_inputs(
             "model": WEATHER_MODEL,
             "province_coverage_by_week": weather_coverage,
             "values_added": len(weather_map),
-            "historical_comparison_window_weeks": 52,
-            "historical_comparison_matched_province_weeks": 4004,
-            "historical_comparison_mae_c": 0.00017601446175324228,
-            "historical_comparison_rmse_c": 0.006519855205160816,
-            "historical_comparison_mean_bias_c": 0.00007135721421413765,
-            "historical_comparison_pearson_r": 0.9999984751997705,
+            "historical_comparison_window_weeks": len(validation_weeks),
+            "historical_comparison_matched_province_weeks": comparison["matched_province_weeks"],
+            "historical_comparison_mae_c": mae,
+            "historical_comparison_rmse_c": rmse,
+            "historical_comparison_mean_bias_c": comparison["mean_bias_c"],
+            "historical_comparison_pearson_r": correlation,
+            "compatibility_report_sha256": sha256_file(weather_report_json),
             "candidate_sha256": sha256_file(weather_csv),
         },
         "training_panel": {
@@ -345,6 +370,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--historical-full-csv", required=True, type=Path)
     parser.add_argument("--incoming-panel-csv", required=True, type=Path)
     parser.add_argument("--weather-candidates-csv", required=True, type=Path)
+    parser.add_argument("--weather-compatibility-json", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     return parser.parse_args()
 
@@ -355,6 +381,7 @@ def main() -> int:
         args.historical_full_csv,
         args.incoming_panel_csv,
         args.weather_candidates_csv,
+        args.weather_compatibility_json,
         args.output_dir,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2))
