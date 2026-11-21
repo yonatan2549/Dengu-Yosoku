@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildLocalGroundedMessages,
   cosineSimilarity,
+  isAllowedHealthSourceUrl,
   isLocalHealthRagEnabled,
   rankLocalHealthChunks,
   validateLocalRagAnswer,
@@ -30,6 +31,15 @@ function chunk(id, sourceId, embedding, content = "ข้อมูลทดส�
     embedding,
   };
 }
+
+test("local knowledge citations allow only HTTPS WHO, CDC and DDC domains", () => {
+  assert.equal(isAllowedHealthSourceUrl("https://www.who.int/dengue"), true);
+  assert.equal(isAllowedHealthSourceUrl("https://www.cdc.gov/dengue/hcp/clinical-care/"), true);
+  assert.equal(isAllowedHealthSourceUrl("https://ddc.moph.go.th/dvb/pagecontent.php?page=17"), true);
+  assert.equal(isAllowedHealthSourceUrl("http://www.who.int/dengue"), false);
+  assert.equal(isAllowedHealthSourceUrl("https://example.com/dengue"), false);
+  assert.equal(isAllowedHealthSourceUrl("not-a-url"), false);
+});
 
 test("cosine similarity ranks aligned vectors higher", () => {
   assert.equal(cosineSimilarity([1, 0], [1, 0]), 1);
