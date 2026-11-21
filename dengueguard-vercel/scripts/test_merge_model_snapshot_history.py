@@ -8,6 +8,7 @@ from pathlib import Path
 from scripts.merge_model_snapshot_history import (
     HistoryBridgeError,
     merge_history_bridge,
+    mmwr_sunday_start,
     mmwr_year_week,
 )
 
