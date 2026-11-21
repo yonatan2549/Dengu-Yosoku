@@ -51,7 +51,7 @@ export function AlertThresholdAuditPanel() {
         <span>
           <strong>Automated audit passed with limitations</strong>
           <br />
-          Independent implementation ตรวจสูตรตรงกัน; leave-one-week-out median span ของ Alert {sensitivity.median_alert_threshold_span} ราย สูงสุด {sensitivity.max_alert_threshold_span} ราย และ temporal split พบค่าจริงเกิน Watch {temporal.observed_cases_at_or_above_watch}/{temporal.province_week_observations} ({temporal.observed_cases_at_or_above_watch_percent}%) · เกิน Alert {temporal.observed_cases_at_or_above_alert}/{temporal.province_week_observations} ({temporal.observed_cases_at_or_above_alert_percent}%)
+          Independent implementation ตรวจสูตรตรงกัน; leave-one-week-out median span ของ Alert {sensitivity.median_alert_threshold_span} ราย สูงสุด {sensitivity.max_alert_threshold_span} ราย และ temporal split 18/8 สัปดาห์พบค่าจริงเกิน Watch {temporal.observed_cases_at_or_above_watch}/{temporal.province_week_observations} ({temporal.observed_cases_at_or_above_watch_percent}%) · เกิน Alert {temporal.observed_cases_at_or_above_alert}/{temporal.province_week_observations} ({temporal.observed_cases_at_or_above_alert_percent}%). ช่วงฝึกมี fallback Watch + 1 รายสำหรับ {temporal.one_case_increment_fallback_count} จังหวัด ({temporal.one_case_increment_fallback_provinces.join(", ")}) เนื่องจากไม่มีค่าที่สังเกตสูงกว่า P75
         </span>
       </div>
 
