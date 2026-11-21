@@ -85,6 +85,7 @@ test("uses Vercel AI Gateway defaults and accepts server-side credentials", () =
     assert.equal(gateway.config.model, "google/gemini-4-neon");
   }
   assert.equal(readChatProviderConfig({ VERCEL_OIDC_TOKEN: "vercel-oidc-token" }, "production").ok, true);
+  assert.equal(readChatProviderConfig({}, "production", "platform-injected-oidc-token").ok, true);
   assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "https://api.example.test/v1/chat/completions", HEALTH_ASSISTANT_API_KEY: "legacy-secret", HEALTH_ASSISTANT_MODEL: "model-a" }, "development").ok, true);
 });
 
@@ -101,7 +102,7 @@ test("enables AI draft generation only in local development or explicitly enable
   assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "false" }), false);
 });
 
-test("sends the API key only in the server-side Authorization header", async () => {
+test("sends a platform-provided OIDC token only in the server-side Authorization header", async () => {
   let captured;
   const mockFetch = async (_url, options) => {
     captured = options;
@@ -136,6 +137,7 @@ test("handles provider errors and malformed responses without leaking secrets", 
 
 test("keeps Production evidence-only while enabling explicitly gated Preview drafts", () => {
   assert.match(chatRouteSource, /isDraftAnswersEnabled\(process\.env\)/);
+  assert.match(chatRouteSource, /request\.headers\.get\("x-vercel-oidc-token"\)/);
   assert.match(chatRouteSource, /mode: "evidence-only"/);
   assert.match(chatRouteSource, /reviewStatus: "awaiting_clinical_review"/);
   assert.match(chatRouteSource, /mode: "grounded-draft-answer"/);
