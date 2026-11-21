@@ -20,7 +20,7 @@ from pathlib import Path
 
 
 API_URL = "https://archive-api.open-meteo.com/v1/archive"
-MODELS = ("era5_land", "best_match")
+MODELS = ("best_match",)
 
 
 def parse_args():
@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--incoming-panel-csv", required=True, type=Path)
     parser.add_argument("--source-commit", default="unknown")
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--validation-weeks", type=int, default=8)
+    parser.add_argument("--validation-weeks", type=int, default=52)
     parser.add_argument("--batch-size", type=int, default=77)
     return parser.parse_args()
 
@@ -348,6 +348,7 @@ def main():
         "compatible_with_original_feature_contract": False,
         "compatibility_decision": "comparison_only_requires_model_owner_review",
         "notes": [
+            "The best_match candidate is tested over a full 52-week rolling overlap window before source substitution.",
             "An API variable with the same name does not prove source-equivalence to the training weather series.",
             "Historical cross-check metrics must be reviewed before using any candidate weather source in the original model.",
             "No model weights, historical weather source values, dengue case records, or public website data are changed by this script.",
