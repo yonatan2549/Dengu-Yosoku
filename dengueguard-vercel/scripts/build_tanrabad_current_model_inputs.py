@@ -49,11 +49,17 @@ def parse_number(value: Any, field: str, *, allow_blank: bool = False) -> float 
     return number
 
 
-def mmwr_sunday_start(year: int, week: int) -> dt.date:
-    if not 1 <= week <= 53:
-        raise BuildInputError(f"Invalid MMWR week: {year}-W{week}.")
+def _mmwr_first_sunday(year: int) -> dt.date:
     jan1 = dt.date(year, 1, 1)
-    first_sunday = jan1 + dt.timedelta(days=(6 - jan1.weekday()) % 7)
+    return jan1 + dt.timedelta(days=(6 - jan1.weekday()) % 7)
+
+
+def mmwr_sunday_start(year: int, week: int) -> dt.date:
+    first_sunday = _mmwr_first_sunday(year)
+    next_year_first_sunday = _mmwr_first_sunday(year + 1)
+    max_week = (next_year_first_sunday - first_sunday).days // 7
+    if not 1 <= week <= max_week:
+        raise BuildInputError(f"Invalid MMWR week: {year}-W{week}; {year} has {max_week} MMWR weeks.")
     return first_sunday + dt.timedelta(weeks=week - 1)
 
 
@@ -61,11 +67,13 @@ def mmwr_year_week(week_start: dt.date) -> tuple[int, int]:
     if week_start.weekday() != 6:
         raise BuildInputError(f"Week start {week_start} is not Sunday.")
     for year in (week_start.year - 1, week_start.year, week_start.year + 1):
-        for week in range(1, 54):
+        first_sunday = _mmwr_first_sunday(year)
+        next_year_first_sunday = _mmwr_first_sunday(year + 1)
+        if first_sunday <= week_start < next_year_first_sunday:
+            week = ((week_start - first_sunday).days // 7) + 1
             if mmwr_sunday_start(year, week) == week_start:
                 return year, week
     raise BuildInputError(f"Could not resolve MMWR year/week for {week_start}.")
-
 
 def _read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
