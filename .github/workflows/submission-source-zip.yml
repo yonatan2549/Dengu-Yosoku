@@ -46,6 +46,7 @@ jobs:
           name: DengueYosoku-Submission-${{ github.sha }}
           path: |
             dist/DengueYosoku-Source.zip
+            dist/DengueYosoku-Repository.zip
             dist/SHA256SUMS.txt
             dist/SOURCE_COMMIT.txt
           if-no-files-found: error
