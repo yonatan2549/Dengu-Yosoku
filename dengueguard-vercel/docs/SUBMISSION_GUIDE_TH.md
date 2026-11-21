@@ -49,13 +49,15 @@ Dashboard มีข้อมูลอ้างอิงระดับประ�
 ### 5.2 ขอบเขต 8 จังหวัดกับ 77 จังหวัด
 
 - แผนที่/ชุดแนวโน้ม ODPC4 เดิมเป็นข้อมูลประวัติศาสตร์ 8 จังหวัด
-- มีสายงานพัฒนาโมเดลระดับ 77 จังหวัดแยกต่างหาก
-- การมี GeoJSON 77 จังหวัดหรือไฟล์ผลย้อนหลัง 77 แถว ไม่ได้แปลว่าระบบมี nowcast สดหรือ risk status ที่พร้อมใช้งานครบ 77 จังหวัด
-- ไฟล์ forecast rehearsal ที่เก่ากว่า target week ปัจจุบันต้องติดป้าย stale และห้ามแสดงเป็นสถานการณ์ปัจจุบัน
+- มี Model Snapshot ทดลอง 77/77 จังหวัดใน `public/data/model_predictions.json` และ Metrics ที่ Revision ตรงกัน
+- Snapshot นี้มี target week เริ่ม **15 พ.ย. 2026** และ weekly case input ถึง **8 พ.ย. 2026** สร้างเมื่อ 21 พ.ย. 2026 เวลา 02:18 UTC
+- สถานะเป็น `review_only`: แสดงผลบน Dashboard เพื่อทบทวนได้ แต่ไม่อนุญาตใช้จัดระดับความเสี่ยงปัจจุบัน สร้าง Alert Candidate หรือแจ้งเตือนประชาชน
+- เมื่อเข้าสัปดาห์ระบาดวิทยาใหม่ที่เริ่ม **22 พ.ย. 2026** Snapshot นี้จะ stale หากไม่มีข้อมูลรายสัปดาห์ชุดใหม่ที่ได้รับอนุญาตและผ่าน audit/release checks
+- การมี GeoJSON 77 จังหวัดหรือ Snapshot review-only ไม่ได้แปลว่ามี nowcast ที่ผ่านการอนุมัติครบ 77 จังหวัด
 
 ### 5.3 วิธีประเมินและข้อจำกัด
 
-สายงาน Phase 13 เปรียบเทียบโมเดล LightGBM Quantile 0.5 กับ baseline เช่น persistence และ seasonal-naive โดยใช้ expanding temporal cross-validation, purge/embargo gap และ rolling-origin retrospective holdout ผล holdout เป็น retrospective benchmark เนื่องจากข้อมูลย้อนหลังและคำตอบถูกเผยแพร่แล้ว ไม่ใช่ sealed blind test และไม่ใช่หลักฐานยืนยันประสิทธิภาพในอนาคต
+สายงาน Phase 13 เปรียบเทียบโมเดล LightGBM Quantile 0.5 กับ baseline เช่น persistence และ seasonal-naive โดยใช้ expanding temporal cross-validation 4 folds, validation 8 สัปดาห์ต่อ fold, embargo gap 4 สัปดาห์ และ rolling-origin retrospective holdout 26 สัปดาห์ (2,002 province-weeks) สำหรับ Snapshot ปัจจุบัน Metrics คือ MAE 3.943, RMSE 6.340, WAPE 27.17%; MAE ต่ำกว่า persistence baseline ประมาณ 9.12% ผล holdout เป็น retrospective benchmark เนื่องจากข้อมูลย้อนหลังและคำตอบถูกเผยแพร่แล้ว ไม่ใช่ sealed blind test และไม่ใช่หลักฐานยืนยันประสิทธิภาพในอนาคต
 
 ก่อนเผยแพร่ snapshot ใหม่ต้องมีข้อมูลสัปดาห์ล่าสุดที่ได้รับอนุญาต, audit คีย์ province-week, target-week leakage check, metrics และ release checks ครบ ห้ามสร้างตัวเลขแทนข้อมูลที่ขาด
 
