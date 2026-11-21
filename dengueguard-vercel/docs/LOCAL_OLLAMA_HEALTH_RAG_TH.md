@@ -6,7 +6,7 @@
 
 1. Knowledge corpus: ข้อความภาษาไทยที่เรียบเรียงใหม่จากแหล่งสาธารณสุขทางการและเก็บ metadata/URL/date ไว้ทุก chunk
 2. Embedding: Qwen3 Embedding 0.6B สร้างเวกเตอร์ของ chunk และคำถามภายใน Ollama
-3. Retrieval: cosine similarity, จำกัดไม่เกิน 2 chunks ต่อแหล่งข้อมูล และตั้ง similarity floor เพื่อให้ระบบ abstain เมื่อหลักฐานไม่ตรง
+3. Retrieval: cosine similarity โดยใช้ query-side retrieval instruction ตามคำแนะนำ Qwen3 Embedding, จำกัดไม่เกิน 2 chunks ต่อแหล่งข้อมูล และตั้ง similarity floor เพื่อให้ระบบ abstain เมื่อหลักฐานไม่ตรง
 4. Generation: Qwen 3.5 0.8B สร้างร่างคำตอบจาก passages ที่ค้นคืน
 5. Validation: ตรวจ source markers, ปฏิเสธ marker ปลอม/ย่อหน้าที่ไม่มี citation และปฏิเสธข้อความ Thinking/Analysis ที่หลุดมา
 6. Safety: คำถามฉุกเฉินและข้อมูลสุขภาพเฉพาะบุคคลถูกสกัดก่อนเรียกโมเดลตาม Safety Gateway เดิม
