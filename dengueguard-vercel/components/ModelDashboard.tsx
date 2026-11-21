@@ -236,6 +236,19 @@ export default function ModelDashboard() {
         </div>
       )}
 
+      {model.release_status === "review_only" && (
+        <div className="inline-callout warning" role="status">
+          <Info size={17} />
+          <span>
+            <strong>โมเดลทดลองสำหรับตรวจสอบ (Review-only)</strong>
+            <br />
+            ผลพยากรณ์นี้แสดงบน Dashboard เพื่อทดสอบการเชื่อมต่อและตรวจทานข้อมูลเท่านั้น
+            ยังไม่ใช่ผลที่รับรองสำหรับใช้ตัดสินใจสาธารณสุข และถูกบล็อกจากการสร้าง WATCH/ALERT Candidate
+            จนกว่าจะมีการอนุมัติรุ่นโมเดลและเกณฑ์แจ้งเตือนแยกต่างหาก
+          </span>
+        </div>
+      )}
+
       <section className="filter-panel">
         <div className="filter-title"><SlidersHorizontal size={17} /><strong>ตัวกรองข้อมูล</strong></div>
         <label className="field-control">
