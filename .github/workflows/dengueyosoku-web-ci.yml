@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - feature/dengueguard-improvements
+      - integration/phase9-12-final-review
+      - review/national-alerts-independent-audit-2026-11-21
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
@@ -12,6 +14,8 @@ on:
     branches:
       - main
       - feature/dengueguard-improvements
+      - integration/phase9-12-final-review
+      - review/national-alerts-independent-audit-2026-11-21
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
@@ -39,8 +43,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Compile model adapter scripts
-        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
+      - name: Compile model adapter and weekly history bridge scripts
+        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py scripts/merge_model_snapshot_history.py scripts/test_merge_model_snapshot_history.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
 
 
       - name: Set up Node.js
@@ -53,9 +57,16 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Historical 77-province snapshot builder tests
+        run: npm run test:province-history
+
       - name: TypeScript check
         run: npm run typecheck
       - name: Dashboard dataset selection regression
+        working-directory: dengueguard-vercel
+        run: npm run test:dashboard-view
+
+      - name: Epidemiological week label regression
         working-directory: dengueguard-vercel
         run: npm run test:dashboard-view
 
@@ -130,6 +141,11 @@ jobs:
       - name: Health knowledge RAG tests
         run: npm run test:health-knowledge-rag
 
+
+      - name: Snapshot actual-history bridge and MMWR contract tests
+        run: |
+          python -m unittest scripts.test_merge_model_snapshot_history -v
+          python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
 
       - name: Python model artifact and release regression tests
         run: |

@@ -113,9 +113,9 @@ export function HealthAssistantChatPanel() {
     <section className="dg-card" aria-labelledby="health-assistant-chat-title">
       <div className="dg-section-head">
         <div>
-          <span className="dg-eyebrow"><MessageCircle size={14} /> GROUNDED CONVERSATIONAL ASSISTANT</span>
+          <span className="dg-eyebrow"><MessageCircle size={14} /> AI HEALTH ASSISTANT</span>
           <h2 id="health-assistant-chat-title">ถาม–ตอบความรู้ไข้เลือดออก</h2>
-          <p>ถามความรู้ทั่วไปเกี่ยวกับไข้เลือดออก พร้อมค้นหลักฐานและแสดงแหล่งอ้างอิงที่ใช้ประกอบคำตอบ</p>
+          <p>ถามเรื่องไข้เลือดออกได้ทันที ระบบจะแสดงแหล่งอ้างอิงเมื่อมีหลักฐานรองรับ</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบ AI…" : runtime.generatedAnswersEnabled ? `AI Preview · ${runtime.model ?? "Draft only"}` : "Evidence-only · Production"}</span>
@@ -127,7 +127,7 @@ export function HealthAssistantChatPanel() {
 
       <div className="dg-note" style={{ marginTop: 14 }}>
         <ShieldAlert size={18} />
-        <div><strong>{runtime?.generatedAnswersEnabled ? "AI Preview · คำตอบร่างเพื่อการศึกษา" : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ระบบใช้เอกสารในคลังที่ยังรอผู้เชี่ยวชาญทบทวน จึงไม่ใช่คำแนะนำทางคลินิก ระบบไม่รับผลตรวจส่วนบุคคล ไม่วินิจฉัย และไม่แนะนำยา หากมีอาการรุนแรงให้ไปโรงพยาบาลโดยไม่รอแชต</div></div>
+        <div><strong>{runtime?.generatedAnswersEnabled ? "AI Preview · คำตอบร่างเพื่อการศึกษา" : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
       </div>
 
       <div aria-live="polite" style={{ display: "grid", gap: 12, marginTop: 18 }}>

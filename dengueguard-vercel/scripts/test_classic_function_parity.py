@@ -24,7 +24,7 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("<ModelDashboard />", self.dashboard)
 
     def test_validated_national_model_is_selected_by_default_without_effect_delay(self):
-        self.assertIn('useState<DashboardDatasetPreference>("auto")', self.dashboard)
+        self.assertIn('useState<DashboardDatasetPreference>("model")', self.dashboard)
         self.assertIn("resolveDashboardDatasetView(viewPreference, hasModel)", self.dashboard)
         self.assertNotIn("useEffect(", self.dashboard)
         self.assertIn("if (!data) return null", self.dashboard)
@@ -56,10 +56,15 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("selectedWeatherDays", self.prevention)
         self.assertIn("normalizeProvince(row.province)", self.prevention)
 
-    def test_classic_supporting_popup_is_available_when_model_snapshot_is_not_current(self):
-        self.assertIn("getCurrentEpiWeekStart", self.popup)
-        self.assertIn("isCurrentModelSnapshot", self.popup)
-        self.assertIn("if (!summary || !data || isCurrentModelSnapshot) return null", self.popup)
+    def test_supporting_popup_shows_latest_snapshot_forecast_week_and_remains_reopenable(self):
+        self.assertIn('const forecastWeek = model?.coverage.forecast_week ?? "";', self.popup)
+        self.assertIn("formatEpiWeekLabel(forecastWeek)", self.popup)
+        self.assertIn('className="floating-info-button"', self.popup)
+        self.assertIn("row.week_start === forecastWeek", self.popup)
+        self.assertIn("forecastRows.length === EXPECTED_PROVINCES", self.popup)
+        self.assertIn("ยังไม่มีข้อมูลผู้ป่วยจริงรายจังหวัด", self.popup)
+        self.assertNotIn("addSevenDays", self.popup)
+        self.assertNotIn("isCurrentModelSnapshot", self.popup)
 
     def test_symptom_checker_validates_optional_lab_numbers_before_results(self):
         self.assertIn("numericSpecs: Array<[string, number, number, string]>", self.symptom)
