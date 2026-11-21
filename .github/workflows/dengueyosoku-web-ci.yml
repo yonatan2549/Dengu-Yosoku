@@ -39,7 +39,8 @@ jobs:
           python-version: "3.12"
 
       - name: Compile model adapter scripts
-        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py
+        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py
+
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -130,6 +131,7 @@ jobs:
           npm run test:model-release-guard
           npm run test:model-release-inspection
           python -m unittest scripts.test_classic_function_parity -v
+          python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
 
       - name: Model release source guard
         run: npm run check:model-release-guard
