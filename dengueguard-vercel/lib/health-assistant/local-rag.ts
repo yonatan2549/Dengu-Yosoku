@@ -298,7 +298,17 @@ export async function runLocalHealthRag(
   history: ChatTurn[],
   env: LocalHealthRagEnvironment,
 ): Promise<LocalRagRunResult> {
-  const settings = getLocalOllamaSettings(env);
+  let settings: ReturnType<typeof getLocalOllamaSettings>;
+  try {
+    settings = getLocalOllamaSettings(env);
+  } catch {
+    return {
+      ok: false,
+      status: 503,
+      error: "ค่า OLLAMA_BASE_URL ไม่ถูกต้อง ต้องชี้ไปยัง http://127.0.0.1:11434 หรือ http://localhost:11434 เท่านั้น",
+    };
+  }
+
   let index: LocalRagIndex;
   try {
     index = await readLocalIndex();
