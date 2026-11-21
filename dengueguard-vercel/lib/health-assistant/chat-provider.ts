@@ -8,16 +8,34 @@ export interface ChatProviderConfig {
 
 export type ConfigEnvironment = Record<string, string | undefined>;
 
+export const DEFAULT_AI_GATEWAY_ENDPOINT = "https://ai-gateway.vercel.sh/v1/chat/completions";
+export const DEFAULT_HEALTH_ASSISTANT_MODEL = "google/gemini-4-neon";
+
+/**
+ * Reads credentials only from server-side environment or a Vercel-issued OIDC token.
+ * Vercel supplies VERCEL_OIDC_TOKEN at build time and the signed OIDC token
+ * through x-vercel-oidc-token at function runtime. The latter is platform-injected;
+ * it is never read from the chat JSON body.
+ */
 export function readChatProviderConfig(
   env: ConfigEnvironment,
   nodeEnv: string | undefined,
+  runtimeOidcToken?: string | null,
 ): { ok: true; config: ChatProviderConfig } | { ok: false; error: string } {
-  const endpoint = env.HEALTH_ASSISTANT_CHAT_ENDPOINT?.trim() ?? "";
-  const apiKey = env.HEALTH_ASSISTANT_API_KEY?.trim() ?? "";
-  const model = env.HEALTH_ASSISTANT_MODEL?.trim() ?? "";
-  if (!endpoint || !apiKey || !model) {
-    return { ok: false, error: "ยังไม่ได้ตั้งค่า AI Provider ฝั่ง Server" };
+  const endpoint = env.HEALTH_ASSISTANT_CHAT_ENDPOINT?.trim() || DEFAULT_AI_GATEWAY_ENDPOINT;
+  const apiKey =
+    env.AI_GATEWAY_API_KEY?.trim() ||
+    runtimeOidcToken?.trim() ||
+    env.VERCEL_OIDC_TOKEN?.trim() ||
+    // Backward compatibility for an existing OpenAI-compatible provider setup.
+    env.HEALTH_ASSISTANT_API_KEY?.trim() ||
+    "";
+  const model = env.HEALTH_ASSISTANT_MODEL?.trim() || DEFAULT_HEALTH_ASSISTANT_MODEL;
+
+  if (!apiKey) {
+    return { ok: false, error: "ยังไม่พบ AI Gateway credential ฝั่ง Server (ตั้งค่า AI_GATEWAY_API_KEY หรือเปิด Vercel OIDC)" };
   }
+
   let parsed: URL;
   try {
     parsed = new URL(endpoint);
@@ -31,7 +49,7 @@ export function readChatProviderConfig(
   if (nodeEnv === "production" && (parsed.protocol !== "https:" || localHost)) {
     return { ok: false, error: "Production ต้องใช้ AI Provider Endpoint แบบ HTTPS" };
   }
-  if (model.length > 120 || apiKey.length > 2048) {
+  if (model.length > 120 || apiKey.length > 4096) {
     return { ok: false, error: "การตั้งค่า AI Provider มีความยาวเกินกำหนด" };
   }
   return { ok: true, config: { endpoint: parsed.toString(), apiKey, model } };
@@ -46,7 +64,11 @@ function extractContent(payload: unknown): string | null {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     const textParts = content
-      .filter((part): part is { type: string; text: string } => Boolean(part && typeof part === "object" && (part as { type?: unknown }).type === "text" && typeof (part as { text?: unknown }).text === "string"))
+      .filter((part): part is { type: string; text: string } => Boolean(
+        part && typeof part === "object" &&
+        (part as { type?: unknown }).type === "text" &&
+        typeof (part as { text?: unknown }).text === "string"
+      ))
       .map((part) => part.text);
     return textParts.length ? textParts.join("\n") : null;
   }
