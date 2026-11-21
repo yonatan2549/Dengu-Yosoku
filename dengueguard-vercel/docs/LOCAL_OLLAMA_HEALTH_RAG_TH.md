@@ -33,7 +33,7 @@ ollama pull qwen3-embedding:0.6b
 
 ## ตั้งค่า Local Development
 
-ในโฟลเดอร์ dengueguard-vercel ให้คัดลอก .env.example เป็น .env.local (ถ้ายังไม่มี) แล้วเพิ่ม:
+ในโฟลเดอร์ dengueguard-vercel ให้เพิ่มค่าต่อไปนี้ในไฟล์ .env.local (อย่าเขียนทับค่าเดิมที่จำเป็นต่อโครงการ; หากยังไม่มีไฟล์ ให้สร้างใหม่):
 
 \`\`\`env
 HEALTH_ASSISTANT_PROVIDER=ollama-local
@@ -91,6 +91,7 @@ npm.cmd run dev
 - Local Ollama ใช้ได้เฉพาะ Next.js development บนเครื่องเดียวกับ Ollama; Vercel serverless ไม่สามารถเข้าถึง Ollama บนเครื่องผู้พัฒนาได้
 - Full-document PDF/HTML ingestion, OCR, source-content licensing review, Thai clinical review, broader evaluation set และ adversarial red-team tests ยังไม่เสร็จ
 - Threshold 0.30 เป็นค่าเริ่มต้นเชิงทดลอง ต้องปรับจากชุดคำถามภาษาไทยที่มี positive/negative labels ก่อนใช้งาน
+- Citation validation ตรวจ marker, paragraph coverage และ metadata/domain ที่อนุญาตเท่านั้น ไม่ได้พิสูจน์ว่าทุก claim ถูก entail โดยต้นฉบับ จึงยังต้องตรวจคำตอบกับเอกสารต้นทางและให้ผู้เชี่ยวชาญทบทวน
 - No patient chat or lab values are used for model training or embedding index creation.
 
 ## API behavior
