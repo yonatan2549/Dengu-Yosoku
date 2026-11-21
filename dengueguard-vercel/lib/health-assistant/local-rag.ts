@@ -225,14 +225,14 @@ export function validateLocalRagAnswer(
   }
 
   const uncited = normalized
-    .split(/\\r?\\n/)
+    .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .filter((line) =>
-      !/^#{1,6}\\s/.test(line) &&
-      !/^\\*\\*[^*]+\\*\\*:?$/.test(line) &&
+      !/^#{1,6}\s/.test(line) &&
+      !/^\*\*[^*]+\*\*:?$/.test(line) &&
       !/^[-*_]{3,}$/.test(line) &&
-      !/\\[S\\d+\\]/.test(line)
+      !/\[S\d+\]/.test(line)
     );
   if (uncited.length > 0) return { ok: false, error: "มีบางย่อหน้าที่ไม่มี marker อ้างอิง" };
 
