@@ -10,6 +10,7 @@
 - เพิ่ม `GET /api/health-assistant/chat` สำหรับตรวจสถานะ AI Preview โดยไม่เปิดเผย credential
 - หน้า Health Assistant แสดงสถานะ provider/model และติดป้ายคำตอบที่สร้างจาก AI ว่าเป็น Draft
 - เพิ่ม runtime policy ที่อนุญาต AI draft เฉพาะ local development หรือ Vercel Preview ที่เปิด flag ชัดเจน
+- เมื่อ AI Provider ตอบผิดพลาดหรือไม่พร้อมใช้งาน ระบบจะ fallback เป็น Evidence-only พร้อมแสดงข้อความหลักฐานและแหล่งอ้างอิง แทนการคืน 502 หรือสร้างคำตอบเอง; ไม่แสดง fallback นี้เป็นคำตอบที่สร้างโดย AI
 
 ## การตั้งค่ารันในเครื่อง
 
