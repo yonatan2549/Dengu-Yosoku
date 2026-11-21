@@ -164,6 +164,7 @@ def main():
     provinces = sorted(coords.items())
     output_rows = []
     comparisons = {}
+    diagnostics = {}
 
     for model_name in MODELS:
         model_weather = {}
@@ -195,10 +196,21 @@ def main():
                 raise RuntimeError(
                     f"Open-Meteo returned {len(responses)} locations for {len(batch)} requests."
                 )
-            for (province, _), response in zip(batch, responses):
+            for response_index, ((province, _), response) in enumerate(zip(batch, responses)):
                 if not isinstance(response, dict) or not isinstance(response.get("daily"), dict):
-                    raise RuntimeError(f"Open-Meteo response missing daily values for a location.")
-                for week_start, value in weekly_mean(response["daily"]).items():
+                    raise RuntimeError("Open-Meteo response missing daily values for a location.")
+                daily = response["daily"]
+                if response_index == 0 and offset == 0:
+                    values = daily.get("apparent_temperature_mean") or []
+                    times = daily.get("time") or []
+                    valid_values = sum(value is not None for value in values)
+                    print(
+                        f"Open-Meteo {model_name} sample response: "
+                        f"daily_dates={len(times)}, valid_apparent_temperature_days={valid_values}, "
+                        f"first_date={times[0] if times else 'none'}, "
+                        f"last_date={times[-1] if times else 'none'}."
+                    )
+                for week_start, value in weekly_mean(daily).items():
                     model_weather[(province, week_start)] = value
 
         actuals, predicted = [], []
@@ -221,20 +233,44 @@ def main():
                 "mean_bias_c": statistics.mean(errors) if errors else None,
             })
 
-        if not actuals:
-            raise RuntimeError(f"No overlapping weather values were returned for model {model_name}.")
-
-        differences = [p - a for p, a in zip(predicted, actuals)]
-        metrics = {
-            "model": model_name,
-            "matched_province_weeks": len(actuals),
-            "mae_c": statistics.mean(abs(x) for x in differences),
-            "rmse_c": math.sqrt(statistics.mean(x * x for x in differences)),
-            "mean_bias_c": statistics.mean(differences),
-            "pearson_correlation": pearson(actuals, predicted),
-            "per_week": per_week,
+        api_week_coverage = {
+            week.isoformat(): sum(1 for province, _ in provinces if (province, week) in model_weather)
+            for week in fetch_weeks
         }
+        if not actuals:
+            print(
+                f"Open-Meteo {model_name} date-match diagnostic: "
+                f"source_validation_weeks={[d.isoformat() for d in validation_weeks]}, "
+                f"api_week_coverage={api_week_coverage}, "
+                f"api_week_keys={sorted({key[1].isoformat() for key in model_weather})[:12]}."
+            )
+            metrics = {
+                "model": model_name,
+                "matched_province_weeks": 0,
+                "mae_c": None,
+                "rmse_c": None,
+                "mean_bias_c": None,
+                "pearson_correlation": None,
+                "per_week": [],
+                "status": "no_overlapping_week_start_keys",
+            }
+        else:
+            differences = [p - a for p, a in zip(predicted, actuals)]
+            metrics = {
+                "model": model_name,
+                "matched_province_weeks": len(actuals),
+                "mae_c": statistics.mean(abs(x) for x in differences),
+                "rmse_c": math.sqrt(statistics.mean(x * x for x in differences)),
+                "mean_bias_c": statistics.mean(differences),
+                "pearson_correlation": pearson(actuals, predicted),
+                "per_week": per_week,
+                "status": "comparison_complete",
+            }
         comparisons[model_name] = metrics
+        diagnostics[model_name] = {
+            "api_week_coverage": api_week_coverage,
+            "api_week_key_count": len({key[1] for key in model_weather}),
+        }
 
         for province, _ in provinces:
             for week_start in fetch_weeks:
@@ -251,7 +287,14 @@ def main():
                     ),
                 })
 
-    best_model = min(comparisons, key=lambda name: comparisons[name]["mae_c"])
+    valid_comparisons = {
+        name: stats for name, stats in comparisons.items()
+        if stats.get("mae_c") is not None
+    }
+    best_model = (
+        min(valid_comparisons, key=lambda name: valid_comparisons[name]["mae_c"])
+        if valid_comparisons else None
+    )
     recent_coverage = {}
     for model_name in MODELS:
         rows = [r for r in output_rows if r["model"] == model_name]
@@ -275,6 +318,7 @@ def main():
         "target_weeks": [d.isoformat() for d in target_weeks],
         "api_comparison": comparisons,
         "best_historical_match_by_mae": best_model,
+        "api_date_diagnostics": diagnostics,
         "recent_week_coverage": recent_coverage,
         "compatible_with_original_feature_contract": False,
         "compatibility_decision": "comparison_only_requires_model_owner_review",
@@ -306,11 +350,15 @@ def main():
     print(
         "Open-Meteo weather bridge: "
         + "; ".join(
-            f"{name} MAE={stats['mae_c']:.3f}°C, r={stats['pearson_correlation']:.3f}"
+            (
+                f"{name} MAE={stats['mae_c']:.3f}°C, r={stats['pearson_correlation']:.3f}"
+                if stats.get("mae_c") is not None
+                else f"{name} comparison unavailable (no overlapping week-start keys)"
+            )
             for name, stats in comparisons.items()
         )
     )
-    print(f"Historical closest match by MAE: {best_model}.")
+    print(f"Historical closest match by MAE: {best_model if best_model else 'not established'}.")
     for week_start in target_weeks:
         print(
             f"Target weather coverage {week_start}: "
