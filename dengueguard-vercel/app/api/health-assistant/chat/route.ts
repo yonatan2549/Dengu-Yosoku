@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       mode: "local-vector-rag-preview",
       generatedAnswersEnabled: true,
       provider: "Ollama (local)",
-      model: process.env.HEALTH_ASSISTANT_MODEL || "qwen3.5:0.8b",
+      model: process.env.OLLAMA_CHAT_MODEL || process.env.HEALTH_ASSISTANT_MODEL || "qwen3.5:0.8b",
       embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || "qwen3-embedding:0.6b",
       vectorIndexRequired: true,
       reviewStatus: "awaiting_clinical_review",
