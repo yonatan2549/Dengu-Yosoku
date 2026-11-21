@@ -499,3 +499,5 @@ jobs:
         run: echo "Structure-only intake audit completed. No training, prediction, deployment, or raw-data publication was performed."
 
 # Re-trigger intake after the repository Drive secret was configured (2026-11-21).
+
+# Re-run ZIP-contained regional CSV structure inspection after parser update.
