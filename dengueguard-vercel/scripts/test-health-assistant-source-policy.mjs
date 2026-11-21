@@ -9,6 +9,7 @@ const source = (overrides = {}) => ({
   publishedAt: "2026-04-15",
   sourceUrl: "https://www.cdc.gov/dengue/hcp/clinical-care/",
   reviewStatus: "awaiting_clinical_review",
+  projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
   ...overrides,
 });
 const passage = (overrides = {}) => ({
@@ -101,4 +102,18 @@ test("allows source-only evidence when there are no passages, provided source me
   const report = evaluateDraftSourcePolicy([source()], []);
   assert.equal(report.allowed, true);
   assert.equal(report.passageCount, 0);
+});
+
+test("blocks sources without explicit project-owner approval for academic demonstration", () => {
+  const report = evaluateDraftSourcePolicy([source({ projectApproval: undefined })], []);
+  assert.equal(report.allowed, false);
+  assert.equal(report.projectApprovalFailures, 1);
+  assert.ok(report.checks.some((check) => check.id === "project-owner-approval" && check.status === "blocked"));
+});
+
+test("blocks project approval with a scope broader than academic demonstration", () => {
+  const report = evaluateDraftSourcePolicy([source({
+    projectApproval: { status: "approved", scope: "production-medical-advice", approvedAt: "2026-11-21", approvedBy: "project-owner" },
+  })], []);
+  assert.equal(report.allowed, false);
 });
