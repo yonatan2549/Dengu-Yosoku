@@ -269,8 +269,12 @@ jobs:
               raise SystemExit("Downloaded source file is missing or unexpectedly small.")
 
           if zipfile.is_zipfile(source):
+              import shutil
               file_format = "xlsx_or_ooxml"
-              sheet_reports = summarize_xlsx(source)
+              workbook_path = source.with_name(source.name + ".xlsx")
+              shutil.copyfile(source, workbook_path)
+              sheet_reports = summarize_xlsx(workbook_path)
+              workbook_path.unlink(missing_ok=True)
               if not sheet_reports:
                   raise SystemExit("Workbook has no readable worksheets.")
               all_identifiers = sorted({
