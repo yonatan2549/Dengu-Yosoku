@@ -96,16 +96,37 @@ jobs:
           def normalize(value: str) -> str:
               return re.sub(r"[^a-z0-9ก-๙]", "", value.lower())
 
-          sample_bytes = source.read_bytes()[:8192]
+          with source.open("rb") as raw_handle:
+              signature = raw_handle.read(16)
+              raw_handle.seek(0)
+              sample_bytes = raw_handle.read(8192)
+
+          if signature.startswith(b"PK\\x03\\x04"):
+              raise SystemExit("Downloaded source is an OOXML/ZIP workbook (likely XLSX), not a plain CSV.")
+          if signature.startswith(bytes.fromhex("D0CF11E0A1B11AE1")):
+              raise SystemExit("Downloaded source is an OLE workbook (likely XLS), not a plain CSV.")
+
           encoding = None
-          for candidate in ("utf-8-sig", "utf-16", "cp874", "tis-620"):
+          for candidate in ("utf-8-sig", "utf-16", "utf-32", "utf-16-le", "utf-16-be", "cp874", "tis-620"):
               try:
                   sample_bytes.decode(candidate)
                   encoding = candidate
                   break
-              except UnicodeDecodeError:
+              except (UnicodeDecodeError, LookupError):
                   continue
+
           if encoding is None:
+              from charset_normalizer import from_bytes
+              detected = from_bytes(sample_bytes).best()
+              if detected is not None:
+                  try:
+                      sample_bytes.decode(detected.encoding)
+                      encoding = detected.encoding
+                  except (UnicodeDecodeError, LookupError):
+                      pass
+
+          if encoding is None:
+              print(f"Unsupported source encoding; file signature={signature.hex()}")
               raise SystemExit("CSV encoding is not recognized; manual review is required.")
 
           with source.open("r", encoding=encoding, newline="") as handle:
