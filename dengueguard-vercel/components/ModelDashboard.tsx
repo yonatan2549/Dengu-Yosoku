@@ -506,6 +506,18 @@ export default function ModelDashboard() {
           <a className="dg-source-link" href={model.source_repository} target="_blank" rel="noreferrer">
             เปิด Model Repository
           </a>
+          <p className="panel-note">
+            Weather feature: lagged weekly apparent temperature จาก Open-Meteo Historical Weather API
+            <br />
+            Weather data by{" "}
+            <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noreferrer">
+              Open-Meteo.com
+            </a>{" "}
+            · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>
+            <br />
+            ใช้เป็น historical model input และผ่านการเปรียบเทียบกับ weather source เดิม 52 สัปดาห์ (4,004 province-week pairs)
+            ไม่ใช่ข้อมูลพยากรณ์อากาศสด
+          </p>
         </article>
       </section>
 
