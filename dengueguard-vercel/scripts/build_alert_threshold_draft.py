@@ -344,7 +344,7 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
                 {"id": "quantile-dual-implementation", "status": "pass", "detail": "Two separately written Type-7 quantile implementations match within 1e-9."},
                 {"id": "threshold-order", "status": "pass", "detail": "Watch < Alert in all 77 provinces; tied P90/P75 cases are disclosed and adjusted."},
                 {"id": "temporal-split", "status": "pass_with_limitations", "detail": "First 18 weeks fit, final 8 weeks evaluate threshold exceedance and forecast-vs-persistence confusion matrices."},
-                {"id": "prediction-vs-persistence", "status": "warning", "detail": "Model forecast micro-F1 is below persistence at both Watch and Alert; equal-province macro recall is low."},
+                {"id": "prediction-vs-persistence", "status": "warning", "detail": "Model forecast micro-F1 is below persistence at both Watch and Alert; macro Alert recall is 9.3% versus 15.7% for persistence."},
                 {"id": "leave-one-week-out", "status": "pass_with_limitations", "detail": "P75/P90 recalculated after omitting each week to show sample sensitivity."},
             ],
             "fallback_count": fallback_count,
@@ -391,7 +391,7 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "Only 26 weeks are available (about six months), not a full 52-week seasonal cycle.",
                 "Thresholds are absolute weekly counts and do not adjust for population, testing volume, reporting completeness, or outbreak context.",
                 "Temporal split confusion matrices measure prediction of a statistical threshold exceedance, not sensitivity/specificity for disease outbreak detection or clinical diagnosis.",
-                "On the 8-week temporal validation, the model forecast micro-F1 is lower than the persistence baseline for both Watch and Alert; macro recall across provinces is substantially lower and must be considered before any operational use.",
+                "On the 8-week temporal validation, model forecast micro-F1 is lower than persistence for Watch (0.598 vs 0.616) and Alert (0.531 vs 0.606); macro Alert recall is 0.093 vs 0.157 for persistence.",
                 "The source model snapshot is review_only and targets 2026-11-15; it is stale for the epidemiological week beginning 2026-11-22.",
                 "Automated quantitative review is not an independent epidemiologist's sign-off or clinical approval.",
             ],
@@ -435,7 +435,7 @@ def main() -> int:
 
         actual_review = actual.get("computational_review") or {}
         expected_review = expected["computational_review"]
-        for section in ("leave_one_week_out_sensitivity", "quantile_definition_sensitivity"):
+        for section in ("checks", "leave_one_week_out_sensitivity", "quantile_definition_sensitivity"):
             if actual_review.get(section) != expected_review.get(section):
                 raise SystemExit(f"Candidate sensitivity audit mismatch: {section}")
 
@@ -457,6 +457,9 @@ def main() -> int:
                 raise SystemExit(f"Candidate temporal split audit mismatch: {key}")
 
         governance = actual.get("governance") or {}
+        expected_governance = expected["governance"]
+        if governance.get("limitations") != expected_governance.get("limitations"):
+            raise SystemExit("Candidate governance limitations differ from the reproducible audit")
         if governance.get("approval_status") != "not_approved" or \
            governance.get("human_independent_review_status") != "not_performed" or \
            governance.get("may_create_alert_candidates") is not False or \
