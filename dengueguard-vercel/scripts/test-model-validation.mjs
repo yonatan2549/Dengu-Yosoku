@@ -63,5 +63,39 @@ test("warns when metrics repository does not match predictions", () => { const f
 test("warns when metric values are invalid", () => { const f=makeFixture(); f.metrics.metrics.mae=-1; assert.equal(validateModelExports(f.predictions,f.metrics,currentWeek).metricsMatch,false); });
 test("warns when test sample count does not match Holdout rows", () => { const f=makeFixture(); f.metrics.metrics.n_test=7; assert.equal(validateModelExports(f.predictions,f.metrics,currentWeek).metricsMatch,false); });
 test("warns for stale forecast and blocks current alerting eligibility", () => { const f=makeFixture(); const r=validateModelExports(f.predictions,f.metrics,"2026-02-01"); assert.equal(r.freshness,"stale"); assert.equal(r.canUseForDryRun,true); assert.equal(r.canUseForCurrentAlerting,false); });
+test("keeps schema v3 review-only snapshots visible but blocks current Alert eligibility", () => {
+  const f = makeFixture();
+  f.predictions.schema_version = 3;
+  f.predictions.release_status = "review_only";
+  f.metrics.schema_version = 3;
+  f.metrics.release_status = "review_only";
+  const report = validateModelExports(f.predictions, f.metrics, currentWeek);
+  assert.equal(report.status, "warning");
+  assert.equal(report.releaseStatus, "review_only");
+  assert.equal(report.canUseForDryRun, true);
+  assert.equal(report.canUseForCurrentAlerting, false);
+  assert.equal(report.checks.find((check) => check.id === "release-approval").status, "warning");
+});
+test("allows a schema v3 snapshot through the approval gate only when both artifacts are approved", () => {
+  const f = makeFixture();
+  f.predictions.schema_version = 3;
+  f.predictions.release_status = "approved";
+  f.metrics.schema_version = 3;
+  f.metrics.release_status = "approved";
+  const report = validateModelExports(f.predictions, f.metrics, currentWeek);
+  assert.equal(report.releaseStatus, "approved");
+  assert.equal(report.canUseForCurrentAlerting, true);
+});
+test("blocks schema v3 release status mismatch between Predictions and Metrics", () => {
+  const f = makeFixture();
+  f.predictions.schema_version = 3;
+  f.predictions.release_status = "approved";
+  f.metrics.schema_version = 3;
+  f.metrics.release_status = "review_only";
+  const report = validateModelExports(f.predictions, f.metrics, currentWeek);
+  assert.equal(report.canUseForDryRun, true);
+  assert.equal(report.canUseForCurrentAlerting, false);
+  assert.equal(report.checks.find((check) => check.id === "release-approval").status, "warning");
+});
 test("converts a validated export into the alert snapshot shape", () => { const f=makeFixture(); const s=toAlertModelSnapshot(f.predictions); assert.equal(s?.forecast.length,77); assert.equal(s?.coverage.forecast_rows,77); });
 test("refuses to convert malformed exports", () => assert.equal(toAlertModelSnapshot({coverage:{},forecast:[],provinces:[]}),null));
