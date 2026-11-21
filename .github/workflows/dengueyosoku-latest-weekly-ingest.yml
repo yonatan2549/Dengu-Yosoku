@@ -7,6 +7,8 @@ on:
       - integration/phase9-12-final-review
       - review/national-alerts-independent-audit-2026-11-21
     paths:
+      - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
+      - "week_44-45_NOV-2026.zip"
       - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
       - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
       - "dengueguard-vercel/scripts/prepare_current_model_snapshot.py"
@@ -35,18 +37,23 @@ jobs:
       - name: Check out DengueYosoku
         uses: actions/checkout@v4
 
-      - name: Check whether the Drive file ID is configured
+      - name: Check whether a repository ZIP or Drive source is available
         id: drive_secret
         shell: bash
         env:
           DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
         run: |
-          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "Drive secret is not configured. Intake will safely skip without accessing any file."
-          else
+          if [[ -s "week_44-45_NOV-2026.zip" ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "Drive source is configured."
+            echo "source=repository_zip" >> "$GITHUB_OUTPUT"
+            echo "Repository-local week 44-45 ZIP found; Google Drive is not required."
+          elif [[ -n "${DRIVE_FILE_ID:-}" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "source=google_drive" >> "$GITHUB_OUTPUT"
+            echo "Google Drive source is configured."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No repository ZIP or Drive source is configured. Intake will safely skip."
           fi
 
       - name: Set up Python
@@ -55,37 +62,43 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download latest-week TanRabad workbook or CSV to ephemeral runner storage
+      - name: Stage latest-week TanRabad ZIP, workbook or CSV in ephemeral runner storage
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
         env:
           DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
         run: |
           set -euo pipefail
-
-          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
-            echo "::error::Missing repository Actions secret DENGUE_TANRABAD_LATEST_FILE_ID."
-            exit 1
-          fi
-
-          python -m pip install --disable-pip-version-check "gdown==6.5.2" "openpyxl==3.1.5"
           source_path="${RUNNER_TEMP}/tanrabad-latest-week-source"
 
-          gdown --quiet --no-cookies --continue \
-            "$DRIVE_FILE_ID" \
-            -O "$source_path"
+          if [[ -s "week_44-45_NOV-2026.zip" ]]; then
+            cp "week_44-45_NOV-2026.zip" "$source_path"
+            echo "Staged repository ZIP in ephemeral runner storage; raw records will not be printed or exported."
+          elif [[ -n "${DRIVE_FILE_ID:-}" ]]; then
+            python -m pip install --disable-pip-version-check "gdown==6.5.2" "openpyxl==3.1.5"
+            gdown --quiet --no-cookies --continue \
+              "$DRIVE_FILE_ID" \
+              -O "$source_path"
+
+            if [[ ! -s "$source_path" ]]; then
+              echo "::error::Google Drive download produced an empty or missing file."
+              exit 1
+            fi
+
+            if head -c 1024 "$source_path" | grep -Eiq '<!doctype html|<html'; then
+              echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
+              exit 1
+            fi
+            echo "Downloaded Drive source to temporary runner storage."
+          else
+            echo "::error::No TanRabad weekly source is available."
+            exit 1
+          fi
 
           if [[ ! -s "$source_path" ]]; then
-            echo "::error::Google Drive download produced an empty or missing file."
+            echo "::error::Staged weekly source is empty or missing."
             exit 1
           fi
-
-          if head -c 1024 "$source_path" | grep -Eiq '<!doctype html|<html'; then
-            echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
-            exit 1
-          fi
-
-          echo "Downloaded CSV to temporary runner storage. Raw data will not be printed or uploaded."
 
       - name: Inspect schema without printing patient records
         if: steps.drive_secret.outputs.available == 'true'
