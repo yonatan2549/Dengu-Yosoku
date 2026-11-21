@@ -137,7 +137,13 @@ export async function POST(request: Request) {
 
     const messages = buildGroundedMessages(validated.value.query, validated.value.history, evidence, evidencePassages);
     const completion = await requestChatCompletion(provider.config, messages);
-    if (!completion.ok) return NextResponse.json({ error: completion.error }, { status: 502, headers: noStore });
+    if (!completion.ok) {
+      // Keep the conversation useful during provider outages or access/budget
+      // restrictions: return only retrieved evidence, never a fabricated AI answer.
+      return evidenceOnlyResponse(
+        "ขณะนี้ AI Provider ยังไม่สามารถสร้างคำตอบได้ ระบบจึงแสดงเฉพาะหลักฐานและแหล่งอ้างอิงที่ค้นพบ โดยไม่ได้สร้างคำตอบด้วย AI"
+      );
+    }
 
     const checked = validateCitedAnswer(completion.answer, evidence);
     if (!checked.ok) {
