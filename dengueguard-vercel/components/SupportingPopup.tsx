@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useDengueData } from "@/components/DataProvider";
 import { formatEpiWeekLabel } from "@/lib/epi-week";
 
-const STORAGE_KEY = "DengueYosoku-next-week-forecast-popup-v2";
+const STORAGE_KEY = "DengueYosoku-model-forecast-popup-v3";
 const EXPECTED_PROVINCES = 77;
 
 function formatWeek(value?: string | null) {
@@ -138,7 +138,6 @@ export function SupportingPopup() {
                     ))}
                   </ol>
                 </div>
-              </>
               <div className="inline-callout warning" role="status">
                 <Info size={16} />
                 <span>
@@ -146,6 +145,7 @@ export function SupportingPopup() {
                   ผลรวมและค่ารายจังหวัดด้านบนเป็นค่าพยากรณ์ ไม่ใช่ยอดผู้ป่วยที่รายงานยืนยันแล้ว
                 </span>
               </div>
+              </>
             ) : (
               <div className="support-empty-state" role="status">
                 <div className="support-empty-icon"><Clock3 size={22} /></div>
