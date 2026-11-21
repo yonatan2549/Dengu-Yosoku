@@ -155,6 +155,6 @@ test("does not trust assistant turns supplied by the browser as conversation his
 });
 
 test("rejects factual answer paragraphs that do not cite retrieved evidence", () => {
-  const answer = "NS1 เป็นการตรวจหาแอนติเจน [S1]\\n\\nควรใช้ยาชนิดหนึ่งเพื่อรักษาอาการ";
+  const answer = "NS1 เป็นการตรวจหาแอนติเจน [S1]\n\nควรใช้ยาชนิดหนึ่งเพื่อรักษาอาการ";
   assert.equal(validateCitedAnswer(answer, evidence).ok, false);
 });
