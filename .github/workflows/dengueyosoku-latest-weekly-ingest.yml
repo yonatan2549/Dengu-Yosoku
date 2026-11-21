@@ -679,3 +679,5 @@ jobs:
 # Re-trigger intake after the repository Drive secret was configured (2026-11-21).
 
 # Re-run ZIP-contained regional CSV structure inspection after parser update.
+
+# Run full 77-province, two-week panel validation after structure inspection passed.
