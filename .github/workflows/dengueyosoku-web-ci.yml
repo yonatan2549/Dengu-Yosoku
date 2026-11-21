@@ -141,6 +141,9 @@ jobs:
       - name: Health knowledge RAG tests
         run: npm run test:health-knowledge-rag
 
+      - name: Local Ollama Health RAG contract tests
+        run: npm run test:local-health-rag
+
 
       - name: Snapshot actual-history bridge and MMWR contract tests
         run: |
