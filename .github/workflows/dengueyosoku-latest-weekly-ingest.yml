@@ -275,25 +275,158 @@ jobs:
                       if name and not name.endswith("/")
                   ]
               if "[Content_Types].xml" not in archive_entries:
-                  supported_entries = [
-                      name for name in archive_entries
-                      if name.lower().endswith((".xlsx", ".xlsm", ".csv", ".csv.gz", ".zip"))
-                  ]
+                  import gzip
+                  import io
+                  member_reports = []
+                  all_identifiers = set()
+                  total_rows = 0
+                  with zipfile.ZipFile(source) as archive:
+                      csv_entries = [
+                          name for name in archive.namelist()
+                          if name and not name.endswith("/") and name.lower().endswith(".csv")
+                      ]
+                      for member_name in csv_entries:
+                          raw_bytes = archive.read(member_name)
+                          encoding = None
+                          for candidate in ("utf-8-sig", "utf-16", "utf-32", "cp874", "tis-620"):
+                              try:
+                                  raw_bytes[:8192].decode(candidate)
+                                  encoding = candidate
+                                  break
+                              except (UnicodeDecodeError, LookupError):
+                                  continue
+                          if encoding is None:
+                              from charset_normalizer import from_bytes
+                              detected = from_bytes(raw_bytes[:8192]).best()
+                              if detected is not None:
+                                  try:
+                                      raw_bytes[:8192].decode(detected.encoding)
+                                      encoding = detected.encoding
+                                  except (UnicodeDecodeError, LookupError):
+                                      pass
+                          if encoding is None:
+                              member_reports.append({
+                                  "file_name": member_name,
+                                  "status": "unsupported_encoding",
+                                  "row_count": None,
+                                  "column_count": None,
+                                  "columns": [],
+                                  "province_column_candidates": [],
+                                  "distinct_province_count": None,
+                                  "week_or_date_column_candidates": [],
+                                  "case_count_column_candidates": [],
+                                  "possible_direct_identifier_columns": [],
+                              })
+                              continue
+
+                          text_data = raw_bytes.decode(encoding)
+                          try:
+                              dialect = csv.Sniffer().sniff(text_data[:8192], delimiters=",;\t|")
+                          except csv.Error:
+                              dialect = csv.excel
+                          preview_reader = csv.reader(io.StringIO(text_data), dialect=dialect)
+                          preview_rows = []
+                          for _ in range(30):
+                              try:
+                                  preview_rows.append(next(preview_reader))
+                              except StopIteration:
+                                  break
+
+                          best = None
+                          best_score = -1
+                          for row_index, row in enumerate(preview_rows):
+                              headers_candidate = [str(value or "").strip() for value in row]
+                              nonempty = [value for value in headers_candidate if value]
+                              if len(nonempty) < 2:
+                                  continue
+                              province, week, cases, identifiers = classify_headers(nonempty)
+                              score = (5 * bool(province)) + (3 * bool(week)) + (3 * bool(cases)) + min(len(nonempty), 12)
+                              if score > best_score:
+                                  best = (row_index, headers_candidate, province, week, cases, identifiers)
+                                  best_score = score
+
+                          if best is None:
+                              member_reports.append({
+                                  "file_name": member_name,
+                                  "status": "header_not_detected",
+                                  "row_count": None,
+                                  "column_count": 0,
+                                  "columns": [],
+                                  "province_column_candidates": [],
+                                  "distinct_province_count": None,
+                                  "week_or_date_column_candidates": [],
+                                  "case_count_column_candidates": [],
+                                  "possible_direct_identifier_columns": [],
+                              })
+                              continue
+
+                          header_index, headers, province_cols, week_cols, case_cols, identifiers = best
+                          province_index = next(
+                              (i for i, value in enumerate(headers) if value and value in province_cols),
+                              None
+                          )
+                          data_reader = csv.reader(io.StringIO(text_data), dialect=dialect)
+                          for _ in range(header_index + 1):
+                              try:
+                                  next(data_reader)
+                              except StopIteration:
+                                  break
+
+                          row_count = 0
+                          province_values = set()
+                          for row in data_reader:
+                              if not any(str(value or "").strip() for value in row):
+                                  continue
+                              row_count += 1
+                              if province_index is not None and province_index < len(row):
+                                  value = str(row[province_index] or "").strip()
+                                  if value:
+                                      province_values.add(value)
+
+                          total_rows += row_count
+                          all_identifiers.update(identifiers)
+                          member_reports.append({
+                              "file_name": member_name,
+                              "status": "inspected",
+                              "encoding": encoding,
+                              "header_row": header_index + 1,
+                              "row_count": row_count,
+                              "column_count": len(headers),
+                              "columns": headers,
+                              "province_column_candidates": province_cols,
+                              "distinct_province_count": len(province_values) if province_cols else None,
+                              "week_or_date_column_candidates": week_cols,
+                              "case_count_column_candidates": case_cols,
+                              "possible_direct_identifier_columns": identifiers,
+                          })
+
                   report = {
                       "file_name": source.name,
-                      "file_format": "zip_container",
+                      "file_format": "zip_of_csv",
                       "file_size_bytes": source.stat().st_size,
                       "sha256": file_sha256(source),
                       "archive_entry_count": len(archive_entries),
-                      "archive_entries": archive_entries[:200],
-                      "supported_data_entries": supported_entries[:100],
+                      "csv_file_count": len(csv_entries),
+                      "total_data_rows": total_rows,
+                      "files": member_reports,
+                      "possible_direct_identifier_columns": sorted(all_identifiers),
                       "raw_records_included": False,
-                      "status": "archive_needs_format_resolution",
+                      "raw_records_extracted_to_artifact": False,
+                      "status": (
+                          "blocked_pending_privacy_review" if all_identifiers
+                          else "structure_only_review" if csv_entries and all(x.get("status") == "inspected" for x in member_reports)
+                          else "partial_structure_review"
+                      ),
                   }
                   destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-                  print(f"ZIP container inspected: {len(archive_entries)} file entries.")
-                  print(f"Supported data-file entries detected: {len(supported_entries)}.")
-                  print("Only archive member names were inspected; no member data was extracted or printed.")
+                  print(f"ZIP source inspected: {len(archive_entries)} entries, {len(csv_entries)} CSV files, {total_rows:,} data rows.")
+                  print("Only headers, row counts and province counts were inspected; raw record values were not printed or uploaded.")
+                  if all_identifiers:
+                      print("Potential direct-identifier columns detected; stop before modeling.")
+                      raise SystemExit(2)
+                  if not csv_entries or any(x.get("status") != "inspected" for x in member_reports):
+                      print("One or more archive CSV files need manual format review.")
+                      raise SystemExit(3)
                   raise SystemExit(0)
               import shutil
               file_format = "xlsx_or_ooxml"
