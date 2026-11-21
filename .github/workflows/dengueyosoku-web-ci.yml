@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/dengueguard-improvements
+      - feature/local-ollama-health-rag-2026-11-21
       - integration/phase9-12-final-review
       - review/national-alerts-independent-audit-2026-11-21
     paths:
