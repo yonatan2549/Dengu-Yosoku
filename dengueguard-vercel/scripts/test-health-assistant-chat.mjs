@@ -84,7 +84,7 @@ test("uses Vercel AI Gateway defaults and accepts server-side credentials", () =
     assert.equal(gateway.config.endpoint, "https://ai-gateway.vercel.sh/v1/chat/completions");
     assert.equal(gateway.config.model, "google/gemini-4-neon");
   }
-  assert.equal(readChatProviderConfig({}, "production", "vercel-oidc-token").ok, true);
+  assert.equal(readChatProviderConfig({ VERCEL_OIDC_TOKEN: "vercel-oidc-token" }, "production").ok, true);
   assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "https://api.example.test/v1/chat/completions", HEALTH_ASSISTANT_API_KEY: "legacy-secret", HEALTH_ASSISTANT_MODEL: "model-a" }, "development").ok, true);
 });
 
@@ -141,5 +141,4 @@ test("keeps Production evidence-only while enabling explicitly gated Preview dra
   assert.match(chatRouteSource, /mode: "grounded-draft-answer"/);
   assert.match(chatRouteSource, /draftOnly: true/);
   assert.match(chatRouteSource, /return evidenceOnlyResponse\(/);
-  assert.match(chatRouteSource, /x-vercel-oidc-token/);
 });
