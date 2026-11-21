@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardList, FileCheck2, History, LockKeyhole, RefreshCw, Save, Send, ShieldCheck } from "lucide-react";
 import { validateProfileDraftPayload } from "@/lib/alerting/profile-draft-contract";
+import { ALERT_RULE_PROFILE } from "@/lib/alerting/profile";
 
 interface StoredProfile {
   id: string;
@@ -92,6 +93,7 @@ export function AlertRuleDraftManager({ provinces }: { provinces: string[] }) {
   const [reviewRequests, setReviewRequests] = useState<ReviewRequest[]>([]);
   const [unexpectedStoredProvinces, setUnexpectedStoredProvinces] = useState<string[]>([]);
   const [savedThresholdCount, setSavedThresholdCount] = useState(0);
+  const [usingApplicationCandidate, setUsingApplicationCandidate] = useState(false);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -126,11 +128,16 @@ export function AlertRuleDraftManager({ provinces }: { provinces: string[] }) {
         return;
       }
 
+      const databaseThresholds = payload.thresholds ?? [];
+      const useCandidate = databaseThresholds.length === 0 &&
+        payload.profile?.status === "draft" &&
+        payload.profile.version === ALERT_RULE_PROFILE.version &&
+        Object.keys(ALERT_RULE_PROFILE.thresholdsByProvince).length === 77;
       const stored = new Map<string, ThresholdInput>();
-      const unexpected = (payload.thresholds ?? [])
+      const unexpected = databaseThresholds
         .filter((item) => !provinces.includes(item.province_name))
         .map((item) => item.province_name);
-      for (const item of payload.thresholds ?? []) {
+      for (const item of databaseThresholds) {
         if (provinces.includes(item.province_name)) {
           stored.set(item.province_name, {
             watch: String(item.watch_threshold),
@@ -139,14 +146,18 @@ export function AlertRuleDraftManager({ provinces }: { provinces: string[] }) {
         }
       }
       setUnexpectedStoredProvinces(unexpected);
-      setSavedThresholdCount((payload.thresholds ?? []).length);
+      setSavedThresholdCount(databaseThresholds.length);
+      setUsingApplicationCandidate(useCandidate);
       const nextInputs: Record<string, ThresholdInput> = {};
       for (const province of provinces) {
-        nextInputs[province] = stored.get(province) ?? { watch: "", alert: "" };
+        const candidate = useCandidate ? ALERT_RULE_PROFILE.thresholdsByProvince[province] : undefined;
+        nextInputs[province] = stored.get(province) ?? (candidate
+          ? { watch: String(candidate.watch), alert: String(candidate.alert) }
+          : { watch: "", alert: "" });
       }
       setThresholdInputs(nextInputs);
       setProfile(payload.profile ?? null);
-      setMethodology(payload.profile?.methodology ?? "");
+      setMethodology(useCandidate ? ALERT_RULE_PROFILE.methodology : payload.profile?.methodology ?? "");
       setChanges(payload.changes ?? []);
       setReviewRequests(payload.reviewRequests ?? []);
       setState("ready");
@@ -314,8 +325,20 @@ export function AlertRuleDraftManager({ provinces }: { provinces: string[] }) {
               <div className="performance-grid">
                 <div><span>Profile</span><strong>{profile.version}</strong></div>
                 <div><span>สถานะ</span><strong>{profile.status === "draft" ? "Draft · ยังไม่อนุมัติ" : "Approved · แก้ไขไม่ได้"}</strong></div>
-                <div><span>Threshold ที่บันทึกแล้ว</span><strong>{parsedThresholds.rows.length}/77</strong></div>
+                <div><span>Threshold ใน Supabase</span><strong>{savedThresholdCount}/77</strong></div>
+                <div><span>ค่าที่กรอก/แนะนำในหน้าจอ</span><strong>{parsedThresholds.rows.length}/77</strong></div>
               </div>
+
+              {usingApplicationCandidate && (
+                <div className="inline-callout warning" role="status">
+                  <AlertTriangle size={17} />
+                  <span>
+                    <strong>เติมค่า Candidate จากไฟล์คำนวณใน repository แล้ว แต่ยังไม่ได้บันทึกลง Supabase</strong>
+                    <br />
+                    ค่าทั้ง 77 จังหวัดเป็น Draft เชิงสถิติจาก Holdout 26 สัปดาห์เท่านั้น ต้องตรวจสอบรายละเอียดก่อนบันทึก และไม่มีผลอนุมัติ/เปิดใช้ Alert
+                  </span>
+                </div>
+              )}
 
               <div className="alert-rule-draft-meta">
                 <label htmlFor="alert-rule-methodology"><strong>ระเบียบวิธีและที่มาของเกณฑ์</strong>
