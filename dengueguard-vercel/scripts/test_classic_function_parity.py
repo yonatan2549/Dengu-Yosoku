@@ -41,9 +41,10 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("<LegacyPreventionPage />", self.prevention)
         self.assertIn("<ModelPreventionPage />", self.prevention)
 
-    def test_prevention_uses_classic_view_until_model_week_is_current(self):
-        self.assertIn('useState<"legacy" | "model">("legacy")', self.prevention)
-        self.assertIn("modelWeek === getCurrentEpiWeekStart()", self.prevention)
+    def test_prevention_auto_selects_only_a_current_model_and_keeps_manual_review(self):
+        self.assertIn('useState<DashboardDatasetPreference>("auto")', self.prevention)
+        self.assertIn("resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek)", self.prevention)
+        self.assertNotIn("useEffect(", self.prevention)
         self.assertIn("disabled={!hasModel}", self.prevention)
 
     def test_legacy_prevention_shows_selected_province_weather(self):
