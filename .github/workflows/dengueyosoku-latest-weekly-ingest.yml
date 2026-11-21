@@ -823,6 +823,129 @@ jobs:
             --output-dir "$RUNNER_TEMP/openmeteo-weather" \
             --validation-weeks 52
 
+      - name: Expand Phase 13 bundle and inspect the original model contract
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "dengueguard-vercel/scripts/phase13-model-source-bundle.zip" "$RUNNER_TEMP/phase13-source-inspection" <<'PY'
+          import ast
+          import json
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          archive_path = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          output.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(archive_path) as archive:
+              names = [name for name in archive.namelist() if not name.endswith("/")]
+              members = {
+                  "pipeline": next((name for name in names if name.endswith("national_model_pipeline.py")), None),
+                  "tests": next((name for name in names if name.endswith("test_national_model_pipeline.py")), None),
+                  "requirements": next((name for name in names if name.endswith("requirements-model-pipeline.txt")), None),
+              }
+              if not members["pipeline"]:
+                  raise SystemExit("Missing national_model_pipeline.py in Phase 13 source bundle.")
+              source = archive.read(members["pipeline"]).decode("utf-8")
+              (output / "national_model_pipeline.py").write_text(source, encoding="utf-8")
+              for kind in ("tests", "requirements"):
+                  if members[kind]:
+                      (output / Path(members[kind]).name).write_bytes(archive.read(members[kind]))
+
+          tree = ast.parse(source)
+          declarations = [
+              {"kind": type(node).__name__, "name": node.name, "line": node.lineno,
+               "end_line": getattr(node, "end_lineno", None)}
+              for node in tree.body
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+          ]
+          relevant_lines = [
+              {"line": index, "text": line.strip()[:240]}
+              for index, line in enumerate(source.splitlines(), start=1)
+              if any(term in line for term in (
+                  "w_apparent_temperature_mean", "week_start", "cases_L1",
+                  "REQUIRED_COLUMNS", "FEATURE_COLUMNS", "target_week",
+                  "add_argument", "subparsers",
+              ))
+          ]
+          report = {
+              "archive_member_count": len(names),
+              "archive_members": names,
+              "pipeline_member": members["pipeline"],
+              "test_member": members["tests"],
+              "requirements_member": members["requirements"],
+              "top_level_declarations": declarations,
+              "contract_and_cli_lines": relevant_lines[:300],
+              "patient_rows_exported": False,
+          }
+          (output / "pipeline-source-inspection.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(
+              f"Phase 13 source inspected: pipeline={members['pipeline']}, "
+              f"top_level_declarations={len(declarations)}."
+          )
+          PY
+
+      - name: Inspect historical full-source schema without exporting case values
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/dengue-upstream-full.csv" "$RUNNER_TEMP/phase13-source-inspection/historical-schema.json" <<'PY'
+          import csv
+          import datetime as dt
+          import json
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+          with source.open("r", encoding="utf-8-sig", newline="") as handle:
+              reader = csv.DictReader(handle)
+              headers = reader.fieldnames or []
+              normalized = {str(name).strip().casefold(): name for name in headers}
+              province_col = next((normalized[k] for k in ("province", "changwat") if k in normalized), None)
+              week_col = next((normalized[k] for k in ("week_start", "weekstart", "target_week_start") if k in normalized), None)
+              weather_col = normalized.get("w_apparent_temperature_mean")
+              if not province_col or not week_col or not weather_col:
+                  raise SystemExit("Historical full source is missing the original model's province/week/weather fields.")
+              row_count = 0
+              provinces = set()
+              min_week = max_week = None
+              weekly = {}
+              for row in reader:
+                  row_count += 1
+                  province = str(row.get(province_col) or "").strip()
+                  if province:
+                      provinces.add(province)
+                  try:
+                      week = dt.date.fromisoformat(str(row.get(week_col) or "").strip()[:10])
+                  except ValueError:
+                      continue
+                  entry = weekly.setdefault(week.isoformat(), {"row_count": 0, "weather_non_null_count": 0})
+                  entry["row_count"] += 1
+                  if str(row.get(weather_col) or "").strip():
+                      entry["weather_non_null_count"] += 1
+                  min_week = week if min_week is None or week < min_week else min_week
+                  max_week = week if max_week is None or week > max_week else max_week
+          report = {
+              "field_names": headers,
+              "row_count": row_count,
+              "distinct_province_count": len(provinces),
+              "min_week_start": min_week.isoformat() if min_week else None,
+              "max_week_start": max_week.isoformat() if max_week else None,
+              "last_5_weeks": dict(sorted(weekly.items())[-5:]),
+              "case_values_exported": False,
+          }
+          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Historical schema: fields={len(headers)}, rows={row_count}, "
+              f"provinces={len(provinces)}, week_range={report['min_week_start']}..{report['max_week_start']}."
+          )
+          print("Only headers and aggregate coverage were inspected; no case values were printed.")
+          PY
+
       - name: Train experimental case-only nowcast for review (not for release)
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
@@ -859,6 +982,11 @@ jobs:
             ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
             ${{ runner.temp }}/tanrabad-weekly-validation.json
             ${{ runner.temp }}/model-input-compatibility.json
+            ${{ runner.temp }}/phase13-source-inspection/pipeline-source-inspection.json
+            ${{ runner.temp }}/phase13-source-inspection/historical-schema.json
+            ${{ runner.temp }}/phase13-source-inspection/national_model_pipeline.py
+            ${{ runner.temp }}/phase13-source-inspection/test_national_model_pipeline.py
+            ${{ runner.temp }}/phase13-source-inspection/requirements-model-pipeline.txt
             ${{ runner.temp }}/openmeteo-weather/openmeteo_weather_compatibility.json
             ${{ runner.temp }}/openmeteo-weather/openmeteo_weekly_weather_candidates.csv
             ${{ runner.temp }}/case-only-experiment/experimental_case_only_metrics.json
