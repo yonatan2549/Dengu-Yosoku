@@ -820,7 +820,8 @@ jobs:
             --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
             --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
             --source-commit "$SOURCE_SHA" \
-            --output-dir "$RUNNER_TEMP/openmeteo-weather"
+            --output-dir "$RUNNER_TEMP/openmeteo-weather" \
+            --validation-weeks 52
 
       - name: Train experimental case-only nowcast for review (not for release)
         if: steps.drive_secret.outputs.available == 'true'
