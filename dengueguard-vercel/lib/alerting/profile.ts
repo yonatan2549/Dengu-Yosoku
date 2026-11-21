@@ -1,5 +1,5 @@
 import type { AlertRuleProfile } from "./types";
-import thresholdCandidate from "@/public/data/alert_threshold_candidates_77.json";
+import thresholdCandidate from "../../public/data/alert_threshold_candidates_77.json";
 
 const candidateThresholds = Object.fromEntries(
   thresholdCandidate.thresholds.map((item) => [
