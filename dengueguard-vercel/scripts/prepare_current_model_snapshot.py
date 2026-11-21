@@ -126,10 +126,10 @@ def validate_training_bundle(artifact_dir: Path) -> tuple[dict[str, Any], dict[s
 
     forecast_info = data_audit.get("full_source", {})
     if (
-        forecast_info.get("target_week_rows") != 77
+        data_audit.get("target_week_rows") != 77
         or forecast_info.get("blank_target_rows") != 77
         or forecast_info.get("blank_weather_rows") != 77
-        or forecast_info.get("target_week_actuals_present_in_raw_full") is not False
+        or data_audit.get("target_week_actuals_present_in_raw_full") is not False
     ):
         raise SnapshotPreparationError("Target-week rows fail the blank-label / no-leakage audit.")
 
