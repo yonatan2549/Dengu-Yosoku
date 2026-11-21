@@ -107,7 +107,9 @@ export function buildGroundedMessages(
 
   return [
     { role: "system", content: system },
-    ...history.map((turn) => ({ role: turn.role, content: turn.content })),
+    // Assistant turns are browser-supplied and can be forged by the caller.
+    // Keep only prior user questions; never treat client-provided assistant text as trusted model output.
+    ...history.filter((turn) => turn.role === "user").map((turn) => ({ role: turn.role, content: turn.content })),
     { role: "user", content: query },
   ];
 }
@@ -127,6 +129,19 @@ export function validateCitedAnswer(
   if (uniqueMarkers.some((index) => !validIndexes.has(index))) {
     return { ok: false, error: "คำตอบอ้างอิงแหล่งข้อมูลที่ไม่ได้อยู่ในผลค้น" };
   }
+  const uncitedParagraphs = normalized
+    .split(/\\n\\s*\\n/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .filter((paragraph) =>
+      !/^#{1,6}\\s/.test(paragraph) &&
+      !/^(?:คำเตือน|หมายเหตุ|ข้อจำกัด|disclaimer)\\b/i.test(paragraph) &&
+      !/\\[S\\d+\\]/.test(paragraph)
+    );
+  if (uncitedParagraphs.length > 0) {
+    return { ok: false, error: "คำตอบมีบางย่อหน้าที่ไม่มี marker อ้างอิงหลักฐาน" };
+  }
+
   const citations = uniqueMarkers.map((index) => {
     const result = evidence.results[index - 1];
     return {
