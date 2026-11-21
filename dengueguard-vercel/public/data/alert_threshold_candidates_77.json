@@ -10,8 +10,8 @@
   "approval_reference": null,
   "external_notifications_enabled": false,
   "source": {
-    "snapshot_file_git_blob_sha": "84a3cc80f0ab01f6512d30ba1594f85da15610cd",
-    "model_snapshot_revision": "f237ecf326b5c81df5be5a0c66baef9e08c6af4a",
+    "snapshot_file_git_blob_sha": "542e4b06f7cc7b6a7a34d6c023bac52733c75f9e",
+    "model_snapshot_revision": "cdfddb2b1d9b2d1e5ad540e99080189f301118cf",
     "model_snapshot_release_status": "review_only",
     "forecast_week": "2026-11-15",
     "history_start_week": "2026-05-17",
@@ -20,7 +20,7 @@
     "province_count": 77,
     "history_rows": 2002,
     "observations_per_province": 26,
-    "model_generated_at_utc": "2026-11-21T08:30:04+00:00",
+    "model_generated_at_utc": "2026-11-21T10:33:26+00:00",
     "source_repository": "https://github.com/johnlovepizza/DenguYosoku"
   },
   "quantile_method": "Hyndman-Fan Type 7; linear interpolation at h=(n-1)*p",
