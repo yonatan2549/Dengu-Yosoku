@@ -66,6 +66,29 @@ test("does not invent candidates while the default nationwide profile is a draft
   assert.equal(result.externalNotificationsEnabled, false);
 });
 
+test("blocks stale snapshots even when the profile is approved and all 77 thresholds are valid", () => {
+  const result = evaluateAlertDryRun(createModel(), createApprovedProfile(), "2026-11-15");
+  assert.equal(result.status, "blocked");
+  assert.equal(result.freshness, "stale");
+  assert.equal(result.forecastLagWeeks, 3);
+  assert.equal(result.evaluatedProvinceCount, 0);
+  assert.equal(result.candidateEvents.length, 0);
+  assert.equal(result.checks.find((check) => check.id === "forecast-freshness")?.status, "blocked");
+  assert.ok(result.blockedReasons.some((reason) => reason.includes("ไม่สร้าง Candidate")));
+  assert.equal(result.externalNotificationsEnabled, false);
+});
+
+test("blocks unknown snapshot freshness even when the profile is approved and thresholds are valid", () => {
+  const result = evaluateAlertDryRun(createModel(), createApprovedProfile(), "not-a-week");
+  assert.equal(result.status, "blocked");
+  assert.equal(result.freshness, "unknown");
+  assert.equal(result.evaluatedProvinceCount, 0);
+  assert.equal(result.candidateEvents.length, 0);
+  assert.equal(result.checks.find((check) => check.id === "forecast-freshness")?.status, "blocked");
+  assert.ok(result.blockedReasons.some((reason) => reason.includes("ไม่สามารถยืนยันความใหม่")));
+  assert.equal(result.externalNotificationsEnabled, false);
+});
+
 test("creates simulated WATCH and ALERT candidates only for an approved complete profile", () => {
   const result = evaluateAlertDryRun(createModel(), createApprovedProfile(), "2026-10-25");
   assert.equal(result.status, "evaluated");
@@ -131,7 +154,8 @@ test("audit record captures model provenance, profile rules, and dry-run outcome
   assert.equal(record.sourceRetrievedAtUtc, "2026-10-26T01:30:00.000Z");
   assert.equal(record.historyEndWeek, "2026-10-18");
   assert.equal(record.ruleProfileStatus, "draft");
-  assert.equal(record.thresholdsByProvince && Object.keys(record.thresholdsByProvince).length, 0);
+  assert.equal(record.thresholdsByProvince && Object.keys(record.thresholdsByProvince).length, 77);
+  assert.equal(record.ruleProfileStatus, "draft");
   assert.equal(record.status, "blocked");
   assert.equal(record.externalNotificationsEnabled, false);
 });

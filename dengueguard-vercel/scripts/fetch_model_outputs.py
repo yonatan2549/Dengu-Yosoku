@@ -20,6 +20,13 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from .check_model_source import probe_model_source
+    from .model_artifact_transaction import publish_file_bundle
+except ImportError:  # direct execution: python scripts/fetch_model_outputs.py
+    from check_model_source import probe_model_source
+    from model_artifact_transaction import publish_file_bundle
+
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = ROOT / "source-data" / "model"
 REPOSITORY = "johnlovepizza/DenguYosoku"
@@ -48,11 +55,31 @@ def download(url: str) -> bytes:
 
 def main() -> int:
     try:
-        api_url = f"https://api.github.com/repos/{REPOSITORY}/commits/{REF}"
-        commit_payload = json.loads(download(api_url).decode("utf-8"))
-        commit_sha = commit_payload.get("sha")
-        if not isinstance(commit_sha, str) or len(commit_sha) != 40:
-            raise RuntimeError("GitHub did not return a valid 40-character commit SHA")
+        if not isinstance(REF, str) or not REF.strip():
+            raise RuntimeError("DENGUYOSOKU_MODEL_REF must be a non-empty Git reference")
+
+        # Resolve and HEAD-check every required artifact before downloading any
+        # payload. This prevents a partial/needless download (especially the
+        # historical holdout actuals) when the forecast artifact is missing.
+        source_report = probe_model_source(ref=REF)
+        if source_report.get("status") != "available":
+            missing = [
+                item.get("source_path", "unknown path")
+                for item in source_report.get("artifacts", [])
+                if item.get("status") != "available"
+            ]
+            details = ", ".join(missing) or source_report.get("message", "source preflight failed")
+            raise RuntimeError(
+                f"Model source preflight {source_report.get('status', 'failed')}: {details}. "
+                "No artifact contents were downloaded and no destination files were changed."
+            )
+
+        commit_sha = source_report.get("commit_sha")
+        if not isinstance(commit_sha, str) or len(commit_sha) != 40 or any(
+            character not in "0123456789abcdefABCDEF" for character in commit_sha
+        ):
+            raise RuntimeError("Source preflight did not return a valid pinned commit SHA")
+        commit_sha = commit_sha.lower()
 
         pending: dict[str, bytes] = {}
         manifest_artifacts: dict[str, dict[str, object]] = {}
@@ -69,31 +96,25 @@ def main() -> int:
                 "sha256": hashlib.sha256(payload).hexdigest(),
             }
 
-        DESTINATION.mkdir(parents=True, exist_ok=True)
-        temporary_paths: list[tuple[Path, Path]] = []
-        for filename, payload in pending.items():
-            destination = DESTINATION / filename
-            temporary = destination.with_suffix(destination.suffix + ".tmp")
-            temporary.write_bytes(payload)
-            temporary_paths.append((temporary, destination))
-
         manifest = {
             "repository": f"https://github.com/{REPOSITORY}",
             "ref": REF,
-            "commit_sha": commit_sha,
+            "commit_sha": commit_sha.lower(),
             "retrieved_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "artifacts": manifest_artifacts,
         }
         manifest_path = DESTINATION / "source_manifest.json"
-        manifest_tmp = manifest_path.with_suffix(".json.tmp")
-        manifest_tmp.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        bundle = {
+            DESTINATION / filename: payload
+            for filename, payload in pending.items()
+        }
+        bundle[manifest_path] = json.dumps(
+            manifest, ensure_ascii=False, indent=2
+        ).encode("utf-8")
 
-        for temporary, destination in temporary_paths:
-            temporary.replace(destination)
-        manifest_tmp.replace(manifest_path)
+        # Stage every artifact and the manifest before replacing any destination.
+        # If a replacement fails, previously replaced files are restored.
+        publish_file_bundle(bundle)
 
         print(f"Downloaded model artifacts from {REPOSITORY}@{commit_sha[:12]}")
         for filename, info in manifest_artifacts.items():

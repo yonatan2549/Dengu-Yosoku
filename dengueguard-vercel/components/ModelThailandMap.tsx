@@ -7,7 +7,15 @@ import type { Feature, FeatureCollection } from "geojson";
 import type { GeoJsonData, ModelMapRow } from "@/lib/types";
 import { normalizeProvince } from "@/lib/utils";
 
-const PREDICTION_COLORS = ["#e8f1fb", "#b8d3f0", "#78a9df", "#397fc4", "#174f91"];
+const RISK_COLORS = {
+  normal: "#2f9e63",
+  watch: "#f0b429",
+  alert: "#d94848",
+  noThreshold: "#aeb8c4",
+  noData: "#cbd3dc",
+} as const;
+
+type RiskBand = "normal" | "watch" | "alert" | "no-threshold";
 
 function FitThailand() {
   const map = useMap();
@@ -23,22 +31,28 @@ function formatCases(value: number | null) {
     : value.toLocaleString("th-TH", { maximumFractionDigits: 1 }) + " ราย";
 }
 
-function getQuantileThresholds(values: number[]) {
-  const sorted = [...values].filter(Number.isFinite).sort((a, b) => a - b);
-  if (!sorted.length) return [];
-  return [0.2, 0.4, 0.6, 0.8].map((fraction) => {
-    const index = Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * fraction));
-    return sorted[index];
-  });
+function getRiskBand(row: ModelMapRow): RiskBand {
+  if (
+    row.watch_threshold === null || row.watch_threshold === undefined ||
+    row.alert_threshold === null || row.alert_threshold === undefined
+  ) return "no-threshold";
+  if (row.prediction >= row.alert_threshold) return "alert";
+  if (row.prediction >= row.watch_threshold) return "watch";
+  return "normal";
 }
 
-function predictionColor(value: number, thresholds: number[]) {
-  if (!thresholds.length) return PREDICTION_COLORS[0];
-  if (value <= thresholds[0]) return PREDICTION_COLORS[0];
-  if (value <= thresholds[1]) return PREDICTION_COLORS[1];
-  if (value <= thresholds[2]) return PREDICTION_COLORS[2];
-  if (value <= thresholds[3]) return PREDICTION_COLORS[3];
-  return PREDICTION_COLORS[4];
+function riskColor(row: ModelMapRow) {
+  const band = getRiskBand(row);
+  if (band === "normal") return RISK_COLORS.normal;
+  if (band === "watch") return RISK_COLORS.watch;
+  if (band === "alert") return RISK_COLORS.alert;
+  return RISK_COLORS.noThreshold;
+}
+
+function formatThreshold(value: number | null | undefined) {
+  return value === null || value === undefined || !Number.isFinite(value)
+    ? "ไม่มีเกณฑ์"
+    : value.toLocaleString("th-TH", { maximumFractionDigits: 1 }) + " ราย";
 }
 
 export function ModelThailandMap({
@@ -54,10 +68,6 @@ export function ModelThailandMap({
     return result;
   }, [rows]);
 
-  const thresholds = useMemo(
-    () => getQuantileThresholds(rows.map((row) => row.prediction)),
-    [rows],
-  );
   const geoJson = geo as unknown as FeatureCollection;
   const boundaryProvinces = useMemo(
     () => new Set(
@@ -80,8 +90,8 @@ export function ModelThailandMap({
     const row = byProvince.get(normalizeProvince(provinceName));
     return {
       fillColor: row
-        ? predictionColor(row.prediction, thresholds)
-        : "#cbd3dc",
+        ? riskColor(row)
+        : RISK_COLORS.noData,
       weight: 1.1,
       opacity: 1,
       color: "#ffffff",
@@ -93,11 +103,16 @@ export function ModelThailandMap({
   const onEachFeature = (feature: Feature, layer: L.Layer) => {
     const name = String(feature.properties?.pro_th ?? "ไม่ทราบจังหวัด");
     const row = byProvince.get(normalizeProvince(name));
+    const band = row ? getRiskBand(row) : "no-threshold";
+    const riskLabel = band === "alert" ? "เตือนระบาด (เกณฑ์ทดลอง)" : band === "watch" ? "เฝ้าระวัง (เกณฑ์ทดลอง)" : band === "normal" ? "ปกติ (เกณฑ์ทดลอง)" : "ไม่มีเกณฑ์ทดลอง";
     const label = row
       ? [
           name,
           "AI คาดการณ์ " + formatCases(row.prediction),
-          row.actual_cases === null ? "ยังไม่มีค่าจริงของสัปดาห์พยากรณ์" : "ผู้ป่วยจริง " + formatCases(row.actual_cases),
+          "ระดับ " + riskLabel,
+          "P75 เฝ้าระวัง " + formatThreshold(row.watch_threshold),
+          "P90 เตือน " + formatThreshold(row.alert_threshold),
+          row.actual_cases === null ? "ยังไม่มีค่าจริงรายจังหวัดของสัปดาห์พยากรณ์" : "ผู้ป่วยจริง " + formatCases(row.actual_cases),
           row.persistence === null ? "" : "Persistence " + formatCases(row.persistence),
         ].filter(Boolean).join(" · ")
       : name + " · ไม่มีข้อมูลในสัปดาห์ที่เลือก";

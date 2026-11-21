@@ -13,8 +13,10 @@ import {
   type AlertAuditRecord,
 } from "@/lib/alerting/audit";
 import { getCurrentEpiWeekStart } from "@/lib/utils";
+import { useDengueData } from "@/components/DataProvider";
+import { enforceCurrentAlertEligibility } from "@/lib/model/validation";
 import type { ModelPredictionsPayload } from "@/lib/types";
-import type { AlertCheckStatus, AlertModelSnapshot } from "@/lib/alerting/types";
+import type { AlertCheckStatus, AlertModelSnapshot, AlertRuleProfile } from "@/lib/alerting/types";
 
 type AuditStorageStatus = "loading" | "saved" | "unavailable";
 
@@ -35,7 +37,10 @@ function formatAuditTimestamp(value: string): string {
 }
 
 export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | null }) {
+  const { modelArtifactFingerprints } = useDengueData();
   const currentEpiWeek = useMemo(() => getCurrentEpiWeekStart(), []);
+  const [runtimeProfile, setRuntimeProfile] = useState<AlertRuleProfile>(ALERT_RULE_PROFILE);
+  const [runtimeProfileLoaded, setRuntimeProfileLoaded] = useState(false);
   const auditSnapshot = useMemo<AlertModelSnapshot | null>(() => {
     if (!model) return null;
     return {
@@ -58,12 +63,55 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
     };
   }, [model]);
 
-  const report = useMemo(
-    () => evaluateAlertDryRun(auditSnapshot, ALERT_RULE_PROFILE, currentEpiWeek),
-    [auditSnapshot, currentEpiWeek],
-  );
+  useEffect(() => {
+    let active = true;
+    async function loadRuntimeProfile() {
+      try {
+        const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
+        const session = await sessionResponse.json().catch(() => null) as { authenticated?: boolean; role?: string } | null;
+        if (active && sessionResponse.ok && session?.authenticated && (session.role === "reviewer" || session.role === "administrator")) {
+          const response = await fetch("/api/alerts/runtime-profile", { cache: "no-store" });
+          const payload = await response.json().catch(() => null) as { ok?: boolean; profile?: AlertRuleProfile } | null;
+          if (response.ok && payload?.ok && payload.profile) {
+            if (active) setRuntimeProfile(payload.profile);
+          } else if (active) {
+            setRuntimeProfile(ALERT_RULE_PROFILE);
+          }
+        } else if (active) {
+          setRuntimeProfile(ALERT_RULE_PROFILE);
+        }
+      } catch {
+        if (active) setRuntimeProfile(ALERT_RULE_PROFILE);
+      } finally {
+        if (active) setRuntimeProfileLoaded(true);
+      }
+    }
+    const refresh = () => {
+      setRuntimeProfileLoaded(false);
+      void loadRuntimeProfile();
+    };
+    void loadRuntimeProfile();
+    window.addEventListener("dy:alerts-updated", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("dy:alerts-updated", refresh);
+    };
+  }, []);
+
+  const report = useMemo(() => {
+    const evaluated = evaluateAlertDryRun(auditSnapshot, runtimeProfile, currentEpiWeek);
+    const releaseApproved = !model || model.schema_version < 3 || model.release_status === "approved";
+    return enforceCurrentAlertEligibility(
+      evaluated,
+      releaseApproved,
+      releaseApproved
+        ? ""
+        : "Model Snapshot ยังเป็น Review-only: Dashboard แสดงผลได้ แต่บล็อกการสร้าง WATCH/ALERT Candidate จนกว่าจะได้รับอนุมัติแยก",
+    );
+  }, [auditSnapshot, runtimeProfile, currentEpiWeek, model]);
   const [auditRecords, setAuditRecords] = useState<AlertAuditRecord[]>([]);
   const [auditStorageStatus, setAuditStorageStatus] = useState<AuditStorageStatus>("loading");
+  const [databaseSyncStatus, setDatabaseSyncStatus] = useState<"checking" | "saved" | "signed_out" | "read_only" | "migration_required" | "snapshot_mismatch" | "unavailable" | "no_model">("checking");
 
   useEffect(() => {
     try {
@@ -71,7 +119,7 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
       const previous = readAlertAuditRecords(storage);
       const record = createAlertAuditRecord(
         auditSnapshot,
-        ALERT_RULE_PROFILE,
+        runtimeProfile,
         report,
       );
       const next = appendAlertAuditRecord(previous, record);
@@ -82,6 +130,78 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
       setAuditStorageStatus("unavailable");
     }
   }, [auditSnapshot, report]);
+
+  useEffect(() => {
+    let active = true;
+    async function syncEvaluation() {
+      if (!runtimeProfileLoaded) return;
+      if (!auditSnapshot) {
+        setDatabaseSyncStatus("no_model");
+        return;
+      }
+      setDatabaseSyncStatus("checking");
+      try {
+        const sessionResponse = await fetch("/api/auth/session", { cache: "no-store" });
+        const session = await sessionResponse.json().catch(() => null) as { authenticated?: boolean; role?: string } | null;
+        if (!active) return;
+        if (!sessionResponse.ok || !session?.authenticated) {
+          setDatabaseSyncStatus("signed_out");
+          return;
+        }
+        if (session.role !== "reviewer" && session.role !== "administrator") {
+          setDatabaseSyncStatus("read_only");
+          return;
+        }
+        const response = await fetch("/api/alerts/evaluations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            modelSnapshot: auditSnapshot,
+            artifactFingerprints: modelArtifactFingerprints,
+          }),
+        });
+        const payload = await response.json().catch(() => null) as { error?: string; code?: string; migrationRequired?: boolean } | null;
+        if (!active) return;
+        if (response.ok) {
+          setDatabaseSyncStatus("saved");
+        } else if (response.status === 503 && payload?.migrationRequired) {
+          setDatabaseSyncStatus("migration_required");
+        } else if (response.status === 401) {
+          setDatabaseSyncStatus("signed_out");
+        } else if (response.status === 403) {
+          setDatabaseSyncStatus("read_only");
+        } else if (response.status === 409 && [
+          "MODEL_ARTIFACT_MISMATCH",
+          "MODEL_FINGERPRINT_MISSING",
+          "MODEL_SNAPSHOT_CHANGED",
+        ].includes(payload?.code ?? "")) {
+          setDatabaseSyncStatus("snapshot_mismatch");
+        } else {
+          setDatabaseSyncStatus("unavailable");
+        }
+      } catch {
+        if (active) setDatabaseSyncStatus("unavailable");
+      }
+    }
+    void syncEvaluation();
+    return () => { active = false; };
+  }, [auditSnapshot, modelArtifactFingerprints, runtimeProfile, runtimeProfileLoaded]);
+
+  const databaseSyncLabel = databaseSyncStatus === "saved"
+    ? "บันทึกผลประเมินลงฐานข้อมูลกลางแล้ว"
+    : databaseSyncStatus === "checking"
+      ? "กำลังตรวจสิทธิ์และบันทึกผลประเมิน"
+      : databaseSyncStatus === "signed_out"
+        ? "เข้าสู่ระบบเพื่อบันทึกผลประเมินกลาง"
+        : databaseSyncStatus === "read_only"
+          ? "บัญชีนี้อ่านได้ แต่ไม่มีสิทธิ์ Reviewer/Admin สำหรับบันทึก"
+          : databaseSyncStatus === "migration_required"
+            ? "ต้องติดตั้ง Migration 004 ใน Supabase ก่อน"
+            : databaseSyncStatus === "snapshot_mismatch"
+            ? "ยืนยัน Snapshot จากเบราว์เซอร์กับ Server ไม่สำเร็จ กรุณาโหลดหน้าใหม่"
+            : databaseSyncStatus === "no_model"
+              ? "ยังไม่มี Model Snapshot สำหรับบันทึก"
+              : "ยังเชื่อมต่อฐานข้อมูลกลางไม่ได้";
 
   const statusLabel = report.status === "evaluated"
     ? "กฎผ่านการตรวจสอบในโหมดจำลอง"
@@ -131,6 +251,11 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
           <br />
           ระบบกำลังทำงานในโหมดจำลองเท่านั้น การแจ้งเตือน LINE, Email, SMS และช่องทางภายนอกถูกปิดไว้เสมอ
         </span>
+      </div>
+
+      <div className={databaseSyncStatus === "saved" ? "historical-notice" : "inline-callout warning"}>
+        <CircleAlert size={17} />
+        <span><strong>ฐานข้อมูลกลาง: {databaseSyncLabel}</strong><br />ระบบจะคำนวณ Dry-run ซ้ำบนเซิร์ฟเวอร์ และบันทึกเฉพาะข้อมูลโมเดล/กฎ/ผลประเมิน ไม่รับผล Candidate ที่ส่งมาจากเบราว์เซอร์</span>
       </div>
 
       <div className="performance-grid">
@@ -217,7 +342,7 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
         </p>
       )}
 
-      <AlertEventLifecyclePanel candidates={report.candidateEvents} modelRevision={auditSnapshot?.model_revision ?? null} />
+      <AlertEventLifecyclePanel />
 
       <section className="alert-audit-section" aria-label="ประวัติการประเมินระบบแจ้งเตือน">
         <div className="alert-audit-toolbar">
@@ -274,14 +399,14 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
           <p className="panel-note">ยังไม่มีประวัติที่บันทึกไว้ในเบราว์เซอร์นี้</p>
         )}
         <p className="alert-audit-footnote">
-          ประวัตินี้เป็น Local audit log สำหรับทดสอบบนเครื่องผู้ใช้ ไม่ใช่ฐานข้อมูลกลางหรือหลักฐานตรวจสอบบนเซิร์ฟเวอร์
+          รายการด้านบนเป็นสำเนา Audit สำหรับส่งออกในเบราว์เซอร์ ส่วนผลประเมินและ Event Lifecycle ที่บันทึกสำเร็จจะอยู่ในฐานข้อมูลกลาง
           ไม่มีข้อมูลผู้ป่วยหรือข้อมูลส่วนบุคคลถูกบันทึก และไม่มีการส่งการแจ้งเตือนออกนอกระบบ
         </p>
       </section>
 
       <p className="panel-note">
         เกณฑ์ปัจจุบัน: {report.ruleProfileStatus === "approved" ? "อนุมัติแล้ว" : "Draft · ยังไม่อนุมัติ"}
-        {" · "}Threshold ครอบคลุม {Object.keys(ALERT_RULE_PROFILE.thresholdsByProvince).length}/77 จังหวัด
+        {" · "}Threshold ครอบคลุม {Object.keys(runtimeProfile.thresholdsByProvince).length}/77 จังหวัด
         {" · "}Candidate events เป็นผลจำลองเท่านั้น ไม่มีการส่งออกไปยังผู้รับ
       </p>
     </section>
