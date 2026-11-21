@@ -55,7 +55,7 @@ const ALLOWED_HEALTH_SOURCE_HOSTS = new Set([
 ]);
 
 const QUERY_RETRIEVAL_INSTRUCTION =
-  "Instruct: Given a question about dengue fever, retrieve the most relevant authoritative health-education passages that answer the question.\\nQuery: ";
+  "Instruct: Given a question about dengue fever, retrieve the most relevant authoritative health-education passages that answer the question.\nQuery: ";
 
 export function isLocalHealthRagEnabled(env: LocalHealthRagEnvironment): boolean {
   return env.HEALTH_ASSISTANT_PROVIDER === "ollama-local" &&
