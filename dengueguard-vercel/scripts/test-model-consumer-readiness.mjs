@@ -75,6 +75,20 @@ test("does not pass Alert gate when current-alert eligibility is false", () => {
   assert.equal(report.prevention.status, "forecast-context");
   assert.equal(report.alerts.status, "blocked");
 });
+test("shows review-only snapshots on Dashboard but blocks Prevention forecast context and Alert use", () => {
+  const report = derive({
+    validation: {
+      status: "warning",
+      releaseStatus: "review_only",
+      canUseForDryRun: true,
+      canUseForCurrentAlerting: false,
+    },
+  });
+  assert.equal(report.dashboard.status, "current-forecast");
+  assert.equal(report.prevention.status, "general-guidance-only");
+  assert.equal(report.alerts.status, "blocked");
+  assert.match(report.prevention.detail, /ยังไม่ได้รับการอนุมัติ/);
+});
 
 test("does not infer a risk classification even when Forecast is current", () => {
   const report = derive();
