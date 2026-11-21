@@ -1,0 +1,49 @@
+name: National Alert Draft technical review
+
+on:
+  push:
+    branches:
+      - "review/national-alerts-independent-audit-2026-11-21"
+    paths:
+      - "dengueguard-vercel/scripts/build_alert_threshold_draft.py"
+      - "dengueguard-vercel/scripts/test_alert_threshold_draft.py"
+      - "dengueguard-vercel/public/data/model_predictions.json"
+      - "dengueguard-vercel/public/data/alert_threshold_candidates_77.json"
+      - "dengueguard-vercel/docs/NATIONAL_ALERT_THRESHOLDS_77_TH.md"
+      - "dengueguard-vercel/docs/INDEPENDENT_TECHNICAL_REVIEW_NATIONAL_ALERTS_77_TH.md"
+      - ".github/workflows/national-alerts-review-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: national-alerts-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-threshold-draft:
+    name: Verify 77-province threshold draft and freshness
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dengueguard-vercel
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile review scripts
+        run: python -m py_compile scripts/build_alert_threshold_draft.py scripts/test_alert_threshold_draft.py
+
+      - name: Verify committed threshold candidate matches source snapshot
+        run: python scripts/build_alert_threshold_draft.py --check
+
+      - name: Run threshold, temporal validation, governance and freshness tests
+        run: python -m unittest scripts.test_alert_threshold_draft -v
+
+      - name: Verify technical review report exists
+        run: test -s docs/INDEPENDENT_TECHNICAL_REVIEW_NATIONAL_ALERTS_77_TH.md
