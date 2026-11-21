@@ -190,6 +190,7 @@ export function ModelValidationPanel({ compact = false }: { compact?: boolean })
           <p>Model: {report.modelName ?? "ไม่มีข้อมูล"}</p>
           <p>Repository: {report.sourceRepository ?? "ไม่มีข้อมูล"}</p>
           <p>Commit: {report.modelRevision ?? "ไม่มีข้อมูล"}</p>
+          <p>สถานะการอนุมัติ: {report.releaseStatus === "approved" ? "Approved" : report.releaseStatus === "review_only" ? "Review-only · ยังไม่อนุมัติสำหรับ Alert" : "ไม่มีข้อมูล"}</p>
           <p>สร้าง Snapshot: {formatTime(report.generatedAtUtc)}</p>
           <p>ดึงจาก Repository: {formatTime(report.sourceRetrievedAtUtc)}</p>
           <p>สร้างไฟล์สำหรับเว็บ: {formatTime(report.convertedAtUtc)}</p>
