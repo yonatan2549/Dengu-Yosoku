@@ -15,6 +15,14 @@ export function AlertThresholdAuditPanel() {
   const review = candidate.computational_review;
   const sensitivity = review.leave_one_week_out_sensitivity;
   const temporal = review.temporal_split_validation;
+  const predictionAudit = temporal.prediction_vs_observed_threshold_exceedance;
+  const evaluationRows = [
+    { level: "Watch", source: "Model forecast", micro: predictionAudit.micro.watch.model_forecast, macro: predictionAudit.macro_mean_across_77_provinces.watch.model_forecast },
+    { level: "Watch", source: "Persistence", micro: predictionAudit.micro.watch.persistence_baseline, macro: predictionAudit.macro_mean_across_77_provinces.watch.persistence_baseline },
+    { level: "Alert", source: "Model forecast", micro: predictionAudit.micro.alert.model_forecast, macro: predictionAudit.macro_mean_across_77_provinces.alert.model_forecast },
+    { level: "Alert", source: "Persistence", micro: predictionAudit.micro.alert.persistence_baseline, macro: predictionAudit.macro_mean_across_77_provinces.alert.persistence_baseline },
+  ];
+  const percent = (value: number) => `${(value * 100).toFixed(1)}%`;
 
   return (
     <section className="panel alert-performance-panel" aria-labelledby="alert-threshold-audit-title">
@@ -52,6 +60,36 @@ export function AlertThresholdAuditPanel() {
           <strong>Automated audit passed with limitations</strong>
           <br />
           Independent implementation ตรวจสูตรตรงกัน; leave-one-week-out median span ของ Alert {sensitivity.median_alert_threshold_span} ราย สูงสุด {sensitivity.max_alert_threshold_span} ราย และ temporal split 18/8 สัปดาห์พบค่าจริงเกิน Watch {temporal.observed_cases_at_or_above_watch}/{temporal.province_week_observations} ({temporal.observed_cases_at_or_above_watch_percent}%) · เกิน Alert {temporal.observed_cases_at_or_above_alert}/{temporal.province_week_observations} ({temporal.observed_cases_at_or_above_alert_percent}%). ช่วงฝึกมี fallback Watch + 1 รายสำหรับ {temporal.one_case_increment_fallback_count} จังหวัด ({temporal.one_case_increment_fallback_provinces.join(", ")}) เพราะ P75 เท่ากับค่าสูงสุดที่สังเกตได้ในชุดฝึก
+        </span>
+      </div>
+
+      <div className="panel-heading">
+        <div>
+          <h3>Temporal holdout: Model forecast vs persistence</h3>
+          <p>ตรวจการทำนาย threshold exceedance ใน {predictionAudit.sample_n} province-week observations · fit 18 สัปดาห์ / validate 8 สัปดาห์</p>
+        </div>
+      </div>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead><tr><th>เกณฑ์</th><th>ตัวทำนาย</th><th>Micro Precision</th><th>Micro Recall</th><th>Micro F1</th><th>Macro Recall (77 จังหวัด)</th></tr></thead>
+          <tbody>
+            {evaluationRows.map((row) => (
+              <tr key={row.level + "-" + row.source}>
+                <td>{row.level}</td>
+                <td>{row.source}</td>
+                <td className="numeric-cell">{percent(row.micro.precision)}</td>
+                <td className="numeric-cell">{percent(row.micro.recall)}</td>
+                <td className="numeric-cell">{percent(row.micro.f1)}</td>
+                <td className="numeric-cell">{percent(row.macro.recall)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="inline-callout warning" role="status">
+        <AlertTriangle size={16} />
+        <span>
+          Model forecast มี recall/F1 ต่ำกว่า persistence ใน temporal split นี้ โดยเฉพาะ macro Alert recall {percent(predictionAudit.macro_mean_across_77_provinces.alert.model_forecast.recall)} เทียบกับ persistence {percent(predictionAudit.macro_mean_across_77_provinces.alert.persistence_baseline.recall)} จึงยังไม่ผ่านเกณฑ์พร้อมใช้งาน Alert
         </span>
       </div>
 
