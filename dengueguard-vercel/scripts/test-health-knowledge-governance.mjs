@@ -12,17 +12,19 @@ function reviewedDocument(overrides = {}) {
   };
 }
 
-test("reports every current knowledge document as awaiting clinical review", () => {
+test("reports project-owner approval separately from pending clinical review", () => {
   const report = evaluateHealthKnowledgeGovernance();
   assert.equal(report.totalDocuments, HEALTH_KNOWLEDGE.length);
   assert.equal(report.awaitingClinicalReview, HEALTH_KNOWLEDGE.length);
   assert.equal(report.clinicallyReviewed, 0);
+  assert.equal(report.projectOwnerApproved, HEALTH_KNOWLEDGE.length);
+  assert.equal(report.status, "ready-for-academic-demo");
   assert.equal(report.productionAnswersAllowed, false);
 });
 
 test("accepts the current knowledge registry metadata for review preparation", () => {
   const report = evaluateHealthKnowledgeGovernance();
-  assert.equal(report.status, "ready-for-review");
+  assert.equal(report.status, "ready-for-academic-demo");
   assert.equal(report.metadataIssues, 0);
   assert.equal(report.duplicateIds, 0);
 });
@@ -93,5 +95,5 @@ test("keeps production answer generation blocked even when metadata is reviewed"
 test("does not claim to have fetched full external documents or approved clinical content", () => {
   const report = evaluateHealthKnowledgeGovernance();
   assert.match(report.note, /ไม่ดึงเนื้อหาเต็มจาก URL/);
-  assert.match(report.note, /ไม่อนุมัติเอกสารแทนผู้เชี่ยวชาญ/);
+  assert.match(report.note, /ไม่อ้างว่าได้รับการรับรองจากแพทย์/);
 });

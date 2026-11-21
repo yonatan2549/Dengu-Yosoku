@@ -1,5 +1,12 @@
 export type KnowledgeCategory = "overview" | "warning-signs" | "testing" | "care" | "prevention";
 
+export interface ProjectKnowledgeApproval {
+  status: "approved";
+  scope: "academic-demonstration-only";
+  approvedAt: string;
+  approvedBy: "project-owner";
+}
+
 export interface HealthKnowledgeDocument {
   id: string;
   category: KnowledgeCategory;
@@ -10,6 +17,7 @@ export interface HealthKnowledgeDocument {
   sourceUrl: string;
   sourceType: string;
   reviewStatus: "awaiting_clinical_review";
+  projectApproval: ProjectKnowledgeApproval;
   keywords: string[];
   keyPoints: string[];
 }
@@ -25,6 +33,7 @@ export interface HealthKnowledgeResult {
   sourceUrl: string;
   sourceType: string;
   reviewStatus: "awaiting_clinical_review";
+  projectApproval: ProjectKnowledgeApproval;
   relevance: number;
 }
 
@@ -39,6 +48,7 @@ export const HEALTH_KNOWLEDGE: HealthKnowledgeDocument[] = [
     sourceUrl: "https://www.who.int/publications/i/item/9789240111110",
     sourceType: "Clinical guideline",
     reviewStatus: "awaiting_clinical_review",
+    projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
     keywords: ["ไข้เลือดออก", "เดงกี", "dengue", "แนวทาง", "การดูแล", "clinical management", "arboviral", "ผู้ป่วยนอก", "โรงพยาบาล"],
     keyPoints: [
       "เป็นแนวทางสำหรับบุคลากรสุขภาพในการดูแลผู้ป่วยที่สงสัยหรือยืนยันโรค arboviral รวมถึง Dengue",
@@ -56,6 +66,7 @@ export const HEALTH_KNOWLEDGE: HealthKnowledgeDocument[] = [
     sourceUrl: "https://www.cdc.gov/dengue/hcp/clinical-care/",
     sourceType: "Clinical guidance",
     reviewStatus: "awaiting_clinical_review",
+    projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
     keywords: ["สัญญาณเตือน", "อาการอันตราย", "ปวดท้อง", "อาเจียน", "เลือดออก", "ซึม", "กระสับกระส่าย", "หายใจลำบาก", "warning signs", "severe dengue", "clinical care"],
     keyPoints: [
       "สัญญาณเตือนที่ CDC ระบุรวมถึงปวดท้องรุนแรงหรือกดเจ็บ อาเจียนต่อเนื่อง เลือดออกจากเยื่อบุ และการเปลี่ยนแปลงของระดับความรู้สึกตัว",
@@ -73,6 +84,7 @@ export const HEALTH_KNOWLEDGE: HealthKnowledgeDocument[] = [
     sourceUrl: "https://www.cdc.gov/dengue/hcp/diagnosis-testing/",
     sourceType: "Laboratory testing guidance",
     reviewStatus: "awaiting_clinical_review",
+    projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
     keywords: ["ตรวจเลือด", "ผลเลือด", "NS1", "NAAT", "PCR", "IgM", "IgG", "CBC", "platelet", "เกล็ดเลือด", "hematocrit", "ฮีมาโตคริต", "laboratory", "diagnosis", "testing"],
     keyPoints: [
       "การเลือกตรวจขึ้นกับจำนวนวันหลังเริ่มมีอาการและบริบททางคลินิก",
@@ -90,6 +102,7 @@ export const HEALTH_KNOWLEDGE: HealthKnowledgeDocument[] = [
     sourceUrl: "https://iris.who.int/bitstream/handle/10665/381187/B09394-eng.pdf?sequence=1",
     sourceType: "Interim laboratory guidance",
     reviewStatus: "awaiting_clinical_review",
+    projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
     keywords: ["ห้องปฏิบัติการ", "ตรวจวินิจฉัย", "NAAT", "NS1", "IgM", "IgG", "แอนติบอดี", "แอนติเจน", "laboratory", "serology", "PCR"],
     keyPoints: [
       "การเลือกวิธีตรวจควรสัมพันธ์กับระยะเวลาของการเจ็บป่วยและช่วงเวลาที่เก็บตัวอย่าง",
@@ -107,6 +120,7 @@ export const HEALTH_KNOWLEDGE: HealthKnowledgeDocument[] = [
     sourceUrl: "https://ddc.moph.go.th/dvb/pagecontent.php?page=17",
     sourceType: "Thai national guidelines directory",
     reviewStatus: "awaiting_clinical_review",
+    projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
     keywords: ["กรมควบคุมโรค", "ไทย", "แนวทางประเทศไทย", "คู่มือ", "แนวทาง", "DHF", "ระบาดวิทยา", "มาตรการ", "แนวทางดูแลรักษา", "คู่มือปฏิบัติงาน"],
     keyPoints: [
       "เป็นหน้ารวมเอกสารทางการเกี่ยวกับโรคไข้เลือดออกของกรมควบคุมโรค",
@@ -124,6 +138,7 @@ export const HEALTH_KNOWLEDGE: HealthKnowledgeDocument[] = [
     sourceUrl: "https://www.who.int/news-room/questions-and-answers/item/dengue-and-severe-dengue",
     sourceType: "Public health information",
     reviewStatus: "awaiting_clinical_review",
+    projectApproval: { status: "approved", scope: "academic-demonstration-only", approvedAt: "2026-11-21", approvedBy: "project-owner" },
     keywords: ["ความรู้พื้นฐาน", "การติดต่อ", "ยุงลาย", "ป้องกัน", "ไข้เลือดออก", "dengue", "severe dengue", "mosquito", "prevention"],
     keyPoints: [
       "Dengue ติดต่อผ่านยุงลายที่มีเชื้อไวรัส",
@@ -187,6 +202,7 @@ export function searchHealthKnowledge(query: string, limit = 5): HealthKnowledge
     sourceUrl: document.sourceUrl,
     sourceType: document.sourceType,
     reviewStatus: document.reviewStatus,
+    projectApproval: document.projectApproval,
     relevance: score,
   }));
 }
