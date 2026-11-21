@@ -138,5 +138,12 @@ class ModelSnapshotHistoryBridgeTests(unittest.TestCase):
             )
 
 
+    def test_mmwr_calendar_year_boundary_is_not_mislabelled_as_week_53(self):
+        self.assertEqual(mmwr_sunday_start(2027, 1), date(2027, 1, 3))
+        self.assertEqual(mmwr_year_week(date(2027, 1, 3)), (2027, 1))
+        with self.assertRaises(HistoryBridgeError):
+            mmwr_sunday_start(2026, 53)
+
+
 if __name__ == "__main__":
     unittest.main()
