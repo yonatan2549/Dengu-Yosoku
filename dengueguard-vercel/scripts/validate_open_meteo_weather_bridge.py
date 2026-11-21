@@ -144,8 +144,13 @@ def main():
 
     with args.incoming_panel_csv.open("r", encoding="utf-8-sig", newline="") as handle:
         incoming = list(csv.DictReader(handle))
+    def mmwr_sunday_start(year, week):
+        jan1 = dt.date(year, 1, 1)
+        first_sunday = jan1 + dt.timedelta(days=(6 - jan1.weekday()) % 7)
+        return first_sunday + dt.timedelta(weeks=week - 1)
+
     target_weeks = sorted({
-        dt.date.fromisocalendar(int(row["year"]), int(row["week"]), 1) - dt.timedelta(days=1)
+        mmwr_sunday_start(int(row["year"]), int(row["week"]))
         for row in incoming
     })
     # Ensure the weekly date assignment matches the audited MMWR calendar.
