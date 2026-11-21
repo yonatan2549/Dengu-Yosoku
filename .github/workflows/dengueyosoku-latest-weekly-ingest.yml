@@ -485,12 +485,190 @@ jobs:
               print("Potential direct-identifier columns detected; stop before modeling.")
               raise SystemExit(2)
           PY
+      - name: Validate 77-province weekly case panel and week coverage
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/tanrabad-latest-week-source" "$RUNNER_TEMP/tanrabad-weekly-validation.json" "$RUNNER_TEMP/tanrabad-province-week.csv" <<'PY'
+          import csv
+          import datetime as dt
+          import io
+          import json
+          import math
+          import sys
+          import zipfile
+          from collections import Counter, defaultdict
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          report_path = Path(sys.argv[2])
+          panel_path = Path(sys.argv[3])
+
+          required = {"จังหวัด", "ปี", "สัปดาห์", "จำนวนผู้ป่วย"}
+          rows = []
+          file_summaries = []
+          parse_errors = []
+
+          def parse_integer(value, field, member, line):
+              raw = str(value or "").strip().replace(",", "")
+              if not raw:
+                  parse_errors.append({"file": member, "line": line, "field": field, "issue": "missing"})
+                  return None
+              try:
+                  number = float(raw)
+              except ValueError:
+                  parse_errors.append({"file": member, "line": line, "field": field, "issue": "not_numeric"})
+                  return None
+              if not math.isfinite(number) or not number.is_integer():
+                  parse_errors.append({"file": member, "line": line, "field": field, "issue": "not_integer"})
+                  return None
+              return int(number)
+
+          with zipfile.ZipFile(source) as archive:
+              csv_members = sorted(
+                  name for name in archive.namelist()
+                  if name and not name.endswith("/") and name.lower().endswith(".csv")
+              )
+              if len(csv_members) != 13:
+                  raise SystemExit(f"Expected 13 regional CSV files, found {len(csv_members)}.")
+
+              for member in csv_members:
+                  raw = archive.read(member)
+                  text_data = raw.decode("utf-8-sig")
+                  try:
+                      dialect = csv.Sniffer().sniff(text_data[:8192], delimiters=",;\t|")
+                  except csv.Error:
+                      dialect = csv.excel
+                  reader = csv.DictReader(io.StringIO(text_data), dialect=dialect)
+                  headers = set((h or "").strip() for h in (reader.fieldnames or []))
+                  if headers != required:
+                      raise SystemExit(f"Schema mismatch in archive member {member}; expected the four agreed aggregate columns.")
+
+                  rows_before = len(rows)
+                  for line_no, record in enumerate(reader, start=2):
+                      province = str(record.get("จังหวัด") or "").strip()
+                      year = parse_integer(record.get("ปี"), "ปี", member, line_no)
+                      week = parse_integer(record.get("สัปดาห์"), "สัปดาห์", member, line_no)
+                      cases = parse_integer(record.get("จำนวนผู้ป่วย"), "จำนวนผู้ป่วย", member, line_no)
+
+                      if not province:
+                          parse_errors.append({"file": member, "line": line_no, "field": "จังหวัด", "issue": "missing"})
+                      if year is not None and 2400 <= year <= 2700:
+                          year -= 543
+                      if year is not None and not 2000 <= year <= 2100:
+                          parse_errors.append({"file": member, "line": line_no, "field": "ปี", "issue": "out_of_range"})
+                      if week is not None and not 1 <= week <= 53:
+                          parse_errors.append({"file": member, "line": line_no, "field": "สัปดาห์", "issue": "out_of_range"})
+                      if cases is not None and cases < 0:
+                          parse_errors.append({"file": member, "line": line_no, "field": "จำนวนผู้ป่วย", "issue": "negative"})
+                      if province and year is not None and week is not None and cases is not None:
+                          rows.append({
+                              "province": province,
+                              "year": year,
+                              "week": week,
+                              "cases": cases,
+                              "source_file": member,
+                          })
+                  file_summaries.append({
+                      "file_name": member,
+                      "row_count": len(rows) - rows_before,
+                  })
+
+          province_set = sorted({row["province"] for row in rows})
+          weeks = sorted({(row["year"], row["week"]) for row in rows})
+          province_per_week = defaultdict(set)
+          cases_per_week = Counter()
+          key_counts = Counter()
+          for row in rows:
+              key = (row["province"], row["year"], row["week"])
+              key_counts[key] += 1
+              province_per_week[(row["year"], row["week"])].add(row["province"])
+              cases_per_week[(row["year"], row["week"])] += row["cases"]
+
+          duplicates = [
+              {"year": key[1], "week": key[2], "duplicate_row_count": count}
+              for key, count in key_counts.items() if count > 1
+          ]
+
+          week_summaries = [
+              {
+                  "year": year,
+                  "week": week,
+                  "province_count": len(province_per_week[(year, week)]),
+                  "total_cases": cases_per_week[(year, week)],
+              }
+              for year, week in weeks
+          ]
+
+          consecutive = True
+          for (year_a, week_a), (year_b, week_b) in zip(weeks, weeks[1:]):
+              try:
+                  start_a = dt.date.fromisocalendar(year_a, week_a, 1)
+                  start_b = dt.date.fromisocalendar(year_b, week_b, 1)
+                  if start_b - start_a != dt.timedelta(days=7):
+                      consecutive = False
+              except ValueError:
+                  consecutive = False
+
+          report = {
+              "source_format": "zip_of_13_regional_csv_files",
+              "source_row_count": len(rows),
+              "source_file_count": len(csv_members),
+              "distinct_province_count": len(province_set),
+              "distinct_week_count": len(weeks),
+              "weeks": week_summaries,
+              "consecutive_weeks": consecutive,
+              "duplicate_province_week_keys": duplicates,
+              "parse_error_count": len(parse_errors),
+              "parse_error_categories": dict(Counter(x["issue"] for x in parse_errors)),
+              "parse_errors_sample": parse_errors[:20],
+              "expected_province_count": 77,
+              "all_weeks_cover_77_provinces": bool(week_summaries) and all(x["province_count"] == 77 for x in week_summaries),
+              "all_values_nonnegative_integers": not any(x["issue"] in {"not_numeric", "not_integer", "negative", "missing", "out_of_range"} for x in parse_errors),
+              "duplicate_free": not duplicates,
+              "province_names": province_set,
+              "files": file_summaries,
+              "raw_patient_records_exported": False,
+              "status": "passed" if (
+                  len(rows) == 154
+                  and len(province_set) == 77
+                  and len(weeks) == 2
+                  and all(x["province_count"] == 77 for x in week_summaries)
+                  and consecutive
+                  and not duplicates
+                  and not parse_errors
+              ) else "blocked_for_data_review",
+          }
+
+          if report["status"] == "passed":
+              with panel_path.open("w", encoding="utf-8", newline="") as handle:
+                  writer = csv.DictWriter(handle, fieldnames=["province", "year", "week", "cases"])
+                  writer.writeheader()
+                  writer.writerows(
+                      {"province": r["province"], "year": r["year"], "week": r["week"], "cases": r["cases"]}
+                      for r in sorted(rows, key=lambda x: (x["year"], x["week"], x["province"]))
+                  )
+
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Weekly panel audit: rows={len(rows)}, provinces={len(province_set)}, "
+              f"weeks={[(y, w) for y, w in weeks]}, duplicates={len(duplicates)}, "
+              f"parse_errors={len(parse_errors)}, status={report['status']}."
+          )
+          print("The aggregate panel was written only to ephemeral runner storage; it was not uploaded.")
+          if report["status"] != "passed":
+              raise SystemExit(1)
+          PY
+
       - name: Upload structure-only audit report
         if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: dengueyosoku-tanrabad-weekly-structure-audit-${{ github.run_id }}
-          path: ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
+          path: |
+            ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
+            ${{ runner.temp }}/tanrabad-weekly-validation.json
           if-no-files-found: ignore
           retention-days: 7
 
