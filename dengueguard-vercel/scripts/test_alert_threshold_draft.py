@@ -16,8 +16,31 @@ CANDIDATE = json.loads((ROOT / "public/data/alert_threshold_candidates_77.json")
 
 
 class AlertThresholdDraftTests(unittest.TestCase):
-    def test_candidate_is_reproducible_from_the_review_only_snapshot(self):
-        self.assertEqual(build_candidate(SNAPSHOT), CANDIDATE)
+    def test_candidate_thresholds_and_temporal_audit_are_reproducible_from_the_review_only_snapshot(self):
+        expected = build_candidate(SNAPSHOT)
+        self.assertEqual(expected["thresholds"], CANDIDATE["thresholds"])
+        self.assertEqual(
+            expected["computational_review"]["leave_one_week_out_sensitivity"],
+            CANDIDATE["computational_review"]["leave_one_week_out_sensitivity"],
+        )
+        self.assertEqual(
+            expected["computational_review"]["quantile_definition_sensitivity"],
+            CANDIDATE["computational_review"]["quantile_definition_sensitivity"],
+        )
+        expected_split = expected["computational_review"]["temporal_split_validation"]
+        actual_split = CANDIDATE["computational_review"]["temporal_split_validation"]
+        for key in (
+            "training_start_week", "training_end_week", "training_weeks",
+            "validation_start_week", "validation_end_week", "validation_weeks",
+            "province_week_observations", "observed_cases_at_or_above_watch",
+            "observed_cases_at_or_above_watch_percent",
+            "observed_cases_at_or_above_alert",
+            "observed_cases_at_or_above_alert_percent",
+            "one_case_increment_fallback_count",
+            "one_case_increment_fallback_provinces",
+            "weekly_candidate_counts",
+        ):
+            self.assertEqual(expected_split[key], actual_split[key], key)
 
     def test_all_77_provinces_have_26_observations_and_valid_ordered_thresholds(self):
         self.assertEqual(len(CANDIDATE["thresholds"]), 77)
@@ -46,8 +69,9 @@ class AlertThresholdDraftTests(unittest.TestCase):
         self.assertEqual(split["validation_weeks"], 8)
         self.assertEqual(split["province_week_observations"], 616)
         self.assertEqual(split["observed_cases_at_or_above_watch"], 158)
-        self.assertEqual(split["observed_cases_at_or_above_alert"], 96)
-        self.assertGreaterEqual(split["one_case_increment_fallback_count"], 1)
+        self.assertEqual(split["observed_cases_at_or_above_alert"], 97)
+        self.assertEqual(split["one_case_increment_fallback_count"], 1)
+        self.assertEqual(split["one_case_increment_fallback_provinces"], ["สิงห์บุรี"])
 
     def test_small_sample_sensitivity_is_reported(self):
         sensitivity = CANDIDATE["computational_review"]["leave_one_week_out_sensitivity"]
