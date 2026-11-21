@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
 import { ProductHero } from "@/components/ProductHero";
@@ -8,6 +8,7 @@ import { NationalSurveillancePanel } from "@/components/NationalSurveillancePane
 import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
 import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear, normalizeProvince } from "@/lib/utils";
+import { resolvePreventionDatasetView, type DashboardDatasetPreference } from "@/lib/dashboard-view";
 
 function RiskPill({ level }: { level: string }) {
   const cls = level === "เตือนระบาด" ? "risk-high" : level === "เฝ้าระวัง" ? "risk-watch" : "risk-normal";
@@ -490,15 +491,15 @@ function ModelPreventionPage() {
 
 export default function PreventionPage() {
   const { data } = useDengueData();
-  const [view, setView] = useState<"legacy" | "model">("legacy");
+  const [viewPreference, setViewPreference] = useState<DashboardDatasetPreference>("auto");
   const modelWeek = data?.modelPredictions?.coverage.forecast_week ?? null;
-
-  useEffect(() => {
-    setView(modelWeek && modelWeek === getCurrentEpiWeekStart() ? "model" : "legacy");
-  }, [modelWeek]);
 
   if (!data) return null;
   const hasModel = Boolean(data.modelPredictions);
+  const isCurrentModelWeek = Boolean(modelWeek && modelWeek === getCurrentEpiWeekStart());
+  // Avoid an initial legacy-only flash while keeping stale snapshots out of the
+  // automatic prevention guidance path. Users may explicitly open them to review.
+  const view = resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek);
 
   return (
     <div className="page-stack dy-prevention-selector">
@@ -510,10 +511,10 @@ export default function PreventionPage() {
           </div>
         </div>
         <div className="table-pagination-actions dy-mode-switcher-actions">
-          <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setView("legacy")} aria-pressed={view === "legacy"}>
+          <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setViewPreference("legacy")} aria-pressed={view === "legacy"}>
             ระบบเดิม · สคร.4 (8 จังหวัด)
           </button>
-          <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setView("model")} disabled={!hasModel} aria-pressed={view === "model"}>
+          <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setViewPreference("model")} disabled={!hasModel} aria-pressed={view === "model"}>
             โมเดลใหม่ · 77 จังหวัด
           </button>
         </div>
