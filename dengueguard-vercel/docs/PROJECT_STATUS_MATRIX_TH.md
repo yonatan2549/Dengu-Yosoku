@@ -26,7 +26,8 @@
 - ผล: passed, รวม TypeScript, regression tests และ Next.js Production build
 - มี Preview deployment จาก commit ก่อนหน้าแล้ว แต่ต้องตรวจว่า SHA ตรงกับ commit ล่าสุด และต้อง smoke test deployment ก่อนใช้อ้างอิง
 - PR #4 ยัง Draft/Open และไม่ถูก merge ในเวลาจัดทำเอกสารนี้
-- PR #4 head ณ 21 พ.ย. 2026: `b7d8e29dc966ea6735e920bc86e472ca5220fdae` (Dashboard week-46 labelling / Alert governance copy กำลังตรวจ CI)
+- PR #4 head ณ 21 พ.ย. 2026: `c9b7ec1a6bc5bfdff334dabcdf3fd660c9688b78` (Dashboard week-46 labelling, actuals separation, epi-week tests และ Alert governance copy)
+- GitHub Actions run [#44897980257](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/44897980257): TypeScript, regression, production build และ smoke tests ผ่าน
 - GitHub Actions run 44894610035: weekly ZIP intake, model input build, case-only experiment และ Phase 13 12-feature review snapshot ผ่าน; run 44895114319: threshold technical review ผ่าน
 
 ## ผลการคำนวณ Threshold 77 จังหวัด (Draft)
