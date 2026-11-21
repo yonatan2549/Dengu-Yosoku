@@ -189,3 +189,5 @@ jobs:
       - name: Confirm intake is ready for model-specific mapping
         if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
         run: echo "Structure-only intake audit completed. No training, prediction, deployment, or raw-data publication was performed."
+
+# Re-trigger intake after the repository Drive secret was configured (2026-11-21).
