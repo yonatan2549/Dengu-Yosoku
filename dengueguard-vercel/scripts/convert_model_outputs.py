@@ -412,7 +412,12 @@ def main(argv: list[str] | None = None) -> int:
                 f"{manifest_path.name} repository must be {expected_repository}"
             )
 
-        model_revision = manifest.get("commit_sha")
+        source_data_revision = manifest.get("commit_sha")
+        if not isinstance(source_data_revision, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", source_data_revision):
+            raise DataValidationError(f"{manifest_path.name} contains an invalid source commit_sha")
+        source_data_revision = source_data_revision.lower()
+
+        model_revision = manifest.get("model_revision", source_data_revision)
         if not isinstance(model_revision, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", model_revision):
             raise DataValidationError(f"{manifest_path.name} contains an invalid hexadecimal commit_sha")
         model_revision = model_revision.lower()
@@ -468,11 +473,19 @@ def main(argv: list[str] | None = None) -> int:
                     f"{artifact_path.name} does not match the downloaded source_manifest.json hash"
                 )
 
+        release_status = manifest.get("release_status", "review_only")
+        if release_status not in {"review_only", "approved"}:
+            raise DataValidationError(f"{manifest_path.name} release_status must be 'review_only' or 'approved'")
+        training_run_id = manifest.get("training_run_id")
+
         prediction_payload = {
-            "schema_version": 2,
+            "schema_version": 3,
             "model_name": "DenguYosoku LightGBM",
             "source_repository": "https://github.com/johnlovepizza/DenguYosoku",
             "model_revision": model_revision,
+            "source_data_revision": source_data_revision,
+            "release_status": release_status,
+            "training_run_id": training_run_id,
             "generated_at_utc": generated_at,
             "province_count": len(province_list),
             "provinces": province_list,
@@ -503,7 +516,9 @@ def main(argv: list[str] | None = None) -> int:
             },
         }
         metrics_payload = {
-            "schema_version": 2,
+            "schema_version": 3,
+            "release_status": release_status,
+            "training_run_id": training_run_id,
             "model_name": prediction_payload["model_name"],
             "source_repository": prediction_payload["source_repository"],
             "model_revision": model_revision,
