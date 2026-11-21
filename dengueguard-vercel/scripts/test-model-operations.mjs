@@ -54,6 +54,23 @@ test("blocks mismatched model revisions", () => {
   input.metrics.model_revision = "b".repeat(40);
   assert.equal(evaluateModelOperations(input).eligibleForCurrentEvaluation, false);
 });
+test("blocks current operations eligibility for a schema v3 review-only snapshot", () => {
+  const input = structuredClone(base);
+  input.predictions.schema_version = 3;
+  input.predictions.release_status = "review_only";
+  const report = evaluateModelOperations(input);
+  assert.equal(report.status, "blocked");
+  assert.equal(report.eligibleForCurrentEvaluation, false);
+  assert.equal(report.checks.find((check) => check.id === "release-approval").status, "blocked");
+});
+test("allows Model Operations approval gate only for an explicitly approved schema v3 snapshot", () => {
+  const input = structuredClone(base);
+  input.predictions.schema_version = 3;
+  input.predictions.release_status = "approved";
+  const report = evaluateModelOperations(input);
+  assert.equal(report.eligibleForCurrentEvaluation, true);
+  assert.equal(report.checks.find((check) => check.id === "release-approval").status, "pass");
+});
 
 test("blocks mismatched model repositories", () => {
   const input = structuredClone(base);
