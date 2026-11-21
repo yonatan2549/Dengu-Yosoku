@@ -24,6 +24,14 @@
 - สถานะ export คือ `review_only`: ใช้แสดงเพื่อตรวจทานโมเดลได้ แต่ไม่อนุญาตใช้เป็นสถานะความเสี่ยงปัจจุบัน สร้าง Alert หรือส่งแจ้งเตือนประชาชน
 - Snapshot จะ stale เมื่อสัปดาห์ระบาดวิทยาเปลี่ยนเป็น 22 พฤศจิกายน 2026 หากไม่มี weekly input ชุดใหม่ที่ได้รับอนุญาตและผ่านการตรวจ
 
+## Draft Thresholds สำหรับโมเดล 77 จังหวัด
+
+มีการคำนวณ Candidate ครบ 77 จังหวัดจากข้อมูลผู้ป่วยรายสัปดาห์ 26 สัปดาห์ (Watch=P75 / Alert=P90, Type-7) พร้อม temporal split และ leave-one-week-out sensitivity report:
+- [รายงานวิธีคำนวณและผลตรวจ](docs/NATIONAL_ALERT_THRESHOLDS_77_TH.md)
+- [ไฟล์ JSON Candidate](public/data/alert_threshold_candidates_77.json)
+
+Candidate นี้ยังเป็น Draft, ไม่ใช่ threshold ที่อนุมัติแล้ว และจะไม่สร้าง Alert Candidate หรือจำแนกระดับความเสี่ยงทั่วประเทศ เพราะ Model Snapshot ต้นทางยังเป็น `review_only` และ stale สำหรับสัปดาห์ 22 พ.ย. 2026 การบันทึกค่าเข้า Supabase ทำได้ผ่าน Admin Draft workflow ที่มี audit log เท่านั้น; external notifications ยังคงปิด
+
 ## สิ่งที่ต้องทราบก่อนสาธิต
 
 1. แผนที่/แนวโน้ม ODPC4 เป็นข้อมูลชุดประวัติศาสตร์ ไม่ใช่การพยากรณ์ปัจจุบันครบ 77 จังหวัด
