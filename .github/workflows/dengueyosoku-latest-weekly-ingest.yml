@@ -19,7 +19,7 @@ jobs:
   inspect:
     name: Download to ephemeral runner and inspect CSV structure
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - name: Check out DengueYosoku
         uses: actions/checkout@v4
@@ -801,21 +801,52 @@ jobs:
               print(f"Model-input blocker: {blocker}")
           PY
 
-      - name: Upload structure-only audit report
+      - name: Train experimental case-only nowcast for review (not for release)
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            "numpy==2.5.4" "pandas==3.1.1" "lightgbm==4.7.0"
+
+          SOURCE_SHA="$(python - "$RUNNER_TEMP/model-input-compatibility.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(report.get("source_commit", "unknown"))
+          PY
+          )"
+
+          python dengueguard-vercel/scripts/experimental_case_only_nowcast.py \
+            --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --output-dir "$RUNNER_TEMP/case-only-experiment" \
+            --holdout-weeks 26 \
+            --cv-folds 4 \
+            --cv-weeks 8 \
+            --gap-weeks 4 \
+            --round-grid 400,600,800
+
+      - name: Upload validated intake and experimental model artifacts
         if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: dengueyosoku-tanrabad-weekly-structure-audit-${{ github.run_id }}
+          name: dengueyosoku-tanrabad-weekly-model-review-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
             ${{ runner.temp }}/tanrabad-weekly-validation.json
             ${{ runner.temp }}/model-input-compatibility.json
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_metrics.json
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_holdout_predictions.csv
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_forecast_preview.csv
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_model.txt
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Confirm intake is ready for model-specific mapping
+      - name: Confirm intake audit and research preview status
         if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
-        run: echo "Structure-only intake audit completed. No training, prediction, deployment, or raw-data publication was performed."
+        run: echo "Weekly panel passed data-quality checks. The original 12-feature model is blocked by missing apparent-temperature rows; any case-only output is a separate research preview. No public website data or deployment was changed."
 
 # Re-trigger intake after the repository Drive secret was configured (2026-11-21).
 
