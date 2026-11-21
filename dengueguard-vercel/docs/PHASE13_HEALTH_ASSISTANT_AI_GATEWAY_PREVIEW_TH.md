@@ -26,9 +26,9 @@ HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true
 ## การตั้งค่า Vercel Preview
 
 1. เปิดใช้ Vercel OIDC สำหรับ project หากต้องการให้ runtime ใช้ OIDC แทนการเก็บ API key
-2. เพิ่ม Environment Variable `HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true` เฉพาะ Preview และผูกกับ branch `feature/health-assistant-real-ai`
+2. เพิ่ม Environment Variable `HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true` เฉพาะ Preview และผูกกับ branch `integration/phase9-12-final-review` ในโปรเจกต์ทดสอบ `denguyosoku` ซึ่งเปิด SSO Protection
 3. Vercel Functions ใช้ signed `x-vercel-oidc-token` ที่ Vercel inject ให้ใน Request (และ `VERCEL_OIDC_TOKEN` เมื่อมีใน environment) เพื่อยืนยันตัวตนกับ AI Gateway โดยไม่ต้องบันทึก API key ของผู้ให้บริการ
-4. หาก Vercel OIDC ไม่พร้อม ให้เพิ่ม `AI_GATEWAY_API_KEY` เป็น Encrypted/Sensitive Environment Variable เฉพาะ Preview ของ branch เดียวกัน
+4. สำหรับ integration ปัจจุบันเปิด Vercel OIDC (`issuerMode=team`) บนโปรเจกต์ Preview ที่มี SSO แล้ว จึงไม่ต้องเพิ่ม API key; การใช้ `AI_GATEWAY_API_KEY` เป็นทางเลือกสำรองเท่านั้น และต้องเป็น Encrypted/Sensitive Environment Variable เฉพาะ Preview
 5. ห้ามตั้ง flag นี้ใน Production
 6. ตรวจ `GET /api/health-assistant/chat` ว่าระบุ `generatedAnswersEnabled: true` ก่อนทดสอบถามตอบ
 
@@ -65,6 +65,15 @@ npm.cmd run test:health-assistant-source-policy
 npm.cmd run typecheck
 npm.cmd run build
 ```
+
+
+### สถานะการตั้งค่าของ integration branch (2026-11-21)
+
+- AI draft flag ถูกกำหนดเฉพาะ Preview ของ branch `integration/phase9-12-final-review` บนโปรเจกต์ทดสอบ `denguyosoku` ซึ่งเปิด SSO Protection
+- เปิด Vercel OIDC แบบ team issuer บนโปรเจกต์ทดสอบเพื่อให้ Function runtime ใช้ token ที่ Vercel inject ให้
+- ไม่ได้เพิ่ม `AI_GATEWAY_API_KEY`, ไม่ได้เพิ่ม credential ให้ Production และไม่ได้เปิด flag ใน Production
+- การตั้งค่า Preview ยังไม่ถือว่าใช้งานได้จนกว่า deployment ของ commit ล่าสุดจะ READY และ `GET /api/health-assistant/chat` ยืนยัน `generatedAnswersEnabled: true`
+- ข้อความความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งให้ AI provider เพื่อร่างคำตอบ ห้ามผู้ใช้ป้อนข้อมูลระบุตัวบุคคลหรือผลตรวจผู้ป่วย; ประวัติแชตไม่ถูกบันทึกในฐานข้อมูลของ DengueYosoku แต่การประมวลผลของ provider อยู่ภายใต้นโยบายของ provider
 
 ## Model reference
 
