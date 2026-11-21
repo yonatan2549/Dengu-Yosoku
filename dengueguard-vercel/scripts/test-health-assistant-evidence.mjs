@@ -26,8 +26,10 @@ test("routes persistent vomiting to urgent safety notice", () => {
 });
 
 test("routes bleeding symptoms to urgent safety notice", () => {
-  const result = buildHealthEvidencePackage("ถ่ายเป็นเลือด");
-  assert.equal(result.safetyLevel, "urgent");
+  for (const query of ["ถ่ายเป็นเลือด", "ถ่ายดำ", "เลือดออกไม่หยุด"]) {
+    const result = buildHealthEvidencePackage(query);
+    assert.equal(result.safetyLevel, "urgent", query);
+  }
 });
 
 test("routes breathing difficulty to urgent safety notice", () => {
