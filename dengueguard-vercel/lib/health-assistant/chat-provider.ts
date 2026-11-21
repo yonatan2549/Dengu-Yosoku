@@ -13,17 +13,15 @@ export const DEFAULT_HEALTH_ASSISTANT_MODEL = "google/gemini-4-neon";
 
 /**
  * Reads credentials only from server-side environment or a Vercel-issued OIDC token.
- * The request header token is supplied by the Vercel runtime; it is never accepted
- * from the chat JSON body and is never returned to the browser.
+ * Vercel supplies VERCEL_OIDC_TOKEN to the server runtime. It is never accepted
+ * from the chat JSON body or client-controlled headers.
  */
 export function readChatProviderConfig(
   env: ConfigEnvironment,
   nodeEnv: string | undefined,
-  vercelOidcToken?: string | null,
 ): { ok: true; config: ChatProviderConfig } | { ok: false; error: string } {
   const endpoint = env.HEALTH_ASSISTANT_CHAT_ENDPOINT?.trim() || DEFAULT_AI_GATEWAY_ENDPOINT;
   const apiKey =
-    vercelOidcToken?.trim() ||
     env.VERCEL_OIDC_TOKEN?.trim() ||
     env.AI_GATEWAY_API_KEY?.trim() ||
     // Backward compatibility for an existing OpenAI-compatible provider setup.
