@@ -76,6 +76,8 @@ class CurrentModelSnapshotPreparationTests(unittest.TestCase):
             "schema_version": 1,
             "model_name": "DenguYosoku 77-province LightGBM weekly nowcast",
             "model_revision": SOURCE_SHA,
+            "source_repository": "https://github.com/johnlovepizza/DenguYosoku",
+            "source_commit_sha": SOURCE_SHA,
             "dataset_source": "TanRabad plus historical source",
             "dataset_source_url": "https://trb.ddc.moph.go.th/",
             "generated_at_utc": "2026-11-21T01:51:50Z",
