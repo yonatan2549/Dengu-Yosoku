@@ -1008,9 +1008,13 @@
       "validation_weeks": 8,
       "province_week_observations": 616,
       "observed_cases_at_or_above_watch": 158,
-      "observed_cases_at_or_above_watch_percent": 25.65,
-      "observed_cases_at_or_above_alert": 96,
-      "observed_cases_at_or_above_alert_percent": 15.58,
+      "observed_cases_at_or_above_watch_percent": 25.649,
+      "observed_cases_at_or_above_alert": 97,
+      "observed_cases_at_or_above_alert_percent": 15.747,
+      "one_case_increment_fallback_count": 1,
+      "one_case_increment_fallback_provinces": [
+        "สิงห์บุรี"
+      ],
       "weekly_candidate_counts": [
         {
           "week": "2026-09-20",
@@ -1035,7 +1039,7 @@
         {
           "week": "2026-10-18",
           "watch": 21,
-          "alert": 13
+          "alert": 14
         },
         {
           "week": "2026-10-25",
