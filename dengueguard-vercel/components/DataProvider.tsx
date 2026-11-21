@@ -109,6 +109,15 @@ function inspectModelPayload(
   const provinceList = Array.isArray(predictions.provinces) ? predictions.provinces : [];
   const provinceSet = new Set(provinceList);
 
+  if (predictions.schema_version >= 3) {
+    if (predictions.release_status !== "review_only" && predictions.release_status !== "approved") {
+      problems.push("Snapshot รุ่นนี้ไม่มีสถานะการอนุมัติที่ถูกต้อง");
+    }
+    if (metrics?.release_status !== predictions.release_status) {
+      problems.push("สถานะการอนุมัติของ Predictions และ Metrics ไม่ตรงกัน");
+    }
+  }
+
   if (predictions.schema_version >= 2) {
     if (!/^[a-f0-9]{40}$/i.test(predictions.model_revision ?? "")) {
       problems.push("ไม่พบ Model Commit SHA ที่ใช้ยืนยันชุดข้อมูล");
