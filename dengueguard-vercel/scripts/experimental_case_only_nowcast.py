@@ -90,10 +90,18 @@ def mae(actual: np.ndarray, predicted: np.ndarray) -> float:
     return float(np.mean(np.abs(actual - predicted)))
 
 
+def _mmwr_first_sunday(year: int) -> pd.Timestamp:
+    jan1 = pd.Timestamp(year=year, month=1, day=1)
+    return jan1 + pd.Timedelta(days=(6 - jan1.weekday()) % 7)
+
+
 def mmwr_week_start(year: int, week: int) -> pd.Timestamp:
-    jan4 = pd.Timestamp(year=year, month=1, day=4)
-    week1_sunday = jan4 - pd.Timedelta(days=(jan4.weekday() + 1) % 7)
-    return week1_sunday + pd.Timedelta(weeks=week - 1)
+    first_sunday = _mmwr_first_sunday(year)
+    next_year_first_sunday = _mmwr_first_sunday(year + 1)
+    max_week = int((next_year_first_sunday - first_sunday).days // 7)
+    if not 1 <= week <= max_week:
+        raise ValueError(f"Invalid MMWR week {year}-W{week}; {year} has {max_week} MMWR weeks.")
+    return first_sunday + pd.Timedelta(weeks=week - 1)
 
 
 def mmwr_year_week(week_start: pd.Timestamp) -> tuple[int, int]:
@@ -101,11 +109,13 @@ def mmwr_year_week(week_start: pd.Timestamp) -> tuple[int, int]:
     if value.weekday() != 6:
         raise ValueError(f"MMWR week start must be Sunday; received {value.date()}.")
     for year in (value.year - 1, value.year, value.year + 1):
-        for week in range(1, 54):
+        first_sunday = _mmwr_first_sunday(year)
+        next_year_first_sunday = _mmwr_first_sunday(year + 1)
+        if first_sunday <= value < next_year_first_sunday:
+            week = int((value - first_sunday).days // 7) + 1
             if mmwr_week_start(year, week) == value:
                 return year, week
     raise ValueError(f"Could not resolve MMWR year/week for {value.date()}.")
-
 
 def load_and_combine(historical_path: Path, panel_path: Path) -> pd.DataFrame:
     historical = pd.read_csv(historical_path, encoding="utf-8-sig", low_memory=False)
