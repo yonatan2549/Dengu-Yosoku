@@ -41,7 +41,8 @@
     "test:model-release-guard": "python -m unittest scripts.test_model_release_guard -v",
     "check:model-release": "python scripts/inspect_model_release.py",
     "test:model-release-inspection": "python -m unittest scripts.test_model_release_inspection -v",
-    "test:dashboard-view": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/dashboard-view-tests lib/dashboard-view.ts && node --test scripts/test-dashboard-view.mjs"
+    "test:dashboard-view": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/dashboard-view-tests lib/dashboard-view.ts && node --test scripts/test-dashboard-view.mjs",
+    "test:built-app-smoke": "node scripts/smoke-test-built-app.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
