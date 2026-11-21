@@ -5,6 +5,7 @@ import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
 import { AlertReadinessPanel } from "@/components/AlertReadinessPanel";
 import { AlertRuleDraftManager } from "@/components/AlertRuleDraftManager";
 import { AlertExpertReviewPanel } from "@/components/AlertExpertReviewPanel";
+import { AlertThresholdAuditPanel } from "@/components/AlertThresholdAuditPanel";
 import { useDengueData } from "@/components/DataProvider";
 import { ProductHero } from "@/components/ProductHero";
 import { NationalSurveillancePanel } from "@/components/NationalSurveillancePanel";
@@ -30,6 +31,7 @@ export default function AlertCenterPage() {
       />
 
       <NationalSurveillancePanel compact />
+      <AlertThresholdAuditPanel />
 
       <div className="inline-callout warning">
         <Info size={17} />
