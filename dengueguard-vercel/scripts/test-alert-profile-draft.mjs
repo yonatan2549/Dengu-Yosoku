@@ -1,0 +1,19 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { validateProfileDraftPayload } from "../.next/alert-profile-draft-tests/lib/alerting/profile-draft-contract.js";
+const sql = readFileSync(new URL("../database/migrations/005_alert_rule_draft_workflow.sql", import.meta.url), "utf8");
+const provinces = Array.from({length:77},(_,i)=>"จังหวัดทดสอบ"+String(i+1).padStart(2,"0"));
+const thresholds = () => provinces.map(provinceName=>({provinceName,watch:10,alert:20}));
+const base = (o={})=>({methodology:"เกณฑ์ร่างเพื่อรอการทบทวนโดยผู้เชี่ยวชาญด้านระบาดวิทยา",changeNote:"ปรับปรุงฉบับร่างตามเอกสารหารือ",submitForReview:false,thresholds:thresholds(),...o});
+
+test("accepts a complete 77-province Draft without approving it",()=>{const r=validateProfileDraftPayload(base(),provinces);assert.equal(r.ok,true);assert.equal(r.value?.thresholds.length,77);assert.equal(r.value?.submitForReview,false);});
+test("allows partial and methodology-only Draft saves",()=>{assert.equal(validateProfileDraftPayload(base({thresholds:thresholds().slice(0,12)}),provinces).completeThresholdCount,12);assert.equal(validateProfileDraftPayload(base({thresholds:[]}),provinces).completeThresholdCount,0);});
+test("rejects invalid canonical province lists and non-object payloads",()=>{assert.equal(validateProfileDraftPayload(null,provinces).ok,false);assert.equal(validateProfileDraftPayload(base(),provinces.slice(0,76)).ok,false);assert.equal(validateProfileDraftPayload(base(),[...provinces.slice(0,76),provinces[0]]).ok,false);});
+test("rejects duplicate, unknown and malformed threshold rows",()=>{const dup=thresholds();dup[1].provinceName=dup[0].provinceName;assert.equal(validateProfileDraftPayload(base({thresholds:dup}),provinces).ok,false);const unknown=thresholds();unknown[0].provinceName="จังหวัดนอกโมเดล";assert.equal(validateProfileDraftPayload(base({thresholds:unknown}),provinces).ok,false);const invalid=thresholds();invalid[0].watch=-1;assert.equal(validateProfileDraftPayload(base({thresholds:invalid}),provinces).ok,false);});
+test("requires Alert to be greater than Watch with at most three decimals",()=>{for(const value of [10,9,1.2345]){const rows=thresholds();rows[0].alert=value;assert.equal(validateProfileDraftPayload(base({thresholds:rows}),provinces).ok,false);}});
+test("requires exactly 77 complete thresholds and a substantive note for review submission",()=>{assert.equal(validateProfileDraftPayload(base({submitForReview:true,thresholds:thresholds().slice(0,76)}),provinces).ok,false);assert.equal(validateProfileDraftPayload(base({submitForReview:true,changeNote:"ส่งตรวจ"}),provinces).ok,false);assert.equal(validateProfileDraftPayload(base({submitForReview:true}),provinces).ok,true);});
+test("database Draft RPC is Administrator-only and bound to the configured Draft identity",()=>{assert.match(sql,/v_role IS DISTINCT FROM 'administrator'/);assert.match(sql,/auth\.uid\(\)/);assert.match(sql,/dengueyosoku-national-alerts/);assert.match(sql,/0\.1\.0-draft/);});
+test("Migration 005 cannot approve profiles or enable notifications",()=>{assert.doesNotMatch(sql,/SET\s+status\s*=\s*'approved'/i);assert.doesNotMatch(sql,/approved_by\s*=/i);assert.doesNotMatch(sql,/approved_at\s*=/i);assert.doesNotMatch(sql,/external_notifications_enabled\\s*=\\s*true/i);});
+test("profile change and review request histories are read-only and append-only",()=>{assert.match(sql,/REVOKE ALL ON public\.alert_rule_profile_change_log FROM PUBLIC, anon, authenticated/i);assert.match(sql,/REVOKE ALL ON public\.alert_rule_profile_review_requests FROM PUBLIC, anon, authenticated/i);assert.match(sql,/BEFORE UPDATE OR DELETE ON public\.alert_rule_profile_change_log/i);});
+test("review submission records Draft status and requires full coverage",()=>{assert.match(sql,/v_count <> 77/);assert.match(sql,/'profile_status', 'draft'/);assert.match(sql,/'review_status'/);});
