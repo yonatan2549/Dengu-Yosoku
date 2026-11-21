@@ -470,7 +470,7 @@ export default function ModelDashboard() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="panel-note">ไม่มีข้อมูล Holdout สำหรับปีที่เลือก</div>
+          <div className="panel-note">ไม่พบข้อมูลรายสัปดาห์สำหรับปีที่เลือก</div>
         )}
       </section>
 
@@ -502,31 +502,31 @@ export default function ModelDashboard() {
           </label>
         </div>
         <div className="table-scroll">
-          <table className="data-table model-province-table">
+          <table className={"data-table model-province-table" + (isHistoricalActualOnly ? " model-province-table-actual-only" : "")}>
             <colgroup>
-              <col style={{ width: "38%" }} />
-              <col style={{ width: "21%" }} />
-              <col style={{ width: "21%" }} />
-              <col style={{ width: "20%" }} />
+              <col style={{ width: isHistoricalActualOnly ? "65%" : "38%" }} />
+              {!isHistoricalActualOnly && <col style={{ width: "21%" }} />}
+              <col style={{ width: isHistoricalActualOnly ? "35%" : "21%" }} />
+              {!isHistoricalActualOnly && <col style={{ width: "20%" }} />}
             </colgroup>
             <thead>
               <tr>
                 <th>จังหวัด</th>
-                <th className="numeric-heading">AI Prediction</th>
+                {!isHistoricalActualOnly && <th className="numeric-heading">AI Prediction</th>}
                 <th className="numeric-heading">ผู้ป่วยจริง</th>
-                <th className="numeric-heading">Persistence</th>
+                {!isHistoricalActualOnly && <th className="numeric-heading">Persistence</th>}
               </tr>
             </thead>
             <tbody>
               {tablePageRows.length ? tablePageRows.map((row) => (
                 <tr key={row.province}>
                   <td className="province-cell">{row.province}</td>
-                  <td className="numeric-cell">{row.prediction === null ? "—" : formatNumber(row.prediction, 2)}</td>
+                  {!isHistoricalActualOnly && <td className="numeric-cell">{row.prediction === null ? "—" : formatNumber(row.prediction, 2)}</td>}
                   <td className="numeric-cell">{row.actualCases === null ? "—" : formatNumber(row.actualCases, 0)}</td>
-                  <td className="numeric-cell">{row.persistence === null ? "—" : formatNumber(row.persistence, 2)}</td>
+                  {!isHistoricalActualOnly && <td className="numeric-cell">{row.persistence === null ? "—" : formatNumber(row.persistence, 2)}</td>}
                 </tr>
               )) : (
-                <tr><td colSpan={4} className="table-empty">ไม่พบจังหวัดที่ตรงกับคำค้นหา</td></tr>
+                <tr><td colSpan={isHistoricalActualOnly ? 2 : 4} className="table-empty">ไม่พบจังหวัดที่ตรงกับคำค้นหา</td></tr>
               )}
             </tbody>
           </table>
