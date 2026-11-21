@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - feature/dengueguard-improvements
+      - integration/phase9-12-final-review
+      - review/national-alerts-independent-audit-2026-11-21
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
@@ -12,6 +14,8 @@ on:
     branches:
       - main
       - feature/dengueguard-improvements
+      - integration/phase9-12-final-review
+      - review/national-alerts-independent-audit-2026-11-21
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
