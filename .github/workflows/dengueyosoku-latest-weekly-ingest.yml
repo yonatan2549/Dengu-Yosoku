@@ -1,0 +1,165 @@
+name: DengueYosoku TanRabad latest-week data intake
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dengueyosoku-tanrabad-weekly-intake
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Download privately and inspect CSV structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out DengueYosoku
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download latest-week TanRabad CSV to ephemeral runner storage
+        shell: bash
+        env:
+          DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
+            echo "::error::Missing repository Actions secret DENGUE_TANRABAD_LATEST_FILE_ID."
+            exit 1
+          fi
+
+          python -m pip install --disable-pip-version-check gdown
+          csv_path="${RUNNER_TEMP}/tanrabad-latest-week.csv"
+
+          gdown --quiet --fuzzy \
+            "https://drive.google.com/file/d/${DRIVE_FILE_ID}/view?usp=sharing" \
+            --output "$csv_path"
+
+          if [[ ! -s "$csv_path" ]]; then
+            echo "::error::Google Drive download produced an empty or missing file."
+            exit 1
+          fi
+
+          if head -c 1024 "$csv_path" | grep -Eiq '<!doctype html|<html'; then
+            echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
+            exit 1
+          fi
+
+          echo "Downloaded CSV to temporary runner storage. Raw data will not be printed or uploaded."
+
+      - name: Inspect schema without printing patient records
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "${RUNNER_TEMP}/tanrabad-latest-week.csv" "${RUNNER_TEMP}/tanrabad-weekly-structure-audit.json" <<'PY'
+          import csv
+          import hashlib
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+
+          def normalize(value: str) -> str:
+              return re.sub(r"[^a-z0-9ก-๙]", "", value.lower())
+
+          with source.open("r", encoding="utf-8-sig", newline="") as handle:
+              sample = handle.read(8192)
+              handle.seek(0)
+              try:
+                  dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+              except csv.Error:
+                  dialect = csv.excel
+
+              reader = csv.DictReader(handle, dialect=dialect)
+              headers = reader.fieldnames or []
+              if not headers or not any((h or "").strip() for h in headers):
+                  raise SystemExit("CSV has no readable header row.")
+
+              normalized = {h: normalize(h or "") for h in headers}
+              province_cols = [
+                  h for h, n in normalized.items()
+                  if any(token in n for token in ("province", "changwat", "จังหวัด"))
+              ]
+              week_cols = [
+                  h for h, n in normalized.items()
+                  if any(token in n for token in ("date", "week", "epiweek", "year", "วันที่", "สัปดาห์", "ปี"))
+              ]
+              case_cols = [
+                  h for h, n in normalized.items()
+                  if any(token in n for token in ("case", "count", "patient", "ผู้ป่วย", "จำนวน"))
+              ]
+
+              direct_identifier_tokens = (
+                  "hospitalnumber", "patientid", "patientnumber", "citizenid",
+                  "nationalid", "idcard", "passport", "firstname", "lastname",
+                  "patientname", "fullname", "telephone", "phonenumber", "mobile",
+                  "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
+                  "เลขโรงพยาบาล", "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "ชื่อ", "นามสกุล",
+                  "เบอร์โทร", "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
+              )
+              possible_identifiers = [
+                  h for h, n in normalized.items()
+                  if n in ("hn", "cid") or any(token in n for token in direct_identifier_tokens)
+              ]
+
+              province_values = set()
+              row_count = 0
+              for row in reader:
+                  if not any((value or "").strip() for value in row.values()):
+                      continue
+                  row_count += 1
+                  if province_cols:
+                      value = (row.get(province_cols[0]) or "").strip()
+                      if value:
+                          province_values.add(value)
+
+          digest = hashlib.sha256(source.read_bytes()).hexdigest()
+          report = {
+              "file_name": source.name,
+              "file_size_bytes": source.stat().st_size,
+              "sha256": digest,
+              "row_count": row_count,
+              "column_count": len(headers),
+              "columns": headers,
+              "province_column_candidates": province_cols,
+              "distinct_province_count": len(province_values) if province_cols else None,
+              "week_or_date_column_candidates": week_cols,
+              "case_count_column_candidates": case_cols,
+              "possible_direct_identifier_columns": possible_identifiers,
+              "raw_records_included": False,
+              "status": "blocked_pending_privacy_review" if possible_identifiers else "structure_only_review",
+          }
+          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+
+          print(f"CSV structure inspected: {row_count:,} data rows, {len(headers)} columns.")
+          print(f"Distinct provinces: {report['distinct_province_count'] if report['distinct_province_count'] is not None else 'not detected'}")
+          print("Raw patient records and sample rows were not printed or exported.")
+          if possible_identifiers:
+              print("Potential direct-identifier columns detected; stop before modeling.")
+              raise SystemExit(2)
+          PY
+
+      - name: Upload structure-only audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dengueyosoku-tanrabad-weekly-structure-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Confirm intake is ready for model-specific mapping
+        if: success()
+        run: echo "Structure-only intake audit completed. No training, prediction, deployment, or raw-data publication was performed."
