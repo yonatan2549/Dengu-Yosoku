@@ -668,14 +668,24 @@ jobs:
         if: steps.drive_secret.outputs.available == 'true'
         id: model_compatibility
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python - <<'PY' > "$RUNNER_TEMP/upstream-sha.txt"
           import json
+          import os
           import urllib.request
+          token = os.environ.get("GH_TOKEN", "")
+          if not token:
+              raise SystemExit("GitHub Actions token is unavailable for authenticated upstream metadata access.")
           request = urllib.request.Request(
               "https://api.github.com/repos/johnlovepizza/DenguYosoku/commits/main",
-              headers={"User-Agent": "DengueYosoku-TanRabad-Compatibility/1.0"},
+              headers={
+                  "User-Agent": "DengueYosoku-TanRabad-Compatibility/1.0",
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+              },
           )
           with urllib.request.urlopen(request, timeout=30) as response:
               payload = json.load(response)
