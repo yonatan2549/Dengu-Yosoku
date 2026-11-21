@@ -96,6 +96,17 @@ def mmwr_week_start(year: int, week: int) -> pd.Timestamp:
     return week1_sunday + pd.Timedelta(weeks=week - 1)
 
 
+def mmwr_year_week(week_start: pd.Timestamp) -> tuple[int, int]:
+    value = pd.Timestamp(week_start).normalize()
+    if value.weekday() != 6:
+        raise ValueError(f"MMWR week start must be Sunday; received {value.date()}.")
+    for year in (value.year - 1, value.year, value.year + 1):
+        for week in range(1, 54):
+            if mmwr_week_start(year, week) == value:
+                return year, week
+    raise ValueError(f"Could not resolve MMWR year/week for {value.date()}.")
+
+
 def load_and_combine(historical_path: Path, panel_path: Path) -> pd.DataFrame:
     historical = pd.read_csv(historical_path, encoding="utf-8-sig", low_memory=False)
     incoming = pd.read_csv(panel_path, encoding="utf-8-sig")
@@ -131,23 +142,26 @@ def load_and_combine(historical_path: Path, panel_path: Path) -> pd.DataFrame:
     if historical_provinces != incoming_provinces:
         raise ValueError("TanRabad province names do not exactly match the historical canonical province set.")
 
-    if len(incoming) != 154 or incoming.duplicated(["province", "year", "week"]).any():
-        raise ValueError("TanRabad panel must contain exactly 154 unique province-week rows.")
-
-    expected_weeks = {(2026, 44), (2026, 45)}
-    observed_weeks = set(zip(incoming["year"], incoming["week"]))
-    if observed_weeks != expected_weeks:
-        raise ValueError(f"Expected incoming MMWR weeks {sorted(expected_weeks)}, found {sorted(observed_weeks)}.")
+    if incoming.duplicated(["province", "year", "week"]).any():
+        raise ValueError("Incoming panel must contain unique province-week rows.")
 
     incoming["week_start"] = [
         mmwr_week_start(int(y), int(w)) for y, w in zip(incoming["year"], incoming["week"])
     ]
     if incoming.duplicated(["province", "week_start"]).any():
-        raise ValueError("Duplicate province-week rows found in the TanRabad panel.")
+        raise ValueError("Duplicate province-week rows found in the incoming panel.")
 
-    for (year, week), group in incoming.groupby(["year", "week"]):
+    incoming_weeks = sorted(pd.to_datetime(incoming["week_start"]).unique())
+    if not incoming_weeks:
+        raise ValueError("Incoming 77-province panel is empty.")
+    for previous, current in zip(incoming_weeks, incoming_weeks[1:]):
+        if pd.Timestamp(current) - pd.Timestamp(previous) != pd.Timedelta(weeks=1):
+            raise ValueError(f"Incoming panel has a weekly gap between {previous} and {current}.")
+    for week_start, group in incoming.groupby("week_start"):
         if len(group) != 77 or group["province"].nunique() != 77:
-            raise ValueError(f"Week {year}-{week} does not contain exactly 77 unique provinces.")
+            raise ValueError(f"MMWR week {pd.Timestamp(week_start).date()} does not contain exactly 77 unique provinces.")
+    if len(incoming) != len(incoming_weeks) * 77:
+        raise ValueError("Incoming panel row count does not match 77 provinces per consecutive week.")
 
     historical_latest = historical["week_start"].max()
     incoming_latest = incoming["week_start"].max()
@@ -315,8 +329,7 @@ def main() -> None:
 
     latest_observed = max(dates)
     target_week_start = latest_observed + pd.Timedelta(weeks=1)
-    target_week = int(frame.loc[frame["week_start"] == latest_observed, "week"].iloc[0]) + 1
-    target_year = int(target_week_start.year)
+    target_year, target_week = mmwr_year_week(target_week_start)
     provinces = sorted(frame["province"].unique())
     future_rows = pd.DataFrame({
         "province": provinces,
@@ -354,7 +367,7 @@ def main() -> None:
         "status": status,
         "release_status": "preview_only_not_for_public_health_release",
         "model_variant": "case_only_lightgbm_quantile50_experimental",
-        "model_change": "Removed w_apparent_temperature_mean_L1 because TanRabad weekly export has no weather feature and the current Phase 13 source has no weather rows for weeks 44-45.",
+        "model_change": "This separate experimental variant uses case-history and calendar features only; it does not consume apparent-temperature inputs.",
         "features": FEATURES,
         "feature_count": len(FEATURES),
         "source_upstream_commit": args.source_commit,
