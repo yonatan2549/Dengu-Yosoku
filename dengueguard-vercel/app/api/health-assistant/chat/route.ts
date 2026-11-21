@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readBoundedJson } from "@/lib/health-assistant/request-body";
 import { buildHealthEvidencePackage, classifyHealthQuery } from "@/lib/health-assistant/evidence";
 import { retrieveHealthKnowledgeChunks } from "@/lib/health-assistant/chunk-retrieval";
 import {
@@ -50,14 +51,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "คำขอต้องอยู่ในรูปแบบ JSON" }, { status: 400, headers: noStore });
+  const parsedBody = await readBoundedJson(request);
+  if (!parsedBody.ok) {
+    return NextResponse.json({ error: parsedBody.error }, { status: parsedBody.status, headers: noStore });
   }
 
-  const validated = validateChatRequest(body);
+  const validated = validateChatRequest(parsedBody.value);
   if (!validated.ok) return NextResponse.json({ error: validated.error }, { status: 400, headers: noStore });
 
   try {
