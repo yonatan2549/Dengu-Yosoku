@@ -285,7 +285,7 @@ export default function ModelDashboard() {
             <strong>ผลที่เลือกเป็นพยากรณ์ {formatEpiWeekLabel(forecastWeek)}</strong> · เป้าหมาย {formatWeek(forecastWeek)}
             อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({formatWeek(model.coverage.history_end_week)}).
             ปัจจุบันสัปดาห์ระบาดวิทยาเริ่ม {formatWeek(currentEpiWeekStart)} จึงเก่ากว่าสัปดาห์ปัจจุบัน {forecastLagWeeks} สัปดาห์
-            แสดงไว้เพื่อดูผลพยากรณ์ของสัปดาห์ที่ 46 ตามชุดข้อมูลล่าสุด ไม่ใช่การยืนยันจำนวนผู้ป่วยจริง
+            แสดงไว้เพื่อดูผลพยากรณ์ของสัปดาห์เป้าหมายตามชุดข้อมูลล่าสุด ไม่ใช่การยืนยันจำนวนผู้ป่วยจริง
             และไม่ควรตีความเป็นสถานการณ์ปัจจุบันหลังเริ่มสัปดาห์ใหม่
           </span>
         </div>
@@ -429,12 +429,7 @@ export default function ModelDashboard() {
         </section>
       )}
 
-      {nationalActualForWeek !== null && (
-        <p className="panel-note">
-          ยอดผู้ป่วยจริงรวม {nationalActualForWeek.toLocaleString("th-TH")} รายเป็นยอดรายสัปดาห์ระดับประเทศของผู้ป่วยสงสัยไข้เลือดออก (WHO รายงานสถานการณ์ ณ 16 พ.ย. 2569) ไม่มีข้อมูลแยกรายจังหวัดใน Snapshot นี้ จึงไม่นำยอดรวมไปกระจายลงบนแผนที่{" "}
-          <a href={nationalWeekActual.source.url} target="_blank" rel="noreferrer">ดูรายงาน WHO</a>
-        </p>
-      )}
+      
 
       <section className="panel chart-panel">
         <div className="panel-heading">
