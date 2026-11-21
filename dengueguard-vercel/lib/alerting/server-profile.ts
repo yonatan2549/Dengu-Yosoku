@@ -66,19 +66,30 @@ export async function readStoredAlertRuleProfile(context: AlertActorContext): Pr
       thresholdsByProvince[province] = { watch, alert };
     }
 
+    // If the governed DB profile is still Draft and has no saved thresholds,
+    // expose the reproducible application-side candidate as an unsaved Draft
+    // fallback. Never replace partial DB rows or fill thresholds for Approved.
+    const useApplicationCandidate = row.status === "draft" &&
+      thresholdPayload.length === 0 &&
+      Object.keys(ALERT_RULE_PROFILE.thresholdsByProvince).length === 77;
+
     return {
       ok: true,
-      source: "database",
+      source: useApplicationCandidate ? "application_fallback" : "database",
       profile: {
         profileId: String(row.profile_id),
         version: String(row.version),
         status: row.status,
         scope: "national_77_provinces",
         metric: "weekly_predicted_cases",
-        methodology: typeof row.methodology === "string" ? row.methodology : "",
+        methodology: useApplicationCandidate
+          ? ALERT_RULE_PROFILE.methodology
+          : typeof row.methodology === "string" ? row.methodology : "",
         effectiveFromWeek: typeof row.effective_from_week === "string" ? row.effective_from_week : null,
         approvalReference: typeof row.approval_reference === "string" ? row.approval_reference : null,
-        thresholdsByProvince,
+        thresholdsByProvince: useApplicationCandidate
+          ? ALERT_RULE_PROFILE.thresholdsByProvince
+          : thresholdsByProvince,
         externalNotificationsEnabled: false,
       },
     };
