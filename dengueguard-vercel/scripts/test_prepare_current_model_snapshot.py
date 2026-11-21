@@ -169,7 +169,8 @@ class CurrentModelSnapshotPreparationTests(unittest.TestCase):
         self.assertIn("Model data conversion completed.", output)
 
     def test_blocks_when_a_derived_model_artifact_hash_does_not_match_manifest(self):
-        self.holdout_path.write_text("tampered", encoding="utf-8")
+        original_size = self.holdout_path.stat().st_size
+        self.holdout_path.write_text("x" * original_size, encoding="utf-8")
         with self.assertRaisesRegex(SnapshotPreparationError, "SHA-256 mismatch"):
             self.run_prepare()
 
@@ -191,7 +192,7 @@ class CurrentModelSnapshotPreparationTests(unittest.TestCase):
         audit = json.loads((self.artifact_dir / "data_audit.json").read_text(encoding="utf-8"))
         audit["target_week_actuals_used_as_features"] = True
         write_json(self.artifact_dir / "data_audit.json", audit)
-        with self.assertRaisesRegex(SnapshotPreparationError, "no-leakage audit"):
+        with self.assertRaisesRegex(SnapshotPreparationError, "target labels were excluded"):
             self.run_prepare()
 
     def test_blocks_stale_week_even_if_all_input_artifacts_are_valid(self):
