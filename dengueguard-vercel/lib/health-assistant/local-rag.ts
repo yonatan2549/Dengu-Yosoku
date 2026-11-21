@@ -62,7 +62,7 @@ export function getLocalOllamaSettings(env: LocalHealthRagEnvironment) {
   }
   return {
     baseUrl,
-    chatModel: env.HEALTH_ASSISTANT_MODEL || DEFAULT_CHAT_MODEL,
+    chatModel: env.OLLAMA_CHAT_MODEL || env.HEALTH_ASSISTANT_MODEL || DEFAULT_CHAT_MODEL,
     embeddingModel: env.OLLAMA_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL,
     minSimilarity: parseSimilarity(env.LOCAL_HEALTH_RAG_MIN_SIMILARITY),
   };
@@ -275,7 +275,7 @@ export type LocalRagRunResult =
       generatedAnswer: true;
       answer: string;
       citations: Array<{ marker: string; id: string; title: string; publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string }>;
-      evidencePassages: Array<{ id: string; section: string; content: string; sourceId: string; similarity: number }>;
+      evidencePassages: Array<{ chunkId: string; documentId: string; title: string; sectionLabel: string; text: string; publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string; similarity: number }>;
       retrievalMethod: "ollama-vector";
       fullDocumentRag: false;
       reviewStatus: "awaiting_clinical_review";
@@ -375,10 +375,15 @@ export async function runLocalHealthRag(
         reason: "answer-rejected",
         message: "ระบบงดแสดงคำตอบที่สร้างได้ เพราะไม่ผ่านการตรวจข้อความภายในหรือการอ้างอิงหลักฐาน",
         evidencePassages: safePassages.map((item) => ({
-          id: item.id,
-          section: item.section,
-          content: item.content,
-          sourceId: item.sourceId,
+          chunkId: item.id,
+          documentId: item.sourceId,
+          title: item.source.title,
+          sectionLabel: item.section,
+          text: item.content,
+          publisher: item.source.publisher,
+          publishedAt: item.source.publishedAt,
+          sourceUrl: item.source.sourceUrl,
+          reviewStatus: item.reviewStatus,
           similarity: item.similarity ?? 0,
         })),
         retrievalMethod: "ollama-vector",
@@ -392,10 +397,15 @@ export async function runLocalHealthRag(
       answer: checked.answer,
       citations: checked.citations,
       evidencePassages: safePassages.map((item) => ({
-        id: item.id,
-        section: item.section,
-        content: item.content,
-        sourceId: item.sourceId,
+        chunkId: item.id,
+        documentId: item.sourceId,
+        title: item.source.title,
+        sectionLabel: item.section,
+        text: item.content,
+        publisher: item.source.publisher,
+        publishedAt: item.source.publishedAt,
+        sourceUrl: item.source.sourceUrl,
+        reviewStatus: item.reviewStatus,
         similarity: item.similarity ?? 0,
       })),
       retrievalMethod: "ollama-vector",
