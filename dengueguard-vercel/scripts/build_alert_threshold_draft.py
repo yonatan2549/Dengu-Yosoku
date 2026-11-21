@@ -59,16 +59,28 @@ def _round(value: float) -> float:
     return 0.0 if rounded == 0 else rounded
 
 
-def _threshold_pair(values: list[float]) -> tuple[float, float, str | None]:
+def _threshold_pair(
+    values: list[float],
+    *,
+    allow_one_case_increment_fallback: bool = False,
+) -> tuple[float, float, str | None]:
     watch = quantile_type7(values, 0.75)
     alert = quantile_type7(values, 0.90)
     adjustment = None
     if alert <= watch:
         larger = sorted({float(value) for value in values if float(value) > watch})
-        if not larger:
+        if larger:
+            alert = larger[0]
+            adjustment = "next_distinct_observed_value"
+        elif allow_one_case_increment_fallback:
+            # Temporal fit subsets can be constant (e.g. all zeros). The
+            # validation diagnostic uses Watch + one case to preserve strict
+            # ordering, and discloses this special fallback separately. This
+            # does not change the 26-week per-province candidate thresholds.
+            alert = watch + 1.0
+            adjustment = "one_case_increment_no_higher_fit_observation"
+        else:
             raise ValueError("No observed value above P75; cannot create an ordered Watch/Alert pair.")
-        alert = larger[0]
-        adjustment = "next_distinct_observed_value"
     return _round(watch), _round(alert), adjustment
 
 
@@ -154,9 +166,15 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
     weekly_counts = {week: {"week": week, "watch": 0, "alert": 0} for week in validation_weeks}
     watch_count = 0
     alert_count = 0
+    temporal_fallback_provinces: list[str] = []
     for province in provinces:
         fit_values = [grouped[province][week] for week in fit_weeks]
-        watch, alert, _ = _threshold_pair(fit_values)
+        watch, alert, adjustment = _threshold_pair(
+            fit_values,
+            allow_one_case_increment_fallback=True,
+        )
+        if adjustment == "one_case_increment_no_higher_fit_observation":
+            temporal_fallback_provinces.append(province)
         for week in validation_weeks:
             observed = grouped[province][week]
             if observed >= watch:
@@ -253,6 +271,8 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "observed_cases_at_or_above_watch_percent": _round(watch_count / (len(validation_weeks) * EXPECTED_PROVINCES) * 100),
                 "observed_cases_at_or_above_alert": alert_count,
                 "observed_cases_at_or_above_alert_percent": _round(alert_count / (len(validation_weeks) * EXPECTED_PROVINCES) * 100),
+                "one_case_increment_fallback_count": len(temporal_fallback_provinces),
+                "one_case_increment_fallback_provinces": temporal_fallback_provinces,
                 "weekly_candidate_counts": list(weekly_counts.values()),
             },
         },
