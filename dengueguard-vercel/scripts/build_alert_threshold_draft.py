@@ -279,9 +279,9 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
             },
         },
         "interpretation": (
-            "These are metrics for predicting a province-specific statistical threshold exceedance, not outbreak "
-            "diagnosis or official alert accuracy. Macro metrics give each province equal weight; zero-denominator "
-            "precision/recall/specificity is represented as 0 for macro averaging."
+            "The forecast model has higher micro precision/specificity but lower recall and F1 than persistence "
+            "for both threshold levels. Macro metrics across provinces show particularly low forecast recall. "
+            "These are statistical threshold-exceedance results, not outbreak diagnosis or official alert accuracy."
         ),
     }
 
