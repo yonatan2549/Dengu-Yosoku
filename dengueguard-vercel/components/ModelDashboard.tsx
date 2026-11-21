@@ -18,7 +18,7 @@ import { getCurrentEpiWeekStart, getEpiWeekLagWeeks } from "@/lib/utils";
 import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow, ProvinceHistorySnapshot } from "@/lib/types";
 import thresholdDraft from "../public/data/alert_threshold_candidates_77.json";
-import nationalWeekActual from "../public/data/national_actual_weekly.json";
+import { formatEpiWeekLabel } from "@/lib/epi-week";
 
 const THRESHOLD_BY_PROVINCE = new Map(
   thresholdDraft.thresholds.map((row) => [row.province, row] as const),
@@ -254,14 +254,9 @@ export default function ModelDashboard() {
 
   const forecastProvinceCount = new Set(model.forecast.map((row) => row.province)).size;
   const totalPrediction = isHistoricalActualOnly ? null : sum(selectedRows.map((row) => row.prediction));
-  const nationalActualForWeek = selectedProvince === ALL_PROVINCES && nationalWeekActual.week_start === activeWeek
-    ? nationalWeekActual.actual_cases
+  const totalActual = selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
+    ? sum(selectedRows.map((row) => row.actualCases))
     : null;
-  const totalActual = nationalActualForWeek !== null
-    ? nationalActualForWeek
-    : selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
-      ? sum(selectedRows.map((row) => row.actualCases))
-      : null;
   const mae = metric("mae");
   const rmse = metric("rmse");
   const skill = metric("skill_pct");
@@ -287,19 +282,20 @@ export default function ModelDashboard() {
         <div className="inline-callout warning">
           <Info size={17} />
           <span>
-            Forecast ในชุดข้อมูลนี้เป็น Snapshot เป้าหมายสัปดาห์ {formatWeek(forecastWeek)}
-            ซึ่งอยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({formatWeek(model.coverage.history_end_week)}).
-            ปัจจุบันสัปดาห์ระบาดวิทยาเริ่ม {formatWeek(currentEpiWeekStart)} ทำให้ Snapshot นี้เก่ากว่า {forecastLagWeeks} สัปดาห์
-            จึงใช้ตรวจดูผลลัพธ์ของโมเดลได้ แต่ไม่ควรนำไปสื่อสารเป็นสถานการณ์ปัจจุบัน
-            การไม่มีค่าผู้ป่วยจริงของสัปดาห์ Forecast เป็นเรื่องปกติของผลพยากรณ์ล่วงหน้า และ Metrics ประเมินจาก Holdout เท่านั้น
+            <strong>ผลที่เลือกเป็นพยากรณ์ {formatEpiWeekLabel(forecastWeek)}</strong> · เป้าหมาย {formatWeek(forecastWeek)}
+            อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({formatWeek(model.coverage.history_end_week)}).
+            ปัจจุบันสัปดาห์ระบาดวิทยาเริ่ม {formatWeek(currentEpiWeekStart)} จึงเก่ากว่าสัปดาห์ปัจจุบัน {forecastLagWeeks} สัปดาห์
+            แสดงไว้เพื่อดูผลพยากรณ์ของสัปดาห์ที่ 46 ตามชุดข้อมูลล่าสุด ไม่ใช่การยืนยันจำนวนผู้ป่วยจริง
+            และไม่ควรตีความเป็นสถานการณ์ปัจจุบันหลังเริ่มสัปดาห์ใหม่
           </span>
         </div>
       ) : (
         <div className="historical-notice">
           <Info size={17} />
           <span>
-            Forecast เป้าหมาย {formatWeek(forecastWeek)} · อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout
-            · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)} · ตรวจสอบรุ่นข้อมูลก่อนใช้งาน
+            แสดงพยากรณ์ {formatEpiWeekLabel(forecastWeek)} · เป้าหมาย {formatWeek(forecastWeek)}
+            · ข้อมูลผู้ป่วยจริงที่ใช้เป็น input ถึง {formatWeek(model.coverage.history_end_week)}
+            · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)}
           </span>
         </div>
       )}
@@ -344,7 +340,7 @@ export default function ModelDashboard() {
       </section>
 
       <div className="subtle-caption">
-        {activeWeek ? "สัปดาห์ " + formatWeek(activeWeek) : "ไม่มีข้อมูลสัปดาห์"}
+        {activeWeek ? formatEpiWeekLabel(activeWeek) + " · " + formatWeek(activeWeek) : "ไม่มีข้อมูลสัปดาห์"}
         {" · "}
         {isForecastWeek ? "ผลพยากรณ์" : isHistoricalActualOnly ? "ผู้ป่วยจริงย้อนหลัง · ไม่มีผลพยากรณ์โมเดลในช่วงนี้" : "ผลประเมินย้อนหลัง (Holdout)"}
         {" · "}
@@ -361,9 +357,9 @@ export default function ModelDashboard() {
         <article className="metric-card">
           <div className="metric-card-top"><span>ผู้ป่วยจริงรวม</span><span className="metric-icon aqua">●</span></div>
           <strong>{totalActual === null ? "ไม่มีข้อมูล" : formatCases(totalActual)}</strong>
-          <small>{nationalActualForWeek !== null
-            ? `ยอดรายสัปดาห์ระดับประเทศจาก WHO · ${nationalWeekActual.epi_week} · ข้อมูล ณ 16 พ.ย. 2569`
-            : isForecastWeek ? "ยังไม่มีผลจริงระดับจังหวัดสำหรับสัปดาห์พยากรณ์" : "ค่าจริงในชุด Holdout"}</small>
+          <small>{isForecastWeek
+            ? "ยังไม่มี actuals ระดับจังหวัดของสัปดาห์เป้าหมาย · ไม่ใช้ยอด WHO แทนข้อมูลรายจังหวัด"
+            : "ค่าจริงในชุด Holdout หรือข้อมูลประวัติศาสตร์ที่เลือก"}</small>
         </article>
         <article className="metric-card">
           <div className="metric-card-top"><span>จำนวนจังหวัด</span><span className="metric-icon blue">77</span></div>
