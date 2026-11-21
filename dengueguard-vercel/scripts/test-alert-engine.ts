@@ -154,7 +154,8 @@ test("audit record captures model provenance, profile rules, and dry-run outcome
   assert.equal(record.sourceRetrievedAtUtc, "2026-10-26T01:30:00.000Z");
   assert.equal(record.historyEndWeek, "2026-10-18");
   assert.equal(record.ruleProfileStatus, "draft");
-  assert.equal(record.thresholdsByProvince && Object.keys(record.thresholdsByProvince).length, 0);
+  assert.equal(record.thresholdsByProvince && Object.keys(record.thresholdsByProvince).length, 77);
+  assert.equal(record.ruleProfileStatus, "draft");
   assert.equal(record.status, "blocked");
   assert.equal(record.externalNotificationsEnabled, false);
 });
