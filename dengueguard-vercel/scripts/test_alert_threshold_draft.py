@@ -7,6 +7,7 @@ from scripts.build_alert_threshold_draft import (
     quantile_type7,
     quantile_type7_independent,
     nearest_rank,
+    _threshold_pair,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +47,7 @@ class AlertThresholdDraftTests(unittest.TestCase):
         self.assertEqual(split["province_week_observations"], 616)
         self.assertEqual(split["observed_cases_at_or_above_watch"], 158)
         self.assertEqual(split["observed_cases_at_or_above_alert"], 96)
+        self.assertGreaterEqual(split["one_case_increment_fallback_count"], 1)
 
     def test_small_sample_sensitivity_is_reported(self):
         sensitivity = CANDIDATE["computational_review"]["leave_one_week_out_sensitivity"]
@@ -53,6 +55,12 @@ class AlertThresholdDraftTests(unittest.TestCase):
         self.assertEqual(sensitivity["max_alert_threshold_span"], 20.8)
         self.assertIn("กรุงเทพมหานคร", sensitivity["provinces_with_alert_span_over_10"])
         self.assertIn("สงขลา", sensitivity["provinces_with_alert_span_over_10"])
+
+    def test_temporal_split_uses_one_case_increment_when_fit_weeks_have_no_higher_value(self):
+        watch, alert, adjustment = _threshold_pair([0.0] * 18, allow_one_case_increment_fallback=True)
+        self.assertEqual(watch, 0.0)
+        self.assertEqual(alert, 1.0)
+        self.assertEqual(adjustment, "one_case_increment_no_higher_fit_observation")
 
     def test_governance_never_promotes_the_candidate_to_approved(self):
         self.assertEqual(CANDIDATE["status"], "draft")
