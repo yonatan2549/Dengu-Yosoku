@@ -100,7 +100,7 @@ def load_and_combine(historical_path: Path, panel_path: Path) -> pd.DataFrame:
     historical = pd.read_csv(historical_path, encoding="utf-8-sig", low_memory=False)
     incoming = pd.read_csv(panel_path, encoding="utf-8-sig")
 
-    required_historical = {"province", "week_start", "week", "year", "cases"}
+    required_historical = {"province", "week_start", "week", "cases"}
     missing = required_historical - set(historical.columns)
     if missing:
         raise ValueError(f"Historical source is missing required fields: {sorted(missing)}")
