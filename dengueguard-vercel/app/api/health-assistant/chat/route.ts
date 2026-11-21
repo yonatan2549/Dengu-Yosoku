@@ -18,16 +18,12 @@ export const revalidate = 0;
 
 const noStore = { "Cache-Control": "no-store, max-age=0" };
 
-function providerConfig(request: Request) {
-  return readChatProviderConfig(
-    process.env,
-    process.env.NODE_ENV,
-    request.headers.get("x-vercel-oidc-token"),
-  );
+function providerConfig() {
+  return readChatProviderConfig(process.env, process.env.NODE_ENV);
 }
 
-export async function GET(request: Request) {
-  const provider = providerConfig(request);
+export async function GET() {
+  const provider = providerConfig();
   const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
   const generatedAnswersEnabled = draftAnswersEnabled && provider.ok;
 
@@ -131,7 +127,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const provider = providerConfig(request);
+    const provider = providerConfig();
     if (!provider.ok) {
       return evidenceOnlyResponse(provider.error);
     }
