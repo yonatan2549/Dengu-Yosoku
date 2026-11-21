@@ -57,12 +57,12 @@ jobs:
             exit 1
           fi
 
-          python -m pip install --disable-pip-version-check gdown
+          python -m pip install --disable-pip-version-check "gdown==6.5.2"
           csv_path="${RUNNER_TEMP}/tanrabad-latest-week.csv"
 
-          gdown --quiet --fuzzy \
-            "https://drive.google.com/file/d/${DRIVE_FILE_ID}/view?usp=sharing" \
-            --output "$csv_path"
+          gdown --quiet --no-cookies --continue \
+            "$DRIVE_FILE_ID" \
+            -O "$csv_path"
 
           if [[ ! -s "$csv_path" ]]; then
             echo "::error::Google Drive download produced an empty or missing file."
