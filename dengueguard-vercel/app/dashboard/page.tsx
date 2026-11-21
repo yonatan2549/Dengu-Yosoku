@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, Info, MapPinned, SlidersHorizontal } from "lucide-react";
 import {
   CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -13,6 +13,7 @@ import { ModelValidationPanel } from "@/components/ModelValidationPanel";
 import { MapLoader } from "@/components/MapLoader";
 import { ALL_PROVINCES, formatCases, formatNumber, getCurrentEpiWeekStart, getCurrentRows, getUniqueYears, getWeeksForYear } from "@/lib/utils";
 import type { ForecastRow } from "@/lib/types";
+import { resolveDashboardDatasetView, type DashboardDatasetPreference } from "@/lib/dashboard-view";
 
 function sumPresent(rows: ForecastRow[], key: "target" | "pred" | "cases_roll4") {
   const vals = rows.map((row) => row[key]).filter((value): value is number => value !== null && value !== undefined && Number.isFinite(value));
@@ -168,18 +169,14 @@ function LegacyDashboardPage() {
 
 export default function DashboardPage() {
   const { data, modelWarning } = useDengueData();
-  const [view, setView] = useState<"legacy" | "model">("legacy");
+  const [viewPreference, setViewPreference] = useState<DashboardDatasetPreference>("auto");
   const modelWeek = data?.modelPredictions?.coverage.forecast_week ?? null;
-
-  // Show a validated 77-province snapshot by default. Freshness is handled
-  // inside ModelDashboard with a visible warning; it must not silently hide
-  // a valid snapshot behind the legacy ODPC4 dashboard.
-  useEffect(() => {
-    setView(modelWeek ? "model" : "legacy");
-  }, [modelWeek]);
 
   if (!data) return null;
   const hasModel = Boolean(data.modelPredictions);
+  // Resolve the default view in the same render as loaded data to avoid briefly
+  // showing the legacy 8-province dataset before switching to the validated model.
+  const view = resolveDashboardDatasetView(viewPreference, hasModel);
   const latestWeek = data.predictions.reduce(
     (latest, row) => row.target_week_start > latest ? row.target_week_start : latest,
     "",
@@ -240,10 +237,10 @@ export default function DashboardPage() {
           <p>แยก Dashboard ระบบเดิมออกจาก Snapshot โมเดลใหม่ เพื่อไม่ให้ข้อมูลคนละช่วงเวลาปะปนกัน</p>
         </div>
         <div className="dy-mode-switcher-actions">
-          <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setView("legacy")} aria-pressed={view === "legacy"}>
+          <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setViewPreference("legacy")} aria-pressed={view === "legacy"}>
             ระบบเดิม · สคร.4 (8 จังหวัด)
           </button>
-          <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setView("model")} disabled={!hasModel} aria-pressed={view === "model"}>
+          <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setViewPreference("model")} disabled={!hasModel} aria-pressed={view === "model"}>
             โมเดลใหม่ · 77 จังหวัด
           </button>
         </div>
