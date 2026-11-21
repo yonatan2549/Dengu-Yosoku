@@ -23,11 +23,17 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("<LegacyDashboardPage />", self.dashboard)
         self.assertIn("<ModelDashboard />", self.dashboard)
 
-    def test_stale_or_missing_model_keeps_classic_dashboard_as_default(self):
-        self.assertIn('useState<"legacy" | "model">("legacy")', self.dashboard)
-        self.assertIn("modelWeek === getCurrentEpiWeekStart()", self.dashboard)
+    def test_validated_national_model_is_selected_by_default_without_effect_delay(self):
+        self.assertIn('useState<DashboardDatasetPreference>("auto")', self.dashboard)
+        self.assertIn("resolveDashboardDatasetView(viewPreference, hasModel)", self.dashboard)
+        self.assertNotIn("useEffect(", self.dashboard)
         self.assertIn("if (!data) return null", self.dashboard)
         self.assertIn("disabled={!hasModel}", self.dashboard)
+
+    def test_dashboard_auto_selection_prefers_validated_model_but_preserves_legacy_fallback(self):
+        selector = (ROOT / "lib/dashboard-view.ts").read_text(encoding="utf-8")
+        self.assertIn('if (preference === "legacy") return "legacy";', selector)
+        self.assertIn('return hasValidatedModel ? "model" : "legacy";', selector)
 
     def test_prevention_exposes_both_legacy_and_model_views(self):
         self.assertIn("ระบบเดิม · สคร.4 (8 จังหวัด)", self.prevention)
