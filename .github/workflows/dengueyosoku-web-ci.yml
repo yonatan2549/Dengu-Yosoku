@@ -66,6 +66,10 @@ jobs:
         working-directory: dengueguard-vercel
         run: npm run test:dashboard-view
 
+      - name: Epidemiological week label regression
+        working-directory: dengueguard-vercel
+        run: npm run test:dashboard-view
+
       - name: Alert dry-run engine tests
         run: npm run test:alerts
 
