@@ -44,6 +44,9 @@ export interface ModelPredictionsPayload {
   model_name: string;
   source_repository: string;
   model_revision: string | null;
+  source_data_revision?: string | null;
+  release_status?: "review_only" | "approved";
+  training_run_id?: string | null;
   generated_at_utc: string;
   province_count: number;
   provinces: string[];
@@ -74,6 +77,8 @@ export interface ModelMetricsPayload {
   model_name: string;
   source_repository: string;
   model_revision: string | null;
+  release_status?: "review_only" | "approved";
+  training_run_id?: string | null;
   generated_at_utc: string;
   metrics: Record<string, unknown>;
 }
