@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { useDengueData } from "@/components/DataProvider";
+import { ModelPerformanceDiagnostics } from "@/components/ModelPerformanceDiagnostics";
 import { getCurrentEpiWeekStart, getEpiWeekLagWeeks } from "@/lib/utils";
 import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow } from "@/lib/types";
@@ -189,6 +190,7 @@ export default function ModelDashboard() {
   if (!model) return null;
   const mapGeo = data?.thailandGeo ?? null;
 
+  const forecastProvinceCount = new Set(model.forecast.map((row) => row.province)).size;
   const totalPrediction = sum(selectedRows.map((row) => row.prediction));
   const totalActual = selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
     ? sum(selectedRows.map((row) => row.actualCases))
@@ -203,7 +205,7 @@ export default function ModelDashboard() {
         <div>
           <div className="eyebrow">NATIONAL DENGUE FORECAST · 77 PROVINCES</div>
           <h1>ภาพรวมผลพยากรณ์ไข้เลือดออกทั่วประเทศ</h1>
-          <p>ข้อมูล DenguYosoku LightGBM ประกอบด้วย Holdout ย้อนหลัง {model.coverage.history_week_count} สัปดาห์ และ Forecast เป้าหมาย {formatWeek(forecastWeek)} ไม่ใช่ข้อมูลเฝ้าระวังแบบเรียลไทม์</p>
+          <p>ข้อมูล DenguYosoku LightGBM มีผลพยากรณ์ครบ <strong>{forecastProvinceCount}/77 จังหวัด</strong> พร้อม Holdout ย้อนหลัง {model.coverage.history_week_count} สัปดาห์ และ Forecast เป้าหมาย {formatWeek(forecastWeek)} ไม่ใช่ข้อมูลเฝ้าระวังแบบเรียลไทม์</p>
         </div>
         <button
           className="button button-secondary"
@@ -231,6 +233,19 @@ export default function ModelDashboard() {
           <span>
             Forecast เป้าหมาย {formatWeek(forecastWeek)} · อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout
             · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)} · ตรวจสอบรุ่นข้อมูลก่อนใช้งาน
+          </span>
+        </div>
+      )}
+
+      {model.release_status === "review_only" && (
+        <div className="inline-callout warning" role="status">
+          <Info size={17} />
+          <span>
+            <strong>โมเดลทดลองสำหรับตรวจสอบ (Review-only)</strong>
+            <br />
+            ผลพยากรณ์นี้แสดงบน Dashboard เพื่อทดสอบการเชื่อมต่อและตรวจทานข้อมูลเท่านั้น
+            ยังไม่ใช่ผลที่รับรองสำหรับใช้ตัดสินใจสาธารณสุข และถูกบล็อกจากการสร้าง WATCH/ALERT Candidate
+            จนกว่าจะมีการอนุมัติรุ่นโมเดลและเกณฑ์แจ้งเตือนแยกต่างหาก
           </span>
         </div>
       )}
@@ -369,7 +384,7 @@ export default function ModelDashboard() {
         <div className="panel-heading">
           <div>
             <h2>{isForecastWeek ? "ผลพยากรณ์รายจังหวัด" : "ผล Holdout รายจังหวัด"}</h2>
-            <p>เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
+            <p>{isForecastWeek ? `ผลพยากรณ์ ${displayRows.length}/77 จังหวัด` : `ข้อมูล Holdout ${displayRows.length}/77 จังหวัด`} · เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
           </div>
         </div>
         <div className="table-toolbar">
@@ -491,8 +506,22 @@ export default function ModelDashboard() {
           <a className="dg-source-link" href={model.source_repository} target="_blank" rel="noreferrer">
             เปิด Model Repository
           </a>
+          <p className="panel-note">
+            Weather feature: lagged weekly apparent temperature จาก Open-Meteo Historical Weather API
+            <br />
+            Weather data by{" "}
+            <a href="https://open-meteo.com/en/docs/historical-weather-api" target="_blank" rel="noreferrer">
+              Open-Meteo.com
+            </a>{" "}
+            · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>
+            <br />
+            ใช้เป็น historical model input และผ่านการเปรียบเทียบกับ weather source เดิม 52 สัปดาห์ (4,004 province-week pairs)
+            ไม่ใช่ข้อมูลพยากรณ์อากาศสด
+          </p>
         </article>
       </section>
+
+      <ModelPerformanceDiagnostics model={model} metrics={data?.modelMetrics ?? null} />
 
       <p className="disclaimer-line">
         <Info size={15} />

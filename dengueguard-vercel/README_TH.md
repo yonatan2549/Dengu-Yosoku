@@ -1,3 +1,5 @@
+> **หมายเหตุอัปเดต (21 พฤศจิกายน 2026):** ไฟล์นี้เป็น README จากช่วงเริ่มย้ายระบบและอาจมีรายละเอียดบางส่วนที่เก่ากว่าสภาพปัจจุบันของโครงการ โปรดใช้ [README.md](README.md), [คู่มือส่งมอบ](docs/SUBMISSION_GUIDE_TH.md) และ [ตารางสถานะฟีเจอร์](docs/PROJECT_STATUS_MATRIX_TH.md) เป็นเอกสารอ้างอิงหลักล่าสุด ปัจจุบันมี Snapshot โมเดล 77 จังหวัดแบบ `review_only` สำหรับตรวจทาน แต่ยังไม่ใช่ผลที่อนุมัติสำหรับ Alert หรือการตัดสินใจสาธารณสุข
+
 # DengueYosoku — Next.js + Vercel
 
 เว็บเวอร์ชันใหม่ของ **DengueYosoku: Proactive Dengue Prevention and Early Warning System** ที่ย้ายการแสดงผลจาก Streamlit มาเป็น Next.js (App Router) และเตรียม Deploy บน Vercel

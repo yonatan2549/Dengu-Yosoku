@@ -1,0 +1,1205 @@
+name: DengueYosoku TanRabad latest-week data intake
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/phase9-12-final-review
+    paths:
+      - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
+      - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
+      - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
+      - "dengueguard-vercel/scripts/prepare_current_model_snapshot.py"
+      - "dengueguard-vercel/scripts/test_prepare_current_model_snapshot.py"
+      - "dengueguard-vercel/scripts/convert_model_outputs.py"
+      - "dengueguard-vercel/scripts/build_tanrabad_current_model_inputs.py"
+      - "dengueguard-vercel/scripts/test_build_tanrabad_current_model_inputs.py"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: dengueyosoku-tanrabad-weather-probe-v2
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    name: Download to ephemeral runner and inspect CSV structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out DengueYosoku
+        uses: actions/checkout@v4
+
+      - name: Check whether the Drive file ID is configured
+        id: drive_secret
+        shell: bash
+        env:
+          DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
+        run: |
+          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Drive secret is not configured. Intake will safely skip without accessing any file."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "Drive source is configured."
+          fi
+
+      - name: Set up Python
+        if: steps.drive_secret.outputs.available == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download latest-week TanRabad workbook or CSV to ephemeral runner storage
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        env:
+          DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
+            echo "::error::Missing repository Actions secret DENGUE_TANRABAD_LATEST_FILE_ID."
+            exit 1
+          fi
+
+          python -m pip install --disable-pip-version-check "gdown==6.5.2" "openpyxl==3.1.5"
+          source_path="${RUNNER_TEMP}/tanrabad-latest-week-source"
+
+          gdown --quiet --no-cookies --continue \
+            "$DRIVE_FILE_ID" \
+            -O "$source_path"
+
+          if [[ ! -s "$source_path" ]]; then
+            echo "::error::Google Drive download produced an empty or missing file."
+            exit 1
+          fi
+
+          if head -c 1024 "$source_path" | grep -Eiq '<!doctype html|<html'; then
+            echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
+            exit 1
+          fi
+
+          echo "Downloaded CSV to temporary runner storage. Raw data will not be printed or uploaded."
+
+      - name: Inspect schema without printing patient records
+        if: steps.drive_secret.outputs.available == 'true'
+        id: audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/tanrabad-latest-week-source" "$RUNNER_TEMP/tanrabad-weekly-structure-audit.json" <<'PY'
+          import csv
+          import hashlib
+          import json
+          import re
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+
+          def normalize(value):
+              return re.sub(r"[^a-z0-9ก-๙]", "", str(value or "").lower())
+
+          identifier_exact = {
+              "hn", "cid", "pid", "an", "vn", "patientid", "patientnumber",
+              "personid", "personnumber", "citizenid", "nationalid", "idcard",
+              "passport", "firstname", "lastname", "patientname", "fullname",
+              "telephone", "phonenumber", "mobile", "email", "dob", "dateofbirth",
+              "birthdate", "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
+              "เลขโรงพยาบาล", "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "ชื่อ", "นามสกุล",
+              "ชื่อจริง", "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร",
+              "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
+          }
+          identifier_fragments = (
+              "hospitalnumber", "patientid", "personid", "citizenid",
+              "nationalid", "idcard", "passport", "firstname", "lastname",
+              "patientname", "fullname", "telephone", "phonenumber",
+              "email", "dateofbirth", "birthdate", "เลขบัตรประชาชน",
+              "เลขประจำตัวประชาชน", "เลขโรงพยาบาล", "หมายเลขผู้ป่วย",
+              "ชื่อผู้ป่วย", "นามสกุล", "ชื่อจริง", "ชื่อสกุล",
+              "ชื่อและนามสกุล", "เบอร์โทร", "หมายเลขโทรศัพท์", "บ้านเลขที่",
+          )
+
+          def classify_headers(headers):
+              normalized = {h: normalize(h) for h in headers}
+              province = [h for h, n in normalized.items()
+                          if any(t in n for t in ("province", "changwat", "จังหวัด"))]
+              week = [h for h, n in normalized.items()
+                      if any(t in n for t in ("date", "week", "epiweek", "year", "วันที่", "สัปดาห์", "ปี"))]
+              cases = [h for h, n in normalized.items()
+                       if any(t in n for t in ("case", "count", "patient", "ผู้ป่วย", "จำนวน"))]
+              identifiers = [
+                  h for h, n in normalized.items()
+                  if n in identifier_exact or any(t in n for t in identifier_fragments)
+              ]
+              return province, week, cases, identifiers
+
+          def file_sha256(path):
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def summarize_csv(path):
+              with path.open("rb") as raw:
+                  sample_bytes = raw.read(8192)
+              encoding = None
+              for candidate in ("utf-8-sig", "utf-16", "utf-32", "utf-16-le",
+                                "utf-16-be", "cp874", "tis-620"):
+                  try:
+                      sample_bytes.decode(candidate)
+                      encoding = candidate
+                      break
+                  except (UnicodeDecodeError, LookupError):
+                      continue
+              if encoding is None:
+                  from charset_normalizer import from_bytes
+                  detected = from_bytes(sample_bytes).best()
+                  if detected is not None:
+                      try:
+                          sample_bytes.decode(detected.encoding)
+                          encoding = detected.encoding
+                      except (UnicodeDecodeError, LookupError):
+                          pass
+              if encoding is None:
+                  raise SystemExit("CSV encoding is not recognized; manual review is required.")
+
+              with path.open("r", encoding=encoding, newline="") as handle:
+                  sample = handle.read(8192)
+                  handle.seek(0)
+                  try:
+                      dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+                  except csv.Error:
+                      dialect = csv.excel
+                  reader = csv.DictReader(handle, dialect=dialect)
+                  headers = reader.fieldnames or []
+                  if not headers or not any((h or "").strip() for h in headers):
+                      raise SystemExit("CSV has no readable header row.")
+                  province_cols, week_cols, case_cols, identifiers = classify_headers(headers)
+                  province_values = set()
+                  row_count = 0
+                  for row in reader:
+                      if not any(str(v or "").strip() for v in row.values()):
+                          continue
+                      row_count += 1
+                      if province_cols:
+                          value = str(row.get(province_cols[0]) or "").strip()
+                          if value:
+                              province_values.add(value)
+              return {
+                  "sheet_name": None,
+                  "header_row": 1,
+                  "column_count": len(headers),
+                  "columns": headers,
+                  "row_count": row_count,
+                  "province_column_candidates": province_cols,
+                  "distinct_province_count": len(province_values) if province_cols else None,
+                  "week_or_date_column_candidates": week_cols,
+                  "case_count_column_candidates": case_cols,
+                  "possible_direct_identifier_columns": identifiers,
+                  "encoding": encoding,
+              }
+
+          def summarize_xlsx(path):
+              from openpyxl import load_workbook
+              workbook = load_workbook(path, read_only=True, data_only=True)
+              summaries = []
+              try:
+                  for worksheet in workbook.worksheets:
+                      limit = min(max(worksheet.max_row or 20, 1), 30)
+                      preview = list(worksheet.iter_rows(min_row=1, max_row=limit, values_only=True))
+                      best = None
+                      best_score = -1
+                      for row_index, row in enumerate(preview, start=1):
+                          values = [str(v).strip() if v is not None else "" for v in row]
+                          headers_candidate = [v for v in values if v]
+                          if len(headers_candidate) < 2:
+                              continue
+                          province, week, cases, identifiers = classify_headers(headers_candidate)
+                          score = (3 * bool(province)) + (2 * bool(week)) + (2 * bool(cases))
+                          if score > best_score:
+                              best = (row_index, values, province, week, cases, identifiers)
+                              best_score = score
+                      if best is None:
+                          summaries.append({
+                              "sheet_name": worksheet.title,
+                              "header_detected": False,
+                              "column_count": 0,
+                              "columns": [],
+                              "row_count": 0,
+                              "province_column_candidates": [],
+                              "distinct_province_count": None,
+                              "week_or_date_column_candidates": [],
+                              "case_count_column_candidates": [],
+                              "possible_direct_identifier_columns": [],
+                          })
+                          continue
+
+                      header_row, header_values, province_cols, week_cols, case_cols, identifiers = best
+                      headers = [v for v in header_values if v]
+                      province_index = next(
+                          (i for i, value in enumerate(header_values) if value and value in province_cols), None
+                      )
+                      row_count = 0
+                      province_values = set()
+                      for row in worksheet.iter_rows(min_row=header_row + 1, values_only=True):
+                          if not any(v is not None and str(v).strip() for v in row):
+                              continue
+                          row_count += 1
+                          if province_index is not None and province_index < len(row):
+                              value = row[province_index]
+                              if value is not None and str(value).strip():
+                                  province_values.add(str(value).strip())
+                      summaries.append({
+                          "sheet_name": worksheet.title,
+                          "header_detected": True,
+                          "header_row": header_row,
+                          "column_count": len(headers),
+                          "columns": headers,
+                          "row_count": row_count,
+                          "province_column_candidates": province_cols,
+                          "distinct_province_count": len(province_values) if province_cols else None,
+                          "week_or_date_column_candidates": week_cols,
+                          "case_count_column_candidates": case_cols,
+                          "possible_direct_identifier_columns": identifiers,
+                      })
+              finally:
+                  workbook.close()
+              return summaries
+
+          if not source.is_file() or source.stat().st_size < 100:
+              raise SystemExit("Downloaded source file is missing or unexpectedly small.")
+
+          if zipfile.is_zipfile(source):
+              with zipfile.ZipFile(source) as archive:
+                  archive_entries = [
+                      name for name in archive.namelist()
+                      if name and not name.endswith("/")
+                  ]
+              if "[Content_Types].xml" not in archive_entries:
+                  import gzip
+                  import io
+                  member_reports = []
+                  all_identifiers = set()
+                  total_rows = 0
+                  with zipfile.ZipFile(source) as archive:
+                      csv_entries = [
+                          name for name in archive.namelist()
+                          if name and not name.endswith("/") and name.lower().endswith(".csv")
+                      ]
+                      for member_name in csv_entries:
+                          raw_bytes = archive.read(member_name)
+                          encoding = None
+                          for candidate in ("utf-8-sig", "utf-16", "utf-32", "cp874", "tis-620"):
+                              try:
+                                  raw_bytes[:8192].decode(candidate)
+                                  encoding = candidate
+                                  break
+                              except (UnicodeDecodeError, LookupError):
+                                  continue
+                          if encoding is None:
+                              from charset_normalizer import from_bytes
+                              detected = from_bytes(raw_bytes[:8192]).best()
+                              if detected is not None:
+                                  try:
+                                      raw_bytes[:8192].decode(detected.encoding)
+                                      encoding = detected.encoding
+                                  except (UnicodeDecodeError, LookupError):
+                                      pass
+                          if encoding is None:
+                              member_reports.append({
+                                  "file_name": member_name,
+                                  "status": "unsupported_encoding",
+                                  "row_count": None,
+                                  "column_count": None,
+                                  "columns": [],
+                                  "province_column_candidates": [],
+                                  "distinct_province_count": None,
+                                  "week_or_date_column_candidates": [],
+                                  "case_count_column_candidates": [],
+                                  "possible_direct_identifier_columns": [],
+                              })
+                              continue
+
+                          text_data = raw_bytes.decode(encoding)
+                          try:
+                              dialect = csv.Sniffer().sniff(text_data[:8192], delimiters=",;\t|")
+                          except csv.Error:
+                              dialect = csv.excel
+                          preview_reader = csv.reader(io.StringIO(text_data), dialect=dialect)
+                          preview_rows = []
+                          for _ in range(30):
+                              try:
+                                  preview_rows.append(next(preview_reader))
+                              except StopIteration:
+                                  break
+
+                          best = None
+                          best_score = -1
+                          for row_index, row in enumerate(preview_rows):
+                              headers_candidate = [str(value or "").strip() for value in row]
+                              nonempty = [value for value in headers_candidate if value]
+                              if len(nonempty) < 2:
+                                  continue
+                              province, week, cases, identifiers = classify_headers(nonempty)
+                              score = (5 * bool(province)) + (3 * bool(week)) + (3 * bool(cases)) + min(len(nonempty), 12)
+                              if score > best_score:
+                                  best = (row_index, headers_candidate, province, week, cases, identifiers)
+                                  best_score = score
+
+                          if best is None:
+                              member_reports.append({
+                                  "file_name": member_name,
+                                  "status": "header_not_detected",
+                                  "row_count": None,
+                                  "column_count": 0,
+                                  "columns": [],
+                                  "province_column_candidates": [],
+                                  "distinct_province_count": None,
+                                  "week_or_date_column_candidates": [],
+                                  "case_count_column_candidates": [],
+                                  "possible_direct_identifier_columns": [],
+                              })
+                              continue
+
+                          header_index, headers, province_cols, week_cols, case_cols, identifiers = best
+                          province_index = next(
+                              (i for i, value in enumerate(headers) if value and value in province_cols),
+                              None
+                          )
+                          data_reader = csv.reader(io.StringIO(text_data), dialect=dialect)
+                          for _ in range(header_index + 1):
+                              try:
+                                  next(data_reader)
+                              except StopIteration:
+                                  break
+
+                          row_count = 0
+                          province_values = set()
+                          for row in data_reader:
+                              if not any(str(value or "").strip() for value in row):
+                                  continue
+                              row_count += 1
+                              if province_index is not None and province_index < len(row):
+                                  value = str(row[province_index] or "").strip()
+                                  if value:
+                                      province_values.add(value)
+
+                          total_rows += row_count
+                          all_identifiers.update(identifiers)
+                          member_reports.append({
+                              "file_name": member_name,
+                              "status": "inspected",
+                              "encoding": encoding,
+                              "header_row": header_index + 1,
+                              "row_count": row_count,
+                              "column_count": len(headers),
+                              "columns": headers,
+                              "province_column_candidates": province_cols,
+                              "distinct_province_count": len(province_values) if province_cols else None,
+                              "week_or_date_column_candidates": week_cols,
+                              "case_count_column_candidates": case_cols,
+                              "possible_direct_identifier_columns": identifiers,
+                          })
+
+                  report = {
+                      "file_name": source.name,
+                      "file_format": "zip_of_csv",
+                      "file_size_bytes": source.stat().st_size,
+                      "sha256": file_sha256(source),
+                      "archive_entry_count": len(archive_entries),
+                      "csv_file_count": len(csv_entries),
+                      "total_data_rows": total_rows,
+                      "files": member_reports,
+                      "possible_direct_identifier_columns": sorted(all_identifiers),
+                      "raw_records_included": False,
+                      "raw_records_extracted_to_artifact": False,
+                      "status": (
+                          "blocked_pending_privacy_review" if all_identifiers
+                          else "structure_only_review" if csv_entries and all(x.get("status") == "inspected" for x in member_reports)
+                          else "partial_structure_review"
+                      ),
+                  }
+                  destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                  print(f"ZIP source inspected: {len(archive_entries)} entries, {len(csv_entries)} CSV files, {total_rows:,} data rows.")
+                  print("Only headers, row counts and province counts were inspected; raw record values were not printed or uploaded.")
+                  if all_identifiers:
+                      print("Potential direct-identifier columns detected; stop before modeling.")
+                      raise SystemExit(2)
+                  if not csv_entries or any(x.get("status") != "inspected" for x in member_reports):
+                      print("One or more archive CSV files need manual format review.")
+                      raise SystemExit(3)
+                  raise SystemExit(0)
+              import shutil
+              file_format = "xlsx_or_ooxml"
+              workbook_path = source.with_name(source.name + ".xlsx")
+              shutil.copyfile(source, workbook_path)
+              sheet_reports = summarize_xlsx(workbook_path)
+              workbook_path.unlink(missing_ok=True)
+              if not sheet_reports:
+                  raise SystemExit("Workbook has no readable worksheets.")
+              all_identifiers = sorted({
+                  column for sheet in sheet_reports
+                  for column in sheet.get("possible_direct_identifier_columns", [])
+              })
+              total_rows = sum(sheet.get("row_count", 0) for sheet in sheet_reports)
+              total_columns = sum(sheet.get("column_count", 0) for sheet in sheet_reports)
+              report = {
+                  "file_name": source.name,
+                  "file_format": file_format,
+                  "file_size_bytes": source.stat().st_size,
+                  "sha256": file_sha256(source),
+                  "sheet_count": len(sheet_reports),
+                  "total_data_rows": total_rows,
+                  "total_columns_across_sheets": total_columns,
+                  "sheets": sheet_reports,
+                  "possible_direct_identifier_columns": all_identifiers,
+                  "raw_records_included": False,
+                  "status": "blocked_pending_privacy_review" if all_identifiers else "structure_only_review",
+              }
+          else:
+              with source.open("rb") as raw:
+                  signature = raw.read(8)
+              if signature.startswith(bytes.fromhex("D0CF11E0A1B11AE1")):
+                  raise SystemExit("Legacy XLS workbook detected; this intake reader requires XLSX or CSV.")
+              sheet = summarize_csv(source)
+              report = {
+                  "file_name": source.name,
+                  "file_format": "csv",
+                  "file_size_bytes": source.stat().st_size,
+                  "sha256": file_sha256(source),
+                  "sheet_count": 1,
+                  "total_data_rows": sheet["row_count"],
+                  "total_columns_across_sheets": sheet["column_count"],
+                  "sheets": [sheet],
+                  "possible_direct_identifier_columns": sheet["possible_direct_identifier_columns"],
+                  "raw_records_included": False,
+                  "status": "blocked_pending_privacy_review" if sheet["possible_direct_identifier_columns"] else "structure_only_review",
+              }
+
+          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(f"Source structure inspected: format={report['file_format']}, rows={report['total_data_rows']:,}, sheets={report['sheet_count']}.")
+          for sheet in report["sheets"]:
+              count = sheet.get("distinct_province_count")
+              print(f"Sheet={sheet.get('sheet_name') or 'CSV'}; columns={sheet['column_count']}; provinces={count if count is not None else 'not detected'}.")
+          print("Raw patient records and sample rows were not printed or exported.")
+          if report["possible_direct_identifier_columns"]:
+              print("Potential direct-identifier columns detected; stop before modeling.")
+              raise SystemExit(2)
+          PY
+      - name: Validate 77-province weekly case panel and week coverage
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$RUNNER_TEMP/tanrabad-latest-week-source" "$RUNNER_TEMP/tanrabad-weekly-validation.json" "$RUNNER_TEMP/tanrabad-province-week.csv" <<'PY'
+          import csv
+          import datetime as dt
+          import io
+          import json
+          import math
+          import sys
+          import zipfile
+          from collections import Counter, defaultdict
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          report_path = Path(sys.argv[2])
+          panel_path = Path(sys.argv[3])
+
+          required = {"จังหวัด", "ปี", "สัปดาห์", "จำนวนผู้ป่วย"}
+          rows = []
+          file_summaries = []
+          parse_errors = []
+
+          def parse_integer(value, field, member, line):
+              raw = str(value or "").strip().replace(",", "")
+              if not raw:
+                  parse_errors.append({"file": member, "line": line, "field": field, "issue": "missing"})
+                  return None
+              try:
+                  number = float(raw)
+              except ValueError:
+                  parse_errors.append({"file": member, "line": line, "field": field, "issue": "not_numeric"})
+                  return None
+              if not math.isfinite(number) or not number.is_integer():
+                  parse_errors.append({"file": member, "line": line, "field": field, "issue": "not_integer"})
+                  return None
+              return int(number)
+
+          with zipfile.ZipFile(source) as archive:
+              csv_members = sorted(
+                  name for name in archive.namelist()
+                  if name and not name.endswith("/") and name.lower().endswith(".csv")
+              )
+              if len(csv_members) != 13:
+                  raise SystemExit(f"Expected 13 regional CSV files, found {len(csv_members)}.")
+
+              for member in csv_members:
+                  raw = archive.read(member)
+                  text_data = raw.decode("utf-8-sig")
+                  try:
+                      dialect = csv.Sniffer().sniff(text_data[:8192], delimiters=",;\t|")
+                  except csv.Error:
+                      dialect = csv.excel
+                  reader = csv.DictReader(io.StringIO(text_data), dialect=dialect)
+                  headers = set((h or "").strip() for h in (reader.fieldnames or []))
+                  if headers != required:
+                      raise SystemExit(f"Schema mismatch in archive member {member}; expected the four agreed aggregate columns.")
+
+                  rows_before = len(rows)
+                  for line_no, record in enumerate(reader, start=2):
+                      province = str(record.get("จังหวัด") or "").strip()
+                      year = parse_integer(record.get("ปี"), "ปี", member, line_no)
+                      week = parse_integer(record.get("สัปดาห์"), "สัปดาห์", member, line_no)
+                      cases = parse_integer(record.get("จำนวนผู้ป่วย"), "จำนวนผู้ป่วย", member, line_no)
+
+                      if not province:
+                          parse_errors.append({"file": member, "line": line_no, "field": "จังหวัด", "issue": "missing"})
+                      if year is not None and 2400 <= year <= 2700:
+                          year -= 543
+                      if year is not None and not 2000 <= year <= 2100:
+                          parse_errors.append({"file": member, "line": line_no, "field": "ปี", "issue": "out_of_range"})
+                      if week is not None and not 1 <= week <= 53:
+                          parse_errors.append({"file": member, "line": line_no, "field": "สัปดาห์", "issue": "out_of_range"})
+                      if cases is not None and cases < 0:
+                          parse_errors.append({"file": member, "line": line_no, "field": "จำนวนผู้ป่วย", "issue": "negative"})
+                      if province and year is not None and week is not None and cases is not None:
+                          rows.append({
+                              "province": province,
+                              "year": year,
+                              "week": week,
+                              "cases": cases,
+                              "source_file": member,
+                          })
+                  file_summaries.append({
+                      "file_name": member,
+                      "row_count": len(rows) - rows_before,
+                  })
+
+          province_set = sorted({row["province"] for row in rows})
+          weeks = sorted({(row["year"], row["week"]) for row in rows})
+          province_per_week = defaultdict(set)
+          cases_per_week = Counter()
+          key_counts = Counter()
+          for row in rows:
+              key = (row["province"], row["year"], row["week"])
+              key_counts[key] += 1
+              province_per_week[(row["year"], row["week"])].add(row["province"])
+              cases_per_week[(row["year"], row["week"])] += row["cases"]
+
+          duplicates = [
+              {"year": key[1], "week": key[2], "duplicate_row_count": count}
+              for key, count in key_counts.items() if count > 1
+          ]
+
+          week_summaries = [
+              {
+                  "year": year,
+                  "week": week,
+                  "province_count": len(province_per_week[(year, week)]),
+                  "total_cases": cases_per_week[(year, week)],
+              }
+              for year, week in weeks
+          ]
+
+          consecutive = True
+          for (year_a, week_a), (year_b, week_b) in zip(weeks, weeks[1:]):
+              try:
+                  start_a = dt.date.fromisocalendar(year_a, week_a, 1)
+                  start_b = dt.date.fromisocalendar(year_b, week_b, 1)
+                  if start_b - start_a != dt.timedelta(days=7):
+                      consecutive = False
+              except ValueError:
+                  consecutive = False
+
+          report = {
+              "source_format": "zip_of_13_regional_csv_files",
+              "source_row_count": len(rows),
+              "source_file_count": len(csv_members),
+              "distinct_province_count": len(province_set),
+              "distinct_week_count": len(weeks),
+              "weeks": week_summaries,
+              "consecutive_weeks": consecutive,
+              "duplicate_province_week_keys": duplicates,
+              "parse_error_count": len(parse_errors),
+              "parse_error_categories": dict(Counter(x["issue"] for x in parse_errors)),
+              "parse_errors_sample": parse_errors[:20],
+              "expected_province_count": 77,
+              "all_weeks_cover_77_provinces": bool(week_summaries) and all(x["province_count"] == 77 for x in week_summaries),
+              "all_values_nonnegative_integers": not any(x["issue"] in {"not_numeric", "not_integer", "negative", "missing", "out_of_range"} for x in parse_errors),
+              "duplicate_free": not duplicates,
+              "province_names": province_set,
+              "files": file_summaries,
+              "raw_patient_records_exported": False,
+              "status": "passed" if (
+                  len(rows) == 154
+                  and len(province_set) == 77
+                  and len(weeks) == 2
+                  and all(x["province_count"] == 77 for x in week_summaries)
+                  and consecutive
+                  and not duplicates
+                  and not parse_errors
+              ) else "blocked_for_data_review",
+          }
+
+          if report["status"] == "passed":
+              with panel_path.open("w", encoding="utf-8", newline="") as handle:
+                  writer = csv.DictWriter(handle, fieldnames=["province", "year", "week", "cases"])
+                  writer.writeheader()
+                  writer.writerows(
+                      {"province": r["province"], "year": r["year"], "week": r["week"], "cases": r["cases"]}
+                      for r in sorted(rows, key=lambda x: (x["year"], x["week"], x["province"]))
+                  )
+
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Weekly panel audit: rows={len(rows)}, provinces={len(province_set)}, "
+              f"weeks={[(y, w) for y, w in weeks]}, duplicates={len(duplicates)}, "
+              f"parse_errors={len(parse_errors)}, status={report['status']}."
+          )
+          print("The aggregate panel was written only to ephemeral runner storage; it was not uploaded.")
+          if report["status"] != "passed":
+              raise SystemExit(1)
+          PY
+
+      - name: Compare incoming provinces and weather coverage with Phase 13 source
+        if: steps.drive_secret.outputs.available == 'true'
+        id: model_compatibility
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python - <<'PY' > "$RUNNER_TEMP/upstream-sha.txt"
+          import json
+          import os
+          import urllib.request
+          token = os.environ.get("GH_TOKEN", "")
+          if not token:
+              raise SystemExit("GitHub Actions token is unavailable for authenticated upstream metadata access.")
+          request = urllib.request.Request(
+              "https://api.github.com/repos/johnlovepizza/DenguYosoku/commits/main",
+              headers={
+                  "User-Agent": "DengueYosoku-TanRabad-Compatibility/1.0",
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          sha = payload.get("sha", "")
+          if len(sha) != 40:
+              raise SystemExit("Unable to resolve a valid upstream source SHA.")
+          print(sha)
+          PY
+          SOURCE_SHA="$(cat "$RUNNER_TEMP/upstream-sha.txt")"
+          echo "Upstream source revision: $SOURCE_SHA"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            "https://raw.githubusercontent.com/johnlovepizza/DenguYosoku/$SOURCE_SHA/dengue_full.csv" \
+            --output "$RUNNER_TEMP/dengue-upstream-full.csv"
+
+          python - "$RUNNER_TEMP/dengue-upstream-full.csv" "$RUNNER_TEMP/tanrabad-province-week.csv" "$RUNNER_TEMP/model-input-compatibility.json" "$SOURCE_SHA" <<'PY'
+          import csv
+          import datetime as dt
+          import json
+          import re
+          import sys
+          from pathlib import Path
+
+          historical_path = Path(sys.argv[1])
+          incoming_path = Path(sys.argv[2])
+          report_path = Path(sys.argv[3])
+          source_sha = sys.argv[4]
+
+          def norm(value):
+              return re.sub(r"\s+", "", str(value or "").strip()).casefold()
+
+          with incoming_path.open("r", encoding="utf-8-sig", newline="") as handle:
+              incoming = list(csv.DictReader(handle))
+          incoming_provinces = {norm(row.get("province")) for row in incoming if row.get("province")}
+          incoming_weeks = sorted({
+              (int(row["year"]), int(row["week"])) for row in incoming
+          })
+
+          required_key_aliases = {
+              "province": {"province", "changwat"},
+              "week_start": {"week_start", "weekstart", "target_week_start"},
+              "weather": {"w_apparent_temperature_mean"},
+          }
+
+          with historical_path.open("r", encoding="utf-8-sig", newline="") as handle:
+              reader = csv.DictReader(handle)
+              headers = reader.fieldnames or []
+              norm_to_original = {norm(header): header for header in headers}
+              selected = {
+                  key: next((norm_to_original[name] for name in aliases if name in norm_to_original), None)
+                  for key, aliases in required_key_aliases.items()
+              }
+              if not all(selected.values()):
+                  report = {
+                      "source_commit": source_sha,
+                      "historical_header_count": len(headers),
+                      "required_contract_fields_found": selected,
+                      "incoming_province_count": len(incoming_provinces),
+                      "incoming_week_keys": [{"year": y, "week": w} for y, w in incoming_weeks],
+                      "ready_for_current_model": False,
+                      "blockers": ["Historical source does not expose the documented province/week_start/apparent-temperature contract fields."],
+                      "status": "blocked_schema_contract",
+                  }
+              else:
+                  province_col = selected["province"]
+                  week_col = selected["week_start"]
+                  weather_col = selected["weather"]
+                  historical_provinces = set()
+                  max_week = None
+                  weather_coverage = {}
+                  for row in reader:
+                      province = norm(row.get(province_col))
+                      if province:
+                          historical_provinces.add(province)
+                      raw_date = str(row.get(week_col) or "").strip()[:10]
+                      try:
+                          week_date = dt.date.fromisoformat(raw_date)
+                      except ValueError:
+                          continue
+                      if max_week is None or week_date > max_week:
+                          max_week = week_date
+                      for year, week in incoming_weeks:
+                          if year == 2026 and week in (44, 45):
+                              expected_start = dt.date(2026, 11, 1) + dt.timedelta(days=7 * (week - 44))
+                              if week_date == expected_start and row.get(weather_col) not in (None, ""):
+                                  weather_coverage.setdefault((year, week), set()).add(province)
+
+                  matched = incoming_provinces & historical_provinces
+                  unmatched = incoming_provinces - historical_provinces
+                  weather_by_week = [
+                      {
+                          "year": year,
+                          "week": week,
+                          "weather_province_count": len(weather_coverage.get((year, week), set())),
+                      }
+                      for year, week in incoming_weeks
+                  ]
+                  blockers = []
+                  if len(incoming_provinces) != 77:
+                      blockers.append("Incoming case panel does not contain exactly 77 provinces.")
+                  if len(matched) != 77:
+                      blockers.append("Incoming province labels do not fully match the canonical Phase 13 source.")
+                  if any(item["weather_province_count"] != 77 for item in weather_by_week):
+                      blockers.append("The historical full source does not contain apparent-temperature values for every incoming province-week.")
+                  report = {
+                      "source_commit": source_sha,
+                      "historical_max_week_start": max_week.isoformat() if max_week else None,
+                      "historical_province_count": len(historical_provinces),
+                      "incoming_province_count": len(incoming_provinces),
+                      "matched_province_count": len(matched),
+                      "unmatched_province_count": len(unmatched),
+                      "incoming_week_keys": [{"year": y, "week": w} for y, w in incoming_weeks],
+                      "weather_feature_column": weather_col,
+                      "weather_coverage_by_week": weather_by_week,
+                      "ready_for_current_model": not blockers,
+                      "blockers": blockers,
+                      "status": "passed" if not blockers else "blocked_waiting_for_compatible_weather_or_source",
+                  }
+
+          report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Model-source cross-check: incoming provinces={report.get('incoming_province_count')}, "
+              f"historical provinces={report.get('historical_province_count')}, "
+              f"weather coverage={report.get('weather_coverage_by_week')}, status={report['status']}."
+          )
+          for blocker in report["blockers"]:
+              print(f"Model-input blocker: {blocker}")
+          PY
+
+      - name: Fetch Open-Meteo apparent-temperature candidates and compare to training source
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(python - "$RUNNER_TEMP/model-input-compatibility.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(report.get("source_commit", "unknown"))
+          PY
+          )"
+
+          python dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py \
+            --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --output-dir "$RUNNER_TEMP/openmeteo-weather" \
+            --validation-weeks 52
+
+      - name: Expand Phase 13 bundle and inspect the original model contract
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "dengueguard-vercel/scripts/phase13-model-source-bundle.zip" "$RUNNER_TEMP/phase13-source-inspection" <<'PY'
+          import ast
+          import json
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          archive_path = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          output.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(archive_path) as archive:
+              names = [name for name in archive.namelist() if not name.endswith("/")]
+              members = {
+                  "pipeline": next((name for name in names if name.endswith("national_model_pipeline.py")), None),
+                  "tests": next((name for name in names if name.endswith("test_national_model_pipeline.py")), None),
+                  "requirements": next((name for name in names if name.endswith("requirements-model-pipeline.txt")), None),
+              }
+              if not members["pipeline"]:
+                  raise SystemExit("Missing national_model_pipeline.py in Phase 13 source bundle.")
+              source = archive.read(members["pipeline"]).decode("utf-8")
+              (output / "national_model_pipeline.py").write_text(source, encoding="utf-8")
+              for kind in ("tests", "requirements"):
+                  if members[kind]:
+                      (output / Path(members[kind]).name).write_bytes(archive.read(members[kind]))
+
+          tree = ast.parse(source)
+          declarations = [
+              {"kind": type(node).__name__, "name": node.name, "line": node.lineno,
+               "end_line": getattr(node, "end_lineno", None)}
+              for node in tree.body
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+          ]
+          relevant_lines = [
+              {"line": index, "text": line.strip()[:240]}
+              for index, line in enumerate(source.splitlines(), start=1)
+              if any(term in line for term in (
+                  "w_apparent_temperature_mean", "week_start", "cases_L1",
+                  "REQUIRED_COLUMNS", "FEATURE_COLUMNS", "target_week",
+                  "add_argument", "subparsers",
+              ))
+          ]
+          report = {
+              "archive_member_count": len(names),
+              "archive_members": names,
+              "pipeline_member": members["pipeline"],
+              "test_member": members["tests"],
+              "requirements_member": members["requirements"],
+              "top_level_declarations": declarations,
+              "contract_and_cli_lines": relevant_lines[:300],
+              "patient_rows_exported": False,
+          }
+          (output / "pipeline-source-inspection.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print(
+              f"Phase 13 source inspected: pipeline={members['pipeline']}, "
+              f"top_level_declarations={len(declarations)}."
+          )
+          PY
+
+      - name: Inspect historical full-source schema without exporting case values
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/dengue-upstream-full.csv" "$RUNNER_TEMP/phase13-source-inspection/historical-schema.json" <<'PY'
+          import csv
+          import datetime as dt
+          import json
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+          with source.open("r", encoding="utf-8-sig", newline="") as handle:
+              reader = csv.DictReader(handle)
+              headers = reader.fieldnames or []
+              normalized = {str(name).strip().casefold(): name for name in headers}
+              province_col = next((normalized[k] for k in ("province", "changwat") if k in normalized), None)
+              week_col = next((normalized[k] for k in ("week_start", "weekstart", "target_week_start") if k in normalized), None)
+              weather_col = normalized.get("w_apparent_temperature_mean")
+              if not province_col or not week_col or not weather_col:
+                  raise SystemExit("Historical full source is missing the original model's province/week/weather fields.")
+              row_count = 0
+              provinces = set()
+              min_week = max_week = None
+              weekly = {}
+              for row in reader:
+                  row_count += 1
+                  province = str(row.get(province_col) or "").strip()
+                  if province:
+                      provinces.add(province)
+                  try:
+                      week = dt.date.fromisoformat(str(row.get(week_col) or "").strip()[:10])
+                  except ValueError:
+                      continue
+                  entry = weekly.setdefault(week.isoformat(), {"row_count": 0, "weather_non_null_count": 0})
+                  entry["row_count"] += 1
+                  if str(row.get(weather_col) or "").strip():
+                      entry["weather_non_null_count"] += 1
+                  min_week = week if min_week is None or week < min_week else min_week
+                  max_week = week if max_week is None or week > max_week else max_week
+          report = {
+              "field_names": headers,
+              "row_count": row_count,
+              "distinct_province_count": len(provinces),
+              "min_week_start": min_week.isoformat() if min_week else None,
+              "max_week_start": max_week.isoformat() if max_week else None,
+              "last_5_weeks": dict(sorted(weekly.items())[-5:]),
+              "case_values_exported": False,
+          }
+          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Historical schema: fields={len(headers)}, rows={row_count}, "
+              f"provinces={len(provinces)}, week_range={report['min_week_start']}..{report['max_week_start']}."
+          )
+          print("Only headers and aggregate coverage were inspected; no case values were printed.")
+          PY
+
+      - name: Build current Phase 13 input panels using validated weekly weather
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dengueguard-vercel
+          python -m py_compile scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py
+          python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
+          python scripts/build_tanrabad_current_model_inputs.py \
+            --historical-full-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --weather-candidates-csv "$RUNNER_TEMP/openmeteo-weather/openmeteo_weekly_weather_candidates.csv" \
+            --weather-compatibility-json "$RUNNER_TEMP/openmeteo-weather/openmeteo_weather_compatibility.json" \
+            --output-dir "$RUNNER_TEMP/phase13-current-inputs"
+
+      - name: Audit reconstructed Phase 13 training and forecast panels
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/phase13-current-model-review"
+          python "$RUNNER_TEMP/phase13-source-inspection/national_model_pipeline.py" audit \
+            --train-csv "$RUNNER_TEMP/phase13-current-inputs/train.csv" \
+            --full-csv "$RUNNER_TEMP/phase13-current-inputs/full.csv" \
+            --output "$RUNNER_TEMP/phase13-current-model-review/source-pair-audit.json"
+
+      - name: Train experimental case-only nowcast for review (not for release)
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            "numpy==2.5.4" "pandas==3.1.1" "lightgbm==4.7.0"
+
+          SOURCE_SHA="$(python - "$RUNNER_TEMP/model-input-compatibility.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(report.get("source_commit", "unknown"))
+          PY
+          )"
+
+          python dengueguard-vercel/scripts/experimental_case_only_nowcast.py \
+            --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --output-dir "$RUNNER_TEMP/case-only-experiment" \
+            --holdout-weeks 26 \
+            --cv-folds 4 \
+            --cv-weeks 8 \
+            --gap-weeks 4 \
+            --round-grid 400,600,800
+
+      - name: Train original Phase 13 12-feature model for week 46 review
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            -r "$RUNNER_TEMP/phase13-source-inspection/requirements-model-pipeline.txt"
+          SOURCE_SHA="$(python - "$RUNNER_TEMP/model-input-compatibility.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(report.get("source_commit", "unknown"))
+          PY
+          )"
+          python "$RUNNER_TEMP/phase13-source-inspection/national_model_pipeline.py" train \
+            --train-csv "$RUNNER_TEMP/phase13-current-inputs/train.csv" \
+            --full-csv "$RUNNER_TEMP/phase13-current-inputs/full.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref main \
+            --source-description "Historical dengue panel from johnlovepizza/DenguYosoku at $SOURCE_SHA; weekly case inputs from TanRabad; w_apparent_temperature_mean extended using Open-Meteo Archive API best_match, validated against 52 overlapping historical weeks (4,004 province-week comparisons; MAE 0.000176°C; RMSE 0.00652°C; Pearson r 0.999998)." \
+            --output-dir "$RUNNER_TEMP/phase13-current-model-review" \
+            --holdout-weeks 26 \
+            --cv-folds 4 \
+            --cv-weeks 8 \
+            --gap-weeks 4 \
+            --rounds 400,600,800 \
+            --require-current
+
+      - name: Prepare review-only model files for the national Dashboard
+        if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dengueguard-vercel
+          python -m py_compile scripts/convert_model_outputs.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
+          python -m unittest scripts.test_prepare_current_model_snapshot -v
+          python scripts/prepare_current_model_snapshot.py \
+            --artifact-dir "$RUNNER_TEMP/phase13-current-model-review" \
+            --output-dir "$RUNNER_TEMP/dashboard-model-snapshot" \
+            --model-revision "$GITHUB_SHA" \
+            --training-run-id "$GITHUB_RUN_ID"
+
+      - name: Upload validated intake, model review and Dashboard snapshot artifacts
+        if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dengueyosoku-tanrabad-weekly-model-review-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
+            ${{ runner.temp }}/tanrabad-weekly-validation.json
+            ${{ runner.temp }}/model-input-compatibility.json
+            ${{ runner.temp }}/phase13-source-inspection/pipeline-source-inspection.json
+            ${{ runner.temp }}/phase13-source-inspection/historical-schema.json
+            ${{ runner.temp }}/phase13-source-inspection/national_model_pipeline.py
+            ${{ runner.temp }}/phase13-source-inspection/test_national_model_pipeline.py
+            ${{ runner.temp }}/phase13-source-inspection/requirements-model-pipeline.txt
+            ${{ runner.temp }}/phase13-current-inputs/current-input-build-report.json
+            ${{ runner.temp }}/phase13-current-model-review/source-pair-audit.json
+            ${{ runner.temp }}/phase13-current-model-review/data_audit.json
+            ${{ runner.temp }}/phase13-current-model-review/metrics.json
+            ${{ runner.temp }}/phase13-current-model-review/training_manifest.json
+            ${{ runner.temp }}/phase13-current-model-review/holdout_predictions.csv
+            ${{ runner.temp }}/phase13-current-model-review/predictions.csv
+            ${{ runner.temp }}/phase13-current-model-review/model.txt
+            ${{ runner.temp }}/dashboard-model-snapshot/public/data/model_predictions.json
+            ${{ runner.temp }}/dashboard-model-snapshot/public/data/model_metrics.json
+            ${{ runner.temp }}/dashboard-model-snapshot/model-snapshot-preparation-report.json
+            ${{ runner.temp }}/openmeteo-weather/openmeteo_weather_compatibility.json
+            ${{ runner.temp }}/openmeteo-weather/openmeteo_weekly_weather_candidates.csv
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_metrics.json
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_holdout_predictions.csv
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_forecast_preview.csv
+            ${{ runner.temp }}/case-only-experiment/experimental_case_only_model.txt
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Commit review-only Dashboard snapshot to integration branch
+        if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
+        uses: actions/github-script@v7
+        env:
+          SNAPSHOT_DIRECTORY: ${{ runner.temp }}/dashboard-model-snapshot/public/data
+          EXPECTED_BRANCH: integration/phase9-12-final-review
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const branch = context.ref.replace(/^refs\/heads\//, "");
+            if (branch !== process.env.EXPECTED_BRANCH) {
+              core.setFailed(`Refusing to write model files to unexpected branch: ${branch}`);
+              return;
+            }
+
+            const files = [
+              "model_predictions.json",
+              "model_metrics.json",
+            ];
+            const baseRef = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${branch}`,
+            });
+            const parentSha = baseRef.data.object.sha;
+            const treeItems = [];
+
+            for (const fileName of files) {
+              const repoPath = `dengueguard-vercel/public/data/${fileName}`;
+              const localPath = path.join(process.env.SNAPSHOT_DIRECTORY, fileName);
+              if (!fs.existsSync(localPath)) {
+                core.setFailed(`Required review-only snapshot file is missing: ${localPath}`);
+                return;
+              }
+              const payload = fs.readFileSync(localPath);
+              let unchanged = false;
+              try {
+                const existing = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: repoPath,
+                  ref: branch,
+                });
+                if (!Array.isArray(existing.data) && existing.data.type === "file" && existing.data.encoding === "base64") {
+                  unchanged = Buffer.from(existing.data.content.replace(/\n/g, ""), "base64").equals(payload);
+                }
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              if (unchanged) {
+                core.info(`No content change for ${repoPath}`);
+                continue;
+              }
+              const blob = await github.rest.git.createBlob({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                content: payload.toString("base64"),
+                encoding: "base64",
+              });
+              treeItems.push({
+                path: repoPath,
+                mode: "100644",
+                type: "blob",
+                sha: blob.data.sha,
+              });
+            }
+
+            if (treeItems.length) {
+              const tree = await github.rest.git.createTree({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                base_tree: parentSha,
+                tree: treeItems,
+              });
+              const commit = await github.rest.git.createCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                message: `Add review-only 77-province model snapshot from run ${context.runId}`,
+                tree: tree.data.sha,
+                parents: [parentSha],
+              });
+              await github.rest.git.updateRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+                sha: commit.data.sha,
+                force: false,
+              });
+              core.setOutput("snapshot_commit", commit.data.sha);
+              core.info(`Committed review-only model snapshot: ${commit.data.sha}`);
+            } else {
+              core.info("Dashboard snapshot files already match the current branch.");
+            }
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "dengueyosoku-web-ci.yml",
+              ref: branch,
+            });
+            core.info("Dispatched web CI to validate the branch containing the Dashboard snapshot.");
+
+      - name: Confirm intake audit and research preview status
+        if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
+        run: echo "TanRabad panel, 52-week Open-Meteo weather equivalence, original Phase 13 12-feature model and review-only Dashboard snapshot completed. Alert eligibility remains blocked; no Production deployment was triggered."
+
+# Re-trigger intake after the repository Drive secret was configured (2026-11-21).
+
+# Re-run ZIP-contained regional CSV structure inspection after parser update.
+
+# Run full 77-province, two-week panel validation after structure inspection passed.

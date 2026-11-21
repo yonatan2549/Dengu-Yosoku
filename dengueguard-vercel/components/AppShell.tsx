@@ -29,6 +29,8 @@ const navigationGroups = [
     title: "WORKSPACE",
     items: [
       { href: "/dashboard", label: "ภาพรวมสถานการณ์", sub: "Forecast dashboard", icon: LayoutDashboard },
+
+      { href: "/model-operations", label: "Model Operations", sub: "Model operations", icon: Activity },
       { href: "/prevention", label: "ป้องกันเชิงรุก", sub: "Early warning & prevention", icon: ShieldCheck },
       { href: "/alerts", label: "ศูนย์จัดการเหตุการณ์", sub: "Alert event center", icon: BellRing },
       { href: "/symptom-checker", label: "ประเมินอาการเบื้องต้น", sub: "Symptom checker", icon: ClipboardCheck },
@@ -206,7 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
               <span>{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
-            <span className="topbar-status"><span className="status-dot" /> {isModelRoute && modelWarning ? "ข้อมูลโมเดลต้องตรวจสอบ" : isModelRoute && modelForecastBehind ? "Forecast ไม่ใช่ข้อมูลปัจจุบัน" : "ระบบพร้อมใช้งาน"}</span>
+            <span className="topbar-status"><span className="status-dot" /> {isModelRoute && modelWarning ? "ข้อมูลโมเดลต้องตรวจสอบ" : isModelRoute && modelForecastBehind ? "Forecast ไม่ใช่ข้อมูลปัจจุบัน" : data?.modelPredictions ? "ตรวจพบ Model Snapshot" : "กำลังใช้ข้อมูลย้อนหลัง"}</span>
             <span className="topbar-region">{data?.modelPredictions ? "ทั่วประเทศ · 77 จังหวัด" : "สคร.4 · 8 จังหวัด"}</span>
           </div>
         </header>

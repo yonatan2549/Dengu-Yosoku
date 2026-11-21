@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X, Users, CloudRain, Thermometer, TrendingUp, TrendingDown, Minus, Info, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useDengueData } from "@/components/DataProvider";
-import { formatCases, formatNumber, getRegionalSummary } from "@/lib/utils";
+import { formatCases, formatNumber, getCurrentEpiWeekStart, getRegionalSummary } from "@/lib/utils";
 
 const STORAGE_KEY = "DengueYosoku-supporting-popup-dismissed-v1";
 
@@ -46,7 +46,8 @@ export function SupportingPopup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!summary || !data || data.modelPredictions) return null;
+  const isCurrentModelSnapshot = data?.modelPredictions?.coverage.forecast_week === getCurrentEpiWeekStart();
+  if (!summary || !data || isCurrentModelSnapshot) return null;
 
   const weekLabel = new Date(`${summary.week}T00:00:00`).toLocaleDateString("th-TH", {
     day: "numeric", month: "long", year: "numeric",

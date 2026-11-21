@@ -12,22 +12,66 @@ import {
   Stethoscope,
   Target,
   Users,
+  BellRing,
 } from "lucide-react";
 
 const systems = [
-  { icon: LineChart, title: "Forecast Dashboard", status: "ระบบต้นแบบ", desc: "นำเสนอข้อมูลพยากรณ์จำนวนผู้ป่วยและแนวโน้มความเสี่ยงในระดับจังหวัด โดยต้องแสดงช่วงเวลาของข้อมูลอย่างชัดเจน" },
-  { icon: ShieldCheck, title: "Prevention & Protection", status: "ระบบต้นแบบ", desc: "แสดงแนวทางป้องกันและควบคุมโรคที่สอดคล้องกับบริบทความเสี่ยงและข้อมูลที่มีอยู่" },
-  { icon: Stethoscope, title: "Symptom Checker", status: "ระบบคัดกรองเบื้องต้น", desc: "แบบประเมินเพื่อให้ข้อมูลเบื้องต้น ไม่ใช่เครื่องมือวินิจฉัยหรือใช้แทนการตรวจโดยบุคลากรทางการแพทย์" },
-  { icon: BrainCircuit, title: "AI Health Assistant", status: "อยู่ระหว่างพัฒนา", desc: "ผู้ช่วยให้ความรู้เฉพาะด้านไข้เลือดออก โดยมีแผนเชื่อมคำตอบกับฐานความรู้และแหล่งอ้างอิงที่ตรวจสอบได้" },
-  { icon: Database, title: "Dengue Knowledge Hub", status: "อยู่ระหว่างพัฒนา", desc: "ศูนย์รวมบทความ สื่อการเรียนรู้ แบบทดสอบ และเอกสารจากหน่วยงานสาธารณสุข" },
+  {
+    icon: LineChart,
+    title: "Forecast Dashboard",
+    status: "ข้อมูลย้อนหลัง + งานวิจัยระดับประเทศ",
+    desc: "หน้า Dashboard แยกชุดข้อมูลย้อนหลังของ สคร.4 ออกจาก snapshot โมเดล 77 จังหวัดที่แสดงในโหมด Review-only พร้อมวันอ้างอิงและที่มาของข้อมูล ผลนี้ใช้ตรวจทานการเชื่อมต่อและประเมินโมเดลเท่านั้น ไม่ใช่ระดับความเสี่ยงหรือผลที่อนุมัติสำหรับการตัดสินใจสาธารณสุข",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Prevention & Protection",
+    status: "ใช้งานได้บางส่วน",
+    desc: "มีคำแนะนำป้องกันจากระบบข้อมูลเดิม เช็กลิสต์ 3 เก็บและป้องกันยุงกัดรายสัปดาห์ รวมถึงข้อมูลเฝ้าระวังระดับประเทศที่ระบุแหล่งที่มา คำแนะนำระดับจังหวัดของโมเดลใหม่ยังไม่เปิดใช้เป็นคำสั่งตามระดับความเสี่ยง",
+  },
+  {
+    icon: Stethoscope,
+    title: "Symptom Checker",
+    status: "ระบบคัดกรองเบื้องต้น",
+    desc: "ประเมินข้อมูลอาการและสัญญาณเตือนด้วยกฎที่กำหนดไว้ พร้อมแนะแนวทางความเร่งด่วน ไม่ใช่เครื่องมือวินิจฉัย และยังต้องผ่านการทบทวนและตรวจสอบความปลอดภัยทางคลินิก",
+  },
+  {
+    icon: BrainCircuit,
+    title: "AI Health Assistant",
+    status: "ค้นคืนหลักฐาน · ยังไม่สร้างคำตอบ AI ใน Production",
+    desc: "ค้นคืนเนื้อหาความรู้และแสดงแหล่งอ้างอิง ระบบ Production ใช้โหมด evidence-only และยังไม่สังเคราะห์คำตอบทางการแพทย์จากโมเดลภาษา เนื้อหาความรู้ยังรอผู้เชี่ยวชาญทบทวน",
+  },
+  {
+    icon: Database,
+    title: "Dengue Knowledge Hub",
+    status: "โครงสร้างพร้อม · เนื้อหาอยู่ระหว่างเติม",
+    desc: "มีหมวดหมู่ค้นหาความรู้และรวบรวมแหล่งอ้างอิงจากหน่วยงานสาธารณสุข แต่บทความภายใน แบบทดสอบ และสื่อการเรียนรู้ยังไม่ครบถ้วน",
+  },
+  {
+    icon: BellRing,
+    title: "Alert Center",
+    status: "Dry-run และ Draft เท่านั้น",
+    desc: "มีระบบตรวจความพร้อม ทดลองประเมิน กำหนดร่างเกณฑ์ และขั้นตอนทบทวนโดยผู้เชี่ยวชาญ แต่ยังไม่มีการปล่อยการแจ้งเตือนจริงหรือการส่ง notification ภายนอก",
+  },
+  {
+    icon: Activity,
+    title: "Model Operations",
+    status: "ระบบตรวจสอบและกำกับดูแล",
+    desc: "ตรวจสอบความสดใหม่ ความครบถ้วน ความถูกต้องของ artifact ที่เผยแพร่ และความพร้อมของ consumer ได้ แต่การฝึก/อัปเดตข้อมูลรายสัปดาห์ยังไม่ใช่งาน cron ที่ทำงานอัตโนมัติ",
+  },
+  {
+    icon: Users,
+    title: "Account & Roles",
+    status: "มีโครงสร้างการยืนยันตัวตน",
+    desc: "มีหน้าเข้าสู่ระบบและการแยกบทบาท Viewer, Reviewer และ Administrator การใช้งานจริงขึ้นกับการตั้งค่า Supabase และ environment ของแต่ละ deployment",
+  },
 ];
 
 const objectives = [
-  "สนับสนุนการเฝ้าระวังแนวโน้มโรคไข้เลือดออกด้วยข้อมูลและการพยากรณ์",
+  "สนับสนุนการเฝ้าระวังแนวโน้มโรคไข้เลือดออกด้วยข้อมูลที่ระบุแหล่งที่มาและช่วงเวลา",
   "ส่งเสริมการป้องกันโรคเชิงรุกในระดับบุคคล ครอบครัว และชุมชน",
   "ให้ประชาชนเข้าถึงข้อมูลการคัดกรองอาการและสัญญาณเตือนที่เข้าใจง่าย",
   "รวบรวมองค์ความรู้ด้านไข้เลือดออกจากแหล่งข้อมูลที่ตรวจสอบได้",
-  "พัฒนาเครื่องมือดิจิทัลที่ช่วยสื่อสารข้อมูลสุขภาพอย่างรับผิดชอบ",
+  "พัฒนาเครื่องมือดิจิทัลที่แยกงานวิจัย การทดลอง และระบบที่อนุมัติให้ใช้งานจริงออกจากกัน",
 ];
 
 export default function AboutPage() {
@@ -39,9 +83,9 @@ export default function AboutPage() {
             <span className="dg-eyebrow"><HeartHandshake size={14} /> ABOUT THE PROJECT</span>
             <h1>About DengueYosoku</h1>
             <p className="dg-lede">
-              DengueYosoku เป็นแพลตฟอร์มต้นแบบด้านสุขภาพดิจิทัลที่มุ่งสนับสนุนการเฝ้าระวัง
-              การป้องกัน การคัดกรองเบื้องต้น และการเรียนรู้เกี่ยวกับโรคไข้เลือดออก
-              โดยผสานข้อมูล เทคโนโลยีเว็บ และแนวคิดการใช้ AI อย่างรับผิดชอบ
+              DengueYosoku เป็นแพลตฟอร์มสุขภาพดิจิทัลสำหรับการเฝ้าระวัง การป้องกัน
+              การคัดกรองเบื้องต้น และการเรียนรู้เกี่ยวกับโรคไข้เลือดออก
+              โดยให้ความสำคัญกับที่มาของข้อมูล ข้อจำกัดของโมเดล และการใช้ AI อย่างรับผิดชอบ
             </p>
           </div>
           <div className="dg-hero-art"><ShieldCheck size={82} strokeWidth={1.2} /></div>
@@ -49,9 +93,9 @@ export default function AboutPage() {
       </section>
 
       <section className="dg-stat-strip">
-        <div className="dg-stat"><strong>3</strong><span>ระบบต้นแบบเดิม: Forecast · Prevention · Screening</span></div>
-        <div className="dg-stat"><strong>8</strong><span>จังหวัดในพื้นที่ สคร.4 ตามขอบเขตโครงการ</span></div>
-        <div className="dg-stat"><strong>Next.js</strong><span>เทคโนโลยีเว็บที่ใช้ใน Vercel Edition</span></div>
+        <div className="dg-stat"><strong>8</strong><span>จังหวัดในระบบพยากรณ์เดิมของ สคร.4</span></div>
+        <div className="dg-stat"><strong>77</strong><span>จังหวัดในขอบเขตงานวิจัยและพัฒนาโมเดลระดับประเทศ</span></div>
+        <div className="dg-stat"><strong>Preview</strong><span>โมเดลและระบบแจ้งเตือนยังต้องผ่าน release review</span></div>
       </section>
 
       <section className="dg-page">
@@ -62,12 +106,12 @@ export default function AboutPage() {
           <article className="dg-card">
             <div className="dg-card-icon"><Target size={19} /></div>
             <h3>Vision</h3>
-            <p>สนับสนุนให้ประชาชนและผู้เกี่ยวข้องเข้าถึงข้อมูลเพื่อเฝ้าระวัง ป้องกัน และทำความเข้าใจโรคไข้เลือดออกได้สะดวกและมีหลักฐานอ้างอิง</p>
+            <p>สนับสนุนให้ประชาชนและผู้เกี่ยวข้องเข้าถึงข้อมูลเพื่อเฝ้าระวัง ป้องกัน และทำความเข้าใจโรคไข้เลือดออกได้สะดวก โดยตรวจสอบแหล่งอ้างอิงและช่วงเวลาของข้อมูลได้</p>
           </article>
           <article className="dg-card">
             <div className="dg-card-icon"><Activity size={19} /></div>
             <h3>Mission</h3>
-            <p>เชื่อมโยงข้อมูลพยากรณ์ คำแนะนำป้องกัน การคัดกรองเบื้องต้น และองค์ความรู้ด้านสุขภาพให้อยู่ในแพลตฟอร์มเดียว</p>
+            <p>เชื่อมโยงข้อมูลเฝ้าระวัง การพยากรณ์ คำแนะนำป้องกัน การคัดกรองเบื้องต้น และองค์ความรู้ด้านสุขภาพให้อยู่ในแพลตฟอร์มเดียว พร้อมแยกข้อมูลทดลองออกจากข้อมูลที่อนุมัติให้ใช้งาน</p>
           </article>
         </div>
         <article className="dg-card">
@@ -98,7 +142,7 @@ export default function AboutPage() {
             <div className="dg-card-icon"><FileCheck2 size={19} /></div>
             <div className="dg-source-meta">ข้อมูลโครงการ</div>
             <h3>About & Transparency</h3>
-            <p>เปิดเผยขอบเขต วิธีการ แหล่งข้อมูล ข้อจำกัด และสถานะการพัฒนาของระบบอย่างโปร่งใส</p>
+            <p>เปิดเผยขอบเขต วิธีการ แหล่งข้อมูล สถานะการพัฒนา และข้อจำกัด เพื่อให้ผู้ใช้แยกข้อมูลย้อนหลัง ผลทดลอง และระบบที่ผ่านการอนุมัติได้</p>
           </article>
         </div>
       </section>
@@ -108,9 +152,9 @@ export default function AboutPage() {
           <div><h2>เทคโนโลยีและแนวทางการพัฒนา</h2><p>Technology & Methodology</p></div>
         </div>
         <div className="dg-grid">
-          <article className="dg-card"><div className="dg-card-icon"><Code2 size={19} /></div><h3>Web Application</h3><p>พัฒนาด้วย Next.js, React และ TypeScript พร้อมเผยแพร่ผ่าน Vercel</p></article>
-          <article className="dg-card"><div className="dg-card-icon"><Database size={19} /></div><h3>Data Integration</h3><p>จัดการข้อมูลพยากรณ์ ข้อมูลสภาพอากาศ และข้อมูลเชิงพื้นที่ในรูปแบบ CSV, JSON และ GeoJSON</p></article>
-          <article className="dg-card"><div className="dg-card-icon"><BrainCircuit size={19} /></div><h3>AI & Machine Learning</h3><p>ระบบพยากรณ์และ AI ผู้ช่วยเป็นคนละองค์ประกอบ และต้องผ่านการประเมินแยกตามวัตถุประสงค์ก่อนใช้งาน</p></article>
+          <article className="dg-card"><div className="dg-card-icon"><Code2 size={19} /></div><h3>Web Application</h3><p>พัฒนาด้วย Next.js, React และ TypeScript พร้อมระบบทดสอบก่อนเผยแพร่ผ่าน Vercel</p></article>
+          <article className="dg-card"><div className="dg-card-icon"><Database size={19} /></div><h3>Data Integration</h3><p>รองรับข้อมูลรายจังหวัดและสัปดาห์ ข้อมูลอากาศ ข้อมูลเชิงพื้นที่ และแหล่งเฝ้าระวังจากหน่วยงานที่เกี่ยวข้อง โดยต้องตรวจสอบความครบถ้วนและ provenance ก่อนใช้งาน</p></article>
+          <article className="dg-card"><div className="dg-card-icon"><BrainCircuit size={19} /></div><h3>AI & Machine Learning</h3><p>โมเดลพยากรณ์จำนวนผู้ป่วยและผู้ช่วยความรู้เป็นคนละระบบ ต้องประเมินตามวัตถุประสงค์ของแต่ละระบบ และไม่แปลงผลพยากรณ์เป็นระดับความเสี่ยงโดยไม่มีเกณฑ์ที่ได้รับอนุมัติ</p></article>
         </div>
       </section>
 
@@ -129,9 +173,22 @@ export default function AboutPage() {
         <FileCheck2 size={18} />
         <div>
           <strong>ขอบเขตและข้อจำกัดที่ควรทราบ</strong>
-          ชุดข้อมูลพยากรณ์ที่อยู่ในโปรเจกต์ปัจจุบันมีข้อมูลล่าสุดถึงวันที่ 25 ธันวาคม 2022 และข้อมูลสภาพอากาศถึงวันที่ 31 ธันวาคม 2022
-          จึงเป็นข้อมูลย้อนหลังสำหรับการศึกษาและทดสอบ ไม่ใช่สถานการณ์ความเสี่ยงปัจจุบัน โมเดลพยากรณ์รุ่นใหม่ยังอยู่ระหว่างพัฒนา
-          ส่วน AI Health Assistant ในเวอร์ชันนี้ยังไม่เชื่อมต่อบริการ AI และ Symptom Checker ไม่ใช่เครื่องมือวินิจฉัยทางการแพทย์
+          <p>
+            Dashboard แบบเดิมของ สคร.4 ใช้ข้อมูลพยากรณ์ย้อนหลังถึงวันที่ 25 ธันวาคม 2022
+            และข้อมูลสภาพอากาศย้อนหลังถึงวันที่ 31 ธันวาคม 2022 จึงไม่ใช่ข้อมูลความเสี่ยงปัจจุบัน
+            ส่วนโมเดลระดับประเทศ 77 จังหวัดมี snapshot เป้าหมายสัปดาห์เริ่ม 15 พฤศจิกายน 2569
+            โดยใช้ข้อมูลผู้ป่วยถึง 8 พฤศจิกายน 2569 แสดงใน Dashboard เพื่อทบทวนในสถานะ Review-only เท่านั้น
+            ไม่ใช่ผลพยากรณ์ที่อนุมัติให้ใช้กับงานสาธารณสุขหรือการแจ้งเตือนจริง
+          </p>
+          <p>
+            รายงานเฝ้าระวังระดับประเทศบน Dashboard เป็น snapshot จากแหล่งอ้างอิงตามวันที่กำกับ
+            ไม่ใช่ feed แบบ real-time และไม่ใช่ผลจากโมเดล DengueYosoku
+            Alert Center ยังอยู่ในโหมด dry-run/draft ไม่มีการส่งแจ้งเตือนภายนอก
+          </p>
+          <p>
+            Health Assistant ใน Production ค้นคืนหลักฐานและแสดงแหล่งอ้างอิง แต่ยังไม่สร้างคำตอบทางการแพทย์ด้วย AI
+            เนื้อหาความรู้ยังรอผู้เชี่ยวชาญทบทวน และ Symptom Checker ไม่ใช่เครื่องมือวินิจฉัย
+          </p>
         </div>
       </section>
 
