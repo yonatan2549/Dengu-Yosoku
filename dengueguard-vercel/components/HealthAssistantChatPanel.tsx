@@ -15,7 +15,7 @@ type Citation = {
 };
 type EvidencePassage = {
   chunkId: string; documentId: string; title: string; sectionLabel: string; text: string;
-  publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string;
+  publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string; similarity?: number;
 };
 type ChatTurn = { role: "user" | "assistant"; content: string };
 type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; evidenceOnly?: boolean; draftOnly?: boolean };
@@ -32,7 +32,7 @@ export function HealthAssistantChatPanel() {
   const [turns, setTurns] = useState<DisplayTurn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [runtime, setRuntime] = useState<{ generatedAnswersEnabled: boolean; model: string | null; message: string } | null>(null);
+  const [runtime, setRuntime] = useState<{ generatedAnswersEnabled: boolean; model: string | null; message: string; provider?: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,6 +45,7 @@ export function HealthAssistantChatPanel() {
         if (active) setRuntime({
           generatedAnswersEnabled: payload?.generatedAnswersEnabled === true,
           model: typeof payload?.model === "string" ? payload.model : null,
+          provider: typeof payload?.provider === "string" ? payload.provider : undefined,
           message: typeof payload?.message === "string" ? payload.message : "ยังไม่สามารถตรวจสอบสถานะ AI ได้",
         });
       })
@@ -118,7 +119,7 @@ export function HealthAssistantChatPanel() {
           <p>ถามเรื่องไข้เลือดออกได้ทันที ระบบจะแสดงแหล่งอ้างอิงเมื่อมีหลักฐานรองรับ</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบ AI…" : runtime.generatedAnswersEnabled ? `AI Preview · ${runtime.model ?? "Draft only"}` : "Evidence-only · Production"}</span>
+          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบ AI…" : runtime.generatedAnswersEnabled ? `${runtime.provider === "Ollama (local)" ? "Local AI" : "AI Preview"} · ${runtime.model ?? "Draft only"}` : "Evidence-only · Production"}</span>
           <button type="button" className="dg-chip" onClick={startNewConversation} disabled={busy || turns.length === 0} aria-label="เริ่มบทสนทนาใหม่">
             <Trash2 size={14} /> เริ่มบทสนทนาใหม่
           </button>
@@ -127,7 +128,7 @@ export function HealthAssistantChatPanel() {
 
       <div className="dg-note" style={{ marginTop: 14 }}>
         <ShieldAlert size={18} />
-        <div><strong>{runtime?.generatedAnswersEnabled ? "AI Preview · คำตอบร่างเพื่อการศึกษา" : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
+        <div><strong>{runtime?.generatedAnswersEnabled ? (runtime.provider === "Ollama (local)" ? "Local AI · คำตอบร่างเพื่อการศึกษา" : "AI Preview · คำตอบร่างเพื่อการศึกษา") : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
       </div>
 
       <div aria-live="polite" style={{ display: "grid", gap: 12, marginTop: 18 }}>
@@ -207,9 +208,11 @@ export function HealthAssistantChatPanel() {
       </form>
       <div className="dg-source-meta" style={{ marginTop: 9 }}>
         ประวัติแชตอยู่ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูลของ DengueYosoku และจะหายไปเมื่อปิดหรือโหลดหน้าใหม่
-        · ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ
+        {runtime?.provider === "Ollama (local)"
+          ? "· โหมด Local AI ส่งคำถามความรู้ทั่วไปที่ผ่าน Safety Gate ไปยัง Ollama บนเครื่องนี้ โดยไม่เรียก Vercel AI Gateway"
+          : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
         · ห้ามใส่ชื่อ เลขบัตรประชาชน HN/AN เบอร์โทร วันเกิด อาการเฉพาะบุคคล หรือผลตรวจของผู้ป่วย
-        · การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น
+        {runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
         · คำตอบเป็นร่างเพื่อการศึกษา ไม่ใช่คำแนะนำทางการแพทย์ และ Production ยังคง Evidence-only
       </div>
     </section>
