@@ -17,6 +17,12 @@ import { ModelPerformanceDiagnostics } from "@/components/ModelPerformanceDiagno
 import { getCurrentEpiWeekStart, getEpiWeekLagWeeks } from "@/lib/utils";
 import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow } from "@/lib/types";
+import thresholdDraft from "../public/data/alert_threshold_candidates_77.json";
+import nationalWeekActual from "../public/data/national_actual_weekly.json";
+
+const THRESHOLD_BY_PROVINCE = new Map(
+  thresholdDraft.thresholds.map((row) => [row.province, row] as const),
+);
 
 const ALL_PROVINCES = "รวม 77 จังหวัด";
 
@@ -95,6 +101,13 @@ export default function ModelDashboard() {
   const [tablePage, setTablePage] = useState(1);
 
   const forecastWeek = model?.coverage.forecast_week ?? "";
+  const thresholdDraftMatchesSnapshot = Boolean(
+    model &&
+    thresholdDraft.status === "draft" &&
+    thresholdDraft.source.model_snapshot_revision === model.model_revision &&
+    thresholdDraft.source.forecast_week === forecastWeek &&
+    thresholdDraft.thresholds.length === 77,
+  );
   const years = useMemo(() => {
     if (!model) return [];
     return [...new Set([
@@ -192,9 +205,14 @@ export default function ModelDashboard() {
 
   const forecastProvinceCount = new Set(model.forecast.map((row) => row.province)).size;
   const totalPrediction = sum(selectedRows.map((row) => row.prediction));
-  const totalActual = selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
-    ? sum(selectedRows.map((row) => row.actualCases))
+  const nationalActualForWeek = selectedProvince === ALL_PROVINCES && nationalWeekActual.week_start === activeWeek
+    ? nationalWeekActual.actual_cases
     : null;
+  const totalActual = nationalActualForWeek !== null
+    ? nationalActualForWeek
+    : selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
+      ? sum(selectedRows.map((row) => row.actualCases))
+      : null;
   const mae = metric("mae");
   const rmse = metric("rmse");
   const skill = metric("skill_pct");
@@ -293,7 +311,9 @@ export default function ModelDashboard() {
         <article className="metric-card">
           <div className="metric-card-top"><span>ผู้ป่วยจริงรวม</span><span className="metric-icon aqua">●</span></div>
           <strong>{totalActual === null ? "ไม่มีข้อมูล" : formatCases(totalActual)}</strong>
-          <small>{isForecastWeek ? "ยังไม่มีผลจริงสำหรับสัปดาห์พยากรณ์" : "ค่าจริงในชุด Holdout"}</small>
+          <small>{nationalActualForWeek !== null
+            ? `ยอดรายสัปดาห์ระดับประเทศจาก WHO · ${nationalWeekActual.epi_week} · ข้อมูล ณ 16 พ.ย. 2569`
+            : isForecastWeek ? "ยังไม่มีผลจริงระดับจังหวัดสำหรับสัปดาห์พยากรณ์" : "ค่าจริงในชุด Holdout"}</small>
         </article>
         <article className="metric-card">
           <div className="metric-card-top"><span>จำนวนจังหวัด</span><span className="metric-icon blue">77</span></div>
@@ -315,40 +335,44 @@ export default function ModelDashboard() {
           </div>
           <MapPinned size={20} />
         </div>
-        <div className="map-legend" aria-label="คำอธิบายสีแผนที่">
-          <span>ค่าพยากรณ์ต่ำ</span>
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-block",
-              width: "min(260px, 55vw)",
-              height: 10,
-              borderRadius: 999,
-              background: "linear-gradient(90deg, #e8f1fb 0%, #b8d3f0 25%, #78a9df 50%, #397fc4 75%, #174f91 100%)",
-            }}
-          />
-          <span>ค่าพยากรณ์สูง</span>
-          <span style={{ marginLeft: "auto" }}>สีเทา = ไม่มีข้อมูล</span>
+        <div className="map-legend" aria-label="คำอธิบายระดับตามเกณฑ์ทดลอง">
+          <span><i className="legend-dot normal" />ปกติ (&lt; P75)</span>
+          <span><i className="legend-dot watch" />เฝ้าระวัง (≥ P75)</span>
+          <span><i className="legend-dot high" />เตือนระบาด (≥ P90)</span>
+          <span><i className="legend-dot none" />ไม่มีเกณฑ์</span>
         </div>
         {mapGeo ? (
           <ModelMapLoader
             geo={mapGeo}
-            rows={displayRows.map((row) => ({
-              province: row.province,
-              prediction: row.prediction,
-              actual_cases: row.actualCases,
-              persistence: row.persistence,
-            }))}
+            rows={displayRows.map((row) => {
+              const threshold = thresholdDraftMatchesSnapshot ? THRESHOLD_BY_PROVINCE.get(row.province) : undefined;
+              return {
+                province: row.province,
+                prediction: row.prediction,
+                actual_cases: row.actualCases,
+                persistence: row.persistence,
+                watch_threshold: threshold?.watch ?? null,
+                alert_threshold: threshold?.alert ?? null,
+              };
+            })}
           />
         ) : (
           <div className="map-placeholder">ไม่พบข้อมูลขอบเขตจังหวัดสำหรับแสดงแผนที่</div>
         )}
         <p className="panel-note">
-          สีเข้มหมายถึงจำนวนผู้ป่วยที่โมเดลคาดการณ์สูงกว่าเมื่อเทียบกับจังหวัดอื่นในสัปดาห์ที่เลือก
-          เป็นการไล่ระดับตามจำนวนพยากรณ์ ไม่ใช่ระดับความเสี่ยงหรือเกณฑ์เตือนระบาด
-          เลื่อนเมาส์เหนือจังหวัดเพื่อดูข้อมูล
+          {thresholdDraftMatchesSnapshot
+            ? "สีแสดงค่าพยากรณ์รายจังหวัดเทียบกับเกณฑ์ทดลอง P75/P90 ของจังหวัดนั้น (ปกติ / เฝ้าระวัง / เตือนระบาด) คำนวณจากข้อมูลย้อนหลัง 26 สัปดาห์และยังเป็น Draft ไม่ใช่เกณฑ์ประกาศการระบาดหรือเปิดแจ้งเตือนจริง"
+            : "ไม่พบ Threshold Draft ที่ตรงกับ Model Snapshot นี้ จึงไม่จัดระดับสีตามเกณฑ์และแสดงจังหวัดเป็นไม่มีเกณฑ์"}
+          {" "}เลื่อนเมาส์เหนือจังหวัดเพื่อดูค่าพยากรณ์และเกณฑ์ของแต่ละจังหวัด
         </p>
       </section>
+
+      {nationalActualForWeek !== null && (
+        <p className="panel-note">
+          ยอดผู้ป่วยจริงรวม {nationalActualForWeek.toLocaleString("th-TH")} รายเป็นยอดรายสัปดาห์ระดับประเทศของผู้ป่วยสงสัยไข้เลือดออก (WHO รายงานสถานการณ์ ณ 16 พ.ย. 2569) ไม่มีข้อมูลแยกรายจังหวัดใน Snapshot นี้ จึงไม่นำยอดรวมไปกระจายลงบนแผนที่{" "}
+          <a href={nationalWeekActual.source.url} target="_blank" rel="noreferrer">ดูรายงาน WHO</a>
+        </p>
+      )}
 
       <section className="panel chart-panel">
         <div className="panel-heading">

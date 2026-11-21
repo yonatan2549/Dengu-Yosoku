@@ -18,6 +18,8 @@ export interface ModelMapRow {
   prediction: number;
   actual_cases: number | null;
   persistence: number | null;
+  watch_threshold?: number | null;
+  alert_threshold?: number | null;
 }
 
 export interface ModelHistoryRow {
