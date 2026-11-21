@@ -946,6 +946,32 @@ jobs:
           print("Only headers and aggregate coverage were inspected; no case values were printed.")
           PY
 
+      - name: Build current Phase 13 input panels using validated weekly weather
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dengueguard-vercel
+          python -m py_compile scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py
+          python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
+          python scripts/build_tanrabad_current_model_inputs.py \
+            --historical-full-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --weather-candidates-csv "$RUNNER_TEMP/openmeteo-weather/openmeteo_weekly_weather_candidates.csv" \
+            --weather-compatibility-json "$RUNNER_TEMP/openmeteo-weather/openmeteo_weather_compatibility.json" \
+            --output-dir "$RUNNER_TEMP/phase13-current-inputs"
+
+      - name: Audit reconstructed Phase 13 training and forecast panels
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/phase13-current-model-review"
+          python "$RUNNER_TEMP/phase13-source-inspection/national_model_pipeline.py" audit \
+            --train-csv "$RUNNER_TEMP/phase13-current-inputs/train.csv" \
+            --full-csv "$RUNNER_TEMP/phase13-current-inputs/full.csv" \
+            --output "$RUNNER_TEMP/phase13-current-model-review/source-pair-audit.json"
+
       - name: Train experimental case-only nowcast for review (not for release)
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
@@ -973,6 +999,34 @@ jobs:
             --gap-weeks 4 \
             --round-grid 400,600,800
 
+      - name: Train original Phase 13 12-feature model for week 46 review
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            -r "$RUNNER_TEMP/phase13-source-inspection/requirements-model-pipeline.txt"
+          SOURCE_SHA="$(python - "$RUNNER_TEMP/model-input-compatibility.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(report.get("source_commit", "unknown"))
+          PY
+          )"
+          python "$RUNNER_TEMP/phase13-source-inspection/national_model_pipeline.py" train \
+            --train-csv "$RUNNER_TEMP/phase13-current-inputs/train.csv" \
+            --full-csv "$RUNNER_TEMP/phase13-current-inputs/full.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --source-ref main \
+            --source-description "Historical dengue panel from johnlovepizza/DenguYosoku at $SOURCE_SHA; weekly case inputs from TanRabad; w_apparent_temperature_mean extended using Open-Meteo Archive API best_match, validated against 52 overlapping historical weeks (4,004 province-week comparisons; MAE 0.000176°C; RMSE 0.00652°C; Pearson r 0.999998)." \
+            --output-dir "$RUNNER_TEMP/phase13-current-model-review" \
+            --holdout-weeks 26 \
+            --cv-folds 4 \
+            --cv-weeks 8 \
+            --gap-weeks 4 \
+            --rounds 400,600,800 \
+            --require-current
+
       - name: Upload validated intake and experimental model artifacts
         if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
@@ -987,6 +1041,14 @@ jobs:
             ${{ runner.temp }}/phase13-source-inspection/national_model_pipeline.py
             ${{ runner.temp }}/phase13-source-inspection/test_national_model_pipeline.py
             ${{ runner.temp }}/phase13-source-inspection/requirements-model-pipeline.txt
+            ${{ runner.temp }}/phase13-current-inputs/current-input-build-report.json
+            ${{ runner.temp }}/phase13-current-model-review/source-pair-audit.json
+            ${{ runner.temp }}/phase13-current-model-review/data_audit.json
+            ${{ runner.temp }}/phase13-current-model-review/metrics.json
+            ${{ runner.temp }}/phase13-current-model-review/training_manifest.json
+            ${{ runner.temp }}/phase13-current-model-review/holdout_predictions.csv
+            ${{ runner.temp }}/phase13-current-model-review/predictions.csv
+            ${{ runner.temp }}/phase13-current-model-review/model.txt
             ${{ runner.temp }}/openmeteo-weather/openmeteo_weather_compatibility.json
             ${{ runner.temp }}/openmeteo-weather/openmeteo_weekly_weather_candidates.csv
             ${{ runner.temp }}/case-only-experiment/experimental_case_only_metrics.json
@@ -998,7 +1060,7 @@ jobs:
 
       - name: Confirm intake audit and research preview status
         if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
-        run: echo "Weekly panel passed data-quality checks. The original 12-feature model is blocked by missing apparent-temperature rows; any case-only output is a separate research preview. No public website data or deployment was changed."
+        run: echo "TanRabad panel, 52-week Open-Meteo weather equivalence, original Phase 13 12-feature current-model preview and separate case-only research experiment completed. All model artifacts remain review-only; no public website data or deployment was changed."
 
 # Re-trigger intake after the repository Drive secret was configured (2026-11-21).
 
