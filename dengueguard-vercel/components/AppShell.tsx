@@ -248,7 +248,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </footer>
       </div>
 
-      {isDataRoute && !loading && !error && <SupportingPopup />}
+      {pathname === "/dashboard" && !loading && !error && <SupportingPopup />}
     </div>
   );
 }

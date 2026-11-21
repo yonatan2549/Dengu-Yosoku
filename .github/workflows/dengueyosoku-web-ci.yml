@@ -57,6 +57,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Historical 77-province snapshot builder tests
+        run: npm run test:province-history
+
       - name: TypeScript check
         run: npm run typecheck
       - name: Dashboard dataset selection regression

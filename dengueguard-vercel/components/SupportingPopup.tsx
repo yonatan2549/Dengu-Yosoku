@@ -1,37 +1,68 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Users, CloudRain, Thermometer, TrendingUp, TrendingDown, Minus, Info, ArrowRight } from "lucide-react";
+import { ArrowRight, Clock3, Info, MapPinned, X } from "lucide-react";
 import Link from "next/link";
 import { useDengueData } from "@/components/DataProvider";
-import { formatCases, formatNumber, getCurrentEpiWeekStart, getRegionalSummary } from "@/lib/utils";
+import { getCurrentEpiWeekStart } from "@/lib/utils";
 
-const STORAGE_KEY = "DengueYosoku-supporting-popup-dismissed-v1";
+const STORAGE_KEY = "DengueYosoku-next-week-forecast-popup-v2";
+const EXPECTED_PROVINCES = 77;
+
+function addSevenDays(value: string) {
+  const date = new Date(value + "T00:00:00.000Z");
+  date.setUTCDate(date.getUTCDate() + 7);
+  return date.toISOString().slice(0, 10);
+}
+
+function formatWeek(value?: string | null) {
+  if (!value) return "ไม่มีข้อมูล";
+  return new Date(value + "T00:00:00+07:00").toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
 
 export function SupportingPopup() {
   const { data, loading } = useDengueData();
   const [open, setOpen] = useState(false);
   const [checkedSession, setCheckedSession] = useState(false);
 
-  const latestWeek = useMemo(() => {
-    if (!data?.predictions.length) return null;
-    return [...new Set(data.predictions.map((row) => row.target_week_start))].sort().at(-1) ?? null;
-  }, [data]);
+  const currentWeek = getCurrentEpiWeekStart();
+  const nextWeek = addSevenDays(currentWeek);
+  const model = data?.modelPredictions ?? null;
 
-  const summary = useMemo(() => {
-    if (!data || !latestWeek) return null;
-    return getRegionalSummary(data.predictions, data.weather, latestWeek);
-  }, [data, latestWeek]);
+  const forecastRows = useMemo(
+    () => model?.forecast.filter((row) => row.week_start === nextWeek) ?? [],
+    [model, nextWeek],
+  );
+  const forecastComplete =
+    forecastRows.length === EXPECTED_PROVINCES &&
+    new Set(forecastRows.map((row) => row.province)).size === EXPECTED_PROVINCES;
+  const forecastTotal = forecastComplete
+    ? forecastRows.reduce((total, row) => total + row.prediction, 0)
+    : null;
+  const topProvinces = forecastComplete
+    ? [...forecastRows].sort((a, b) => b.prediction - a.prediction).slice(0, 5)
+    : [];
 
   useEffect(() => {
     if (loading || checkedSession) return;
-    const dismissed = window.sessionStorage.getItem(STORAGE_KEY) === "1";
-    setOpen(!dismissed);
+    try {
+      setOpen(window.sessionStorage.getItem(STORAGE_KEY) !== "1");
+    } catch {
+      setOpen(true);
+    }
     setCheckedSession(true);
   }, [loading, checkedSession]);
 
   function dismiss() {
-    window.sessionStorage.setItem(STORAGE_KEY, "1");
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, "1");
+    } catch {
+      // The dialog can still be closed when browser storage is unavailable.
+    }
     setOpen(false);
   }
 
@@ -46,96 +77,105 @@ export function SupportingPopup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const isCurrentModelSnapshot = data?.modelPredictions?.coverage.forecast_week === getCurrentEpiWeekStart();
-  if (!summary || !data || isCurrentModelSnapshot) return null;
-
-  const weekLabel = new Date(`${summary.week}T00:00:00`).toLocaleDateString("th-TH", {
-    day: "numeric", month: "long", year: "numeric",
-  });
-  const trendIcon = summary.trend === "เพิ่มขึ้น"
-    ? <TrendingUp size={18} />
-    : summary.trend === "ลดลง"
-      ? <TrendingDown size={18} />
-      : <Minus size={18} />;
-  const trendClass = summary.trend === "เพิ่มขึ้น" ? "trend-up" : summary.trend === "ลดลง" ? "trend-down" : "trend-flat";
-  const hasWeather = summary.rainfallAverage !== null || summary.temperatureAverage !== null;
+  if (loading) return null;
 
   return (
     <>
-      <button className="floating-info-button" onClick={() => setOpen(true)} aria-label="ดูข้อมูลประกอบการประเมินความเสี่ยง">
-        <Info size={17} /> <span>ข้อมูลภาพรวม 8 จังหวัด</span>
+      <button
+        type="button"
+        className="floating-info-button"
+        onClick={() => setOpen(true)}
+        aria-label="ดูพยากรณ์ไข้เลือดออกสัปดาห์หน้า"
+      >
+        <Info size={17} />
+        <span>พยากรณ์สัปดาห์หน้า</span>
       </button>
 
       {open && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) dismiss();
-        }}>
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) dismiss();
+          }}
+        >
           <section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
             <div className="modal-topline">
               <div className="brand-mark small-mark">DY</div>
               <div className="modal-heading">
-                <span className="eyebrow">DengueYosoku · REGIONAL OVERVIEW</span>
-                <h2 id="support-modal-title">สถานการณ์ความเสี่ยงโรคไข้เลือดออก</h2>
-                <p>ภาพรวมพื้นที่ 8 จังหวัด · สัปดาห์เป้าหมาย {weekLabel}</p>
+                <span className="eyebrow">DENGUEYOSOKU · 77 PROVINCES</span>
+                <h2 id="support-modal-title">รายงานพยากรณ์ไข้เลือดออกสัปดาห์หน้า</h2>
+                <p>สัปดาห์เป้าหมาย {formatWeek(nextWeek)} · ทั่วประเทศ 77 จังหวัด</p>
               </div>
-              <button className="icon-button modal-close" onClick={dismiss} aria-label="ปิดหน้าต่าง">
+              <button type="button" className="icon-button modal-close" onClick={dismiss} aria-label="ปิดหน้าต่าง">
                 <X size={20} />
               </button>
             </div>
 
-            <div className="support-metric-grid">
-              <article className="support-metric">
-                <div className="metric-icon blue"><Users size={18} /></div>
-                <span>ผู้ป่วยที่คาดการณ์รวม</span>
-                <strong>{formatCases(summary.totalPredicted)}</strong>
-                <small>ราย / 8 จังหวัด</small>
-              </article>
-              <article className="support-metric">
-                <div className="metric-icon red"><Info size={18} /></div>
-                <span>จังหวัดที่เตือนระบาด</span>
-                <strong>{summary.alertCount} จังหวัด</strong>
-                <small>จากทั้งหมด 8 จังหวัด</small>
-              </article>
-              <article className="support-metric">
-                <div className="metric-icon aqua"><CloudRain size={18} /></div>
-                <span>ปริมาณน้ำฝนเฉลี่ย</span>
-                <strong>{summary.rainfallAverage === null ? "ไม่มีข้อมูล" : `${formatNumber(summary.rainfallAverage, 1)} มม.`}</strong>
-                <small>สะสม 7 วัน / จังหวัดที่มีข้อมูล</small>
-              </article>
-              <article className="support-metric">
-                <div className="metric-icon amber"><Thermometer size={18} /></div>
-                <span>อุณหภูมิเฉลี่ย</span>
-                <strong>{summary.temperatureAverage === null ? "ไม่มีข้อมูล" : `${formatNumber(summary.temperatureAverage, 1)} °C`}</strong>
-                <small>เฉลี่ย 7 วัน / จังหวัดที่มีข้อมูล</small>
-              </article>
-            </div>
+            {forecastComplete ? (
+              <>
+                <div className="support-metric-grid">
+                  <article className="support-metric support-metric-primary">
+                    <div className="metric-icon blue"><MapPinned size={18} /></div>
+                    <span>ผู้ป่วยที่โมเดลคาดการณ์รวม</span>
+                    <strong>{forecastTotal?.toLocaleString("th-TH", { maximumFractionDigits: 1 })} ราย</strong>
+                    <small>ผลรวมค่าพยากรณ์ 77 จังหวัด · ไม่ใช่ยอดผู้ป่วยจริง</small>
+                  </article>
+                  <article className="support-metric">
+                    <div className="metric-icon aqua"><Clock3 size={18} /></div>
+                    <span>ความครอบคลุมของผลพยากรณ์</span>
+                    <strong>77 / 77 จังหวัด</strong>
+                    <small>ตรงกับสัปดาห์เป้าหมายครบทุกจังหวัด</small>
+                  </article>
+                </div>
 
-            <div className="support-trend-panel">
-              <div>
-                <span className="eyebrow">FORECAST TREND</span>
-                <h3>แนวโน้มผู้ป่วยทั้งเขตสุขภาพ</h3>
-                <p>เปรียบเทียบยอดพยากรณ์รวมกับสัปดาห์เป้าหมายก่อนหน้า</p>
+                <div className="support-trend-panel support-top-provinces">
+                  <div>
+                    <span className="eyebrow">TOP FORECAST VALUES</span>
+                    <h3>จังหวัดที่มีค่าพยากรณ์สูงสุด</h3>
+                    <p>เรียงตามค่าพยากรณ์ ไม่ใช่การจัดระดับการระบาด</p>
+                  </div>
+                  <ol>
+                    {topProvinces.map((row) => (
+                      <li key={row.province}>
+                        <span>{row.province}</span>
+                        <strong>{row.prediction.toLocaleString("th-TH", { maximumFractionDigits: 1 })} ราย</strong>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </>
+            ) : (
+              <div className="support-empty-state" role="status">
+                <div className="support-empty-icon"><Clock3 size={22} /></div>
+                <strong>ยังไม่มีผลพยากรณ์ที่ตรงกับสัปดาห์หน้า</strong>
+                <p>
+                  ระบบต้องมี Model Snapshot ที่ระบุสัปดาห์เป้าหมาย {formatWeek(nextWeek)}
+                  และมีผลครบ 77 จังหวัดก่อน จึงจะแสดงตัวเลขในรายงานนี้
+                </p>
+                <p className="support-latest-snapshot">
+                  Snapshot ล่าสุด: {formatWeek(model?.coverage.forecast_week)} ·
+                  ข้อมูลผู้ป่วยที่ใช้ฝึก/ประเมินถึง {formatWeek(model?.coverage.history_end_week)}
+                </p>
+                <p>จะไม่ใช้ผลพยากรณ์สัปดาห์ก่อนหรือยอดผู้ป่วยระดับประเทศมาแทนผลพยากรณ์รายจังหวัด</p>
               </div>
-              <div className={`trend-pill ${trendClass}`}>
-                {trendIcon}
-                <span>{summary.trend}</span>
-                {summary.trendPercent !== null && <b>{summary.trendPercent > 0 ? "+" : ""}{summary.trendPercent.toFixed(1)}%</b>}
-              </div>
-            </div>
+            )}
 
-            <div className="modal-footnote">
-              <Info size={15} />
-              <span>
-                {hasWeather
-                  ? `สภาพอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ครอบคลุม ${summary.weatherProvinceCount}/8 จังหวัด (ข้อมูลสูงสุด ${summary.weatherDays} วัน)`
-                  : "ไม่พบข้อมูลสภาพอากาศในช่วงสัปดาห์เป้าหมาย จึงไม่แสดงค่าตัวอย่างแทนข้อมูลจริง"}
-                {" "}ชุดข้อมูลที่แนบมีข้อมูลพยากรณ์ถึง 25 ธันวาคม 2022 จึงเป็นข้อมูลย้อนหลัง ไม่ใช่สถานการณ์ปัจจุบัน
-              </span>
-            </div>
+            {model?.release_status === "review_only" && (
+              <div className="modal-footnote support-review-note">
+                <Info size={15} />
+                <span>
+                  โมเดลรุ่นนี้ยังอยู่ในสถานะ Review-only ผลพยากรณ์ใช้ตรวจสอบและสาธิตเท่านั้น
+                  ยังไม่ใช่คำเตือนการระบาดที่รับรองสำหรับการตัดสินใจสาธารณสุข
+                </span>
+              </div>
+            )}
 
             <div className="modal-actions">
-              <Link href="/prevention" className="text-link" onClick={dismiss}>ดูคำแนะนำการป้องกัน <ArrowRight size={15} /></Link>
-              <button className="button button-primary" onClick={dismiss}>ปิดและเข้าสู่เว็บไซต์</button>
+              <Link href="/dashboard" className="text-link" onClick={dismiss}>
+                ดู Dashboard 77 จังหวัด <ArrowRight size={15} />
+              </Link>
+              <button type="button" className="button button-primary" onClick={dismiss}>ปิดรายงาน</button>
             </div>
           </section>
         </div>

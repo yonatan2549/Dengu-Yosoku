@@ -41,6 +41,33 @@ export interface ModelForecastRow {
   prediction: number;
 }
 
+export interface ProvinceHistoryRow {
+  province: string;
+  week_start: string;
+  year: number;
+  actual_cases: number;
+}
+
+export interface ProvinceHistoryCoverage {
+  week_start: string;
+  year: number;
+  province_count: number;
+  complete: boolean;
+}
+
+export interface ProvinceHistorySnapshot {
+  schema_version: number;
+  status: "ready" | "unavailable";
+  source_file: string;
+  generated_at_utc: string;
+  province_count: number;
+  row_count: number;
+  years: number[];
+  week_coverage: ProvinceHistoryCoverage[];
+  rows: ProvinceHistoryRow[];
+  message?: string;
+}
+
 export interface ModelPredictionsPayload {
   schema_version: number;
   model_name: string;
