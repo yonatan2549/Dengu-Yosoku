@@ -107,3 +107,14 @@ Holdout ใน repository เป็นข้อมูลย้อนหลัง
 3. ตรวจความต่อเนื่องของ weekly grid, weather coverage และ leakage ก่อนต่อท้าย historical panel
 4. ฝึก/ประเมินโมเดลด้วย temporal validation ตาม contract เดิม จากนั้นตรวจ target week และ stale/current status ก่อนเสนอ release
 
+### Compatibility check against the current upstream model source
+
+- Upstream commit checked: `ff45ff1f16232c8e32b3748646cea46486c49da3`
+- Historical `dengue_full.csv` ends at `week_start=2026-10-25` and contains 77 provinces.
+- All 77 incoming TanRabad province labels match the historical source exactly (77/77).
+- Required weather field in the existing 12-feature model: `w_apparent_temperature_mean_L1`.
+- Historical source weather coverage for incoming weeks 44 and 45: 0/77 provinces for each week.
+- Result: the original 12-feature model cannot consume the new panel without obtaining a compatible apparent-temperature series for weeks 44–45.
+
+The upstream model README currently describes the weather column as a weather source but leaves the provider/version/date as a placeholder. Before importing an alternate weather provider, the project must confirm the intended source, units, calculation window, and provenance. Do not substitute a different weather series silently.
+
