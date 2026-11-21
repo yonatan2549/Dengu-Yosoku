@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/dengueguard-improvements
+      - feature/local-ollama-health-rag-2026-11-21
       - integration/phase9-12-final-review
       - review/national-alerts-independent-audit-2026-11-21
     paths:
@@ -140,6 +141,9 @@ jobs:
 
       - name: Health knowledge RAG tests
         run: npm run test:health-knowledge-rag
+
+      - name: Local Ollama Health RAG contract tests
+        run: npm run test:local-health-rag
 
 
       - name: Snapshot actual-history bridge and MMWR contract tests

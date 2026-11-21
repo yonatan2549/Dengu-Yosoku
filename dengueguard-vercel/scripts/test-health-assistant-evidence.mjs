@@ -26,13 +26,22 @@ test("routes persistent vomiting to urgent safety notice", () => {
 });
 
 test("routes bleeding symptoms to urgent safety notice", () => {
-  const result = buildHealthEvidencePackage("ถ่ายเป็นเลือด");
-  assert.equal(result.safetyLevel, "urgent");
+  for (const query of ["ถ่ายเป็นเลือด", "ถ่ายดำ", "เลือดออกไม่หยุด"]) {
+    const result = buildHealthEvidencePackage(query);
+    assert.equal(result.safetyLevel, "urgent", query);
+  }
 });
 
 test("routes breathing difficulty to urgent safety notice", () => {
   const result = buildHealthEvidencePackage("หายใจลำบาก");
   assert.equal(result.safetyLevel, "urgent");
+});
+
+test("routes loss of consciousness, shock and severe thirst to urgent safety notice", () => {
+  for (const query of ["หมดสติ", "ผู้ป่วยมีอาการช็อก", "กระหายน้ำมาก"]) {
+    assert.equal(classifyHealthQuery(query), "emergency-warning", query);
+    assert.equal(buildHealthEvidencePackage(query).safetyLevel, "urgent", query);
+  }
 });
 
 test("emergency safety route takes priority over a personal medical query", () => {
