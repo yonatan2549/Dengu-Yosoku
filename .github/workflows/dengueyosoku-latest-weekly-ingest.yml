@@ -269,6 +269,32 @@ jobs:
               raise SystemExit("Downloaded source file is missing or unexpectedly small.")
 
           if zipfile.is_zipfile(source):
+              with zipfile.ZipFile(source) as archive:
+                  archive_entries = [
+                      name for name in archive.namelist()
+                      if name and not name.endswith("/")
+                  ]
+              if "[Content_Types].xml" not in archive_entries:
+                  supported_entries = [
+                      name for name in archive_entries
+                      if name.lower().endswith((".xlsx", ".xlsm", ".csv", ".csv.gz", ".zip"))
+                  ]
+                  report = {
+                      "file_name": source.name,
+                      "file_format": "zip_container",
+                      "file_size_bytes": source.stat().st_size,
+                      "sha256": file_sha256(source),
+                      "archive_entry_count": len(archive_entries),
+                      "archive_entries": archive_entries[:200],
+                      "supported_data_entries": supported_entries[:100],
+                      "raw_records_included": False,
+                      "status": "archive_needs_format_resolution",
+                  }
+                  destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                  print(f"ZIP container inspected: {len(archive_entries)} file entries.")
+                  print(f"Supported data-file entries detected: {len(supported_entries)}.")
+                  print("Only archive member names were inspected; no member data was extracted or printed.")
+                  raise SystemExit(0)
               import shutil
               file_format = "xlsx_or_ooxml"
               workbook_path = source.with_name(source.name + ".xlsx")
