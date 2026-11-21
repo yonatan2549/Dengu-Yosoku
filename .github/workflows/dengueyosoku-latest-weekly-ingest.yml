@@ -802,6 +802,25 @@ jobs:
               print(f"Model-input blocker: {blocker}")
           PY
 
+      - name: Fetch Open-Meteo apparent-temperature candidates and compare to training source
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(python - "$RUNNER_TEMP/model-input-compatibility.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          report = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(report.get("source_commit", "unknown"))
+          PY
+          )"
+
+          python dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py \
+            --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --source-commit "$SOURCE_SHA" \
+            --output-dir "$RUNNER_TEMP/openmeteo-weather"
+
       - name: Train experimental case-only nowcast for review (not for release)
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
@@ -838,6 +857,8 @@ jobs:
             ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
             ${{ runner.temp }}/tanrabad-weekly-validation.json
             ${{ runner.temp }}/model-input-compatibility.json
+            ${{ runner.temp }}/openmeteo-weather/openmeteo_weather_compatibility.json
+            ${{ runner.temp }}/openmeteo-weather/openmeteo_weekly_weather_candidates.csv
             ${{ runner.temp }}/case-only-experiment/experimental_case_only_metrics.json
             ${{ runner.temp }}/case-only-experiment/experimental_case_only_holdout_predictions.csv
             ${{ runner.temp }}/case-only-experiment/experimental_case_only_forecast_preview.csv
