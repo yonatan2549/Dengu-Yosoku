@@ -12,6 +12,7 @@ import {
 import { readChatProviderConfig, requestChatCompletion } from "@/lib/health-assistant/chat-provider";
 import { evaluateDraftSourcePolicy } from "@/lib/health-assistant/source-policy";
 import { isDraftAnswersEnabled } from "@/lib/health-assistant/runtime-policy";
+import { isLocalHealthRagEnabled, runLocalHealthRag } from "@/lib/health-assistant/local-rag";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,20 @@ function providerConfig(request: Request) {
 }
 
 export async function GET(request: Request) {
+  if (isLocalHealthRagEnabled(process.env)) {
+    return NextResponse.json({
+      mode: "local-vector-rag-preview",
+      generatedAnswersEnabled: true,
+      provider: "Ollama (local)",
+      model: process.env.HEALTH_ASSISTANT_MODEL || "qwen3.5:0.8b",
+      embeddingModel: process.env.OLLAMA_EMBEDDING_MODEL || "qwen3-embedding:0.6b",
+      vectorIndexRequired: true,
+      reviewStatus: "awaiting_clinical_review",
+      productionPolicy: "local-only-development; production-remains-evidence-only",
+      message: "Local Ollama พร้อมสำหรับการทดสอบเมื่อสร้าง Vector Index แล้ว โหมดนี้ใช้ได้เฉพาะ local development",
+    }, { headers: noStore });
+  }
+
   const provider = providerConfig(request);
   const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
   const generatedAnswersEnabled = draftAnswersEnabled && provider.ok;
@@ -58,6 +73,89 @@ export async function POST(request: Request) {
 
   const validated = validateChatRequest(parsedBody.value);
   if (!validated.ok) return NextResponse.json({ error: validated.error }, { status: 400, headers: noStore });
+
+  // Local Ollama is intentionally restricted to Next.js local development.
+  // Emergency and personal-medical questions are blocked before any local model request.
+  if (isLocalHealthRagEnabled(process.env)) {
+    const intent = classifyHealthQuery(validated.value.query);
+    const historyNeedsAbstention = shouldAbstainForHistory(
+      validated.value.history,
+      (item) => containsPersonalLabValue(item) ? "personal-medical" : classifyHealthQuery(item),
+    );
+    const currentQueryHasLabValue = containsPersonalLabValue(validated.value.query);
+
+    if (intent === "emergency-warning") {
+      return NextResponse.json({
+        mode: "safe-abstention",
+        generatedAnswer: false,
+        abstained: true,
+        intent,
+        safetyLevel: "urgent",
+        safetyMessage: "หากคุณหรือคนใกล้ชิดกำลังมีอาการเตือน เช่น ปวดท้องรุนแรง อาเจียนต่อเนื่อง เลือดออก ซึม หรือหายใจลำบาก ให้ไปโรงพยาบาลหรือห้องฉุกเฉินทันที อย่ารอคำตอบจาก AI",
+        answer: null,
+        citations: [],
+        message: "Safety Gateway หยุดคำถามฉุกเฉินก่อนส่งข้อมูลไปยัง Local Ollama",
+      }, { headers: noStore });
+    }
+
+    if (intent === "personal-medical" || currentQueryHasLabValue || historyNeedsAbstention) {
+      return NextResponse.json({
+        mode: "safe-abstention",
+        generatedAnswer: false,
+        abstained: true,
+        intent: "personal-medical",
+        safetyLevel: "caution",
+        safetyMessage: "ระบบนี้ไม่วินิจฉัย แปลผลตรวจ หรือให้คำแนะนำเฉพาะบุคคล จึงไม่ส่งคำถามหรือประวัติที่มีข้อมูลสุขภาพเฉพาะบุคคลไปยัง Local Ollama โปรดปรึกษาบุคลากรทางการแพทย์",
+        answer: null,
+        citations: [],
+        message: "Safety Gateway หยุดคำถามส่วนบุคคลก่อนส่งข้อมูลไปยัง Local Ollama",
+      }, { headers: noStore });
+    }
+
+    const localResult = await runLocalHealthRag(validated.value.query, validated.value.history, process.env);
+    if (!localResult.ok) {
+      return NextResponse.json({
+        mode: "local-rag-unavailable",
+        generatedAnswer: false,
+        abstained: true,
+        answer: null,
+        citations: [],
+        error: localResult.error,
+        message: "ระบบไม่สร้างคำตอบเมื่อ Local Ollama หรือ Vector Index ไม่พร้อม",
+      }, { status: localResult.status, headers: noStore });
+    }
+    if (!localResult.generatedAnswer) {
+      return NextResponse.json({
+        mode: "safe-abstention",
+        generatedAnswer: false,
+        abstained: true,
+        intent: "general-education",
+        safetyLevel: "no-evidence",
+        safetyMessage: localResult.message,
+        answer: null,
+        citations: [],
+        evidencePassages: localResult.evidencePassages,
+        retrievalMethod: localResult.retrievalMethod,
+        fullDocumentRag: false,
+        message: "ไม่พบหลักฐานที่มีความเกี่ยวข้องเพียงพอ จึงงดให้ AI สรุป",
+      }, { headers: noStore });
+    }
+    return NextResponse.json({
+      mode: "local-grounded-draft-answer",
+      generatedAnswer: true,
+      draftOnly: true,
+      intent: "general-education",
+      safetyLevel: "education",
+      abstained: false,
+      answer: localResult.answer,
+      citations: localResult.citations,
+      evidencePassages: localResult.evidencePassages,
+      retrievalMethod: localResult.retrievalMethod,
+      fullDocumentRag: false,
+      reviewStatus: localResult.reviewStatus,
+      disclaimer: localResult.disclaimer,
+    }, { headers: noStore });
+  }
 
   try {
     const evidence = buildHealthEvidencePackage(validated.value.query);
