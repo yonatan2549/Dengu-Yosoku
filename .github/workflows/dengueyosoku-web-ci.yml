@@ -39,8 +39,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Compile model adapter scripts
-        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
+      - name: Compile model adapter and weekly history bridge scripts
+        run: python -m py_compile scripts/fetch_model_outputs.py scripts/convert_model_outputs.py scripts/build_tanrabad_current_model_inputs.py scripts/test_build_tanrabad_current_model_inputs.py scripts/merge_model_snapshot_history.py scripts/test_merge_model_snapshot_history.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
 
 
       - name: Set up Node.js
@@ -130,6 +130,11 @@ jobs:
       - name: Health knowledge RAG tests
         run: npm run test:health-knowledge-rag
 
+
+      - name: Snapshot actual-history bridge and MMWR contract tests
+        run: |
+          python -m unittest scripts.test_merge_model_snapshot_history -v
+          python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
 
       - name: Python model artifact and release regression tests
         run: |
