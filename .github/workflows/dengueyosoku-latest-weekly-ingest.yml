@@ -17,14 +17,14 @@ concurrency:
 
 jobs:
   inspect:
-    name: Download privately and inspect CSV structure
+    name: Download to ephemeral runner and inspect CSV structure
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out DengueYosoku
         uses: actions/checkout@v4
 
-      - name: Check whether the private Drive source is configured
+      - name: Check whether the Drive file ID is configured
         id: drive_secret
         shell: bash
         env:
