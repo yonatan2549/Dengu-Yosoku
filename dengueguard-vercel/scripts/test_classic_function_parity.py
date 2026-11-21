@@ -56,12 +56,14 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("selectedWeatherDays", self.prevention)
         self.assertIn("normalizeProvince(row.province)", self.prevention)
 
-    def test_supporting_popup_shows_next_week_forecast_and_remains_reopenable(self):
-        self.assertIn("getCurrentEpiWeekStart", self.popup)
-        self.assertIn("const nextWeek = addSevenDays(currentWeek);", self.popup)
+    def test_supporting_popup_shows_latest_snapshot_forecast_week_and_remains_reopenable(self):
+        self.assertIn('const forecastWeek = model?.coverage.forecast_week ?? "";', self.popup)
+        self.assertIn("formatEpiWeekLabel(forecastWeek)", self.popup)
         self.assertIn('className="floating-info-button"', self.popup)
-        self.assertIn("row.week_start === nextWeek", self.popup)
+        self.assertIn("row.week_start === forecastWeek", self.popup)
         self.assertIn("forecastRows.length === EXPECTED_PROVINCES", self.popup)
+        self.assertIn("ยังไม่มีข้อมูลผู้ป่วยจริงรายจังหวัด", self.popup)
+        self.assertNotIn("addSevenDays", self.popup)
         self.assertNotIn("isCurrentModelSnapshot", self.popup)
 
     def test_symptom_checker_validates_optional_lab_numbers_before_results(self):
