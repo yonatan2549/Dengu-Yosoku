@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: dengueyosoku-tanrabad-weekly-intake
+  group: dengueyosoku-tanrabad-weather-probe-v2
   cancel-in-progress: false
 
 jobs:
