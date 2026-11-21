@@ -28,7 +28,7 @@ const EMERGENCY_PATTERNS = [
   /อาเจียน(?:ต่อเนื่อง|ไม่หยุด|หลายครั้ง)|vomit(?:ing)? persistently|persistent vomiting/i,
   /(?:เลือดออกจาก(?:จมูก|เหงือก|ช่องคลอด|ทางเดินอาหาร)|เลือดออกตามไรฟัน|เลือดกำเดา|อาเจียนเป็นเลือด|ถ่าย(?:เป็น)?เลือด|เลือดในอาเจียน|เลือดในอุจจาระ|mucosal bleeding|blood in (?:vomit|stool)|nose or gum bleeding)/i,
   /หายใจ(?:เร็ว|ลำบาก|ไม่ออก)|หอบเหนื่อย|rapid breathing|respiratory distress|difficulty breathing/i,
-  /ซึมมาก|สับสน|ปลุกไม่ตื่น|กระสับกระส่ายมาก|ผิว(?:ซีด|เย็น)|ตัวเย็นซีด|cold clammy|altered mental status/i,
+  /ซึมมาก|สับสน|ปลุกไม่ตื่น|หมดสติ|ช็อก|shock|กระสับกระส่ายมาก|กระหายน้ำมาก|อ่อนแรงมาก|ผิว(?:ซีด|เย็น)|ตัวเย็นซีด|cold clammy|altered mental status/i,
 ];
 
 const PERSONAL_MEDICAL_PATTERNS = [
