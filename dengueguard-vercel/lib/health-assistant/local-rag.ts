@@ -287,7 +287,7 @@ export type LocalRagRunResult =
       abstained: true;
       reason: "no-evidence" | "answer-rejected";
       message: string;
-      evidencePassages: Array<{ id: string; section: string; content: string; sourceId: string; similarity: number }>;
+      evidencePassages: Array<{ chunkId: string; documentId: string; title: string; sectionLabel: string; text: string; publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string; similarity: number }>;
       retrievalMethod: "ollama-vector";
       fullDocumentRag: false;
     }
