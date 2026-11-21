@@ -336,9 +336,9 @@ export default function ModelDashboard() {
           <MapPinned size={20} />
         </div>
         <div className="map-legend" aria-label="คำอธิบายระดับตามเกณฑ์ทดลอง">
-          <span><i className="legend-dot normal" />ปกติ (&lt; P75)</span>
-          <span><i className="legend-dot watch" />เฝ้าระวัง (≥ P75)</span>
-          <span><i className="legend-dot high" />เตือนระบาด (≥ P90)</span>
+          <span><i className="legend-dot normal" />ปกติ · Draft (&lt; P75)</span>
+          <span><i className="legend-dot watch" />เฝ้าระวัง · Draft (≥ P75)</span>
+          <span><i className="legend-dot high" />เตือนระบาด · Draft (≥ P90)</span>
           <span><i className="legend-dot none" />ไม่มีเกณฑ์</span>
         </div>
         {mapGeo ? (

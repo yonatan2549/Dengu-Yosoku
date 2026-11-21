@@ -24,7 +24,7 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("<ModelDashboard />", self.dashboard)
 
     def test_validated_national_model_is_selected_by_default_without_effect_delay(self):
-        self.assertIn('useState<DashboardDatasetPreference>("auto")', self.dashboard)
+        self.assertIn('useState<DashboardDatasetPreference>("model")', self.dashboard)
         self.assertIn("resolveDashboardDatasetView(viewPreference, hasModel)", self.dashboard)
         self.assertNotIn("useEffect(", self.dashboard)
         self.assertIn("if (!data) return null", self.dashboard)
