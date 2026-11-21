@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Bot, BookOpen, LoaderCircle, MessageCircle, Send, ShieldAlert, Trash2 } from "lucide-react";
 
@@ -18,7 +18,7 @@ type EvidencePassage = {
   publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string;
 };
 type ChatTurn = { role: "user" | "assistant"; content: string };
-type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; evidenceOnly?: boolean };
+type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; evidenceOnly?: boolean; draftOnly?: boolean };
 
 const suggestions = [
   "ไข้เลือดออกติดต่อได้อย่างไร?",
@@ -32,6 +32,32 @@ export function HealthAssistantChatPanel() {
   const [turns, setTurns] = useState<DisplayTurn[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [runtime, setRuntime] = useState<{ generatedAnswersEnabled: boolean; model: string | null; message: string } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/health-assistant/chat", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("status unavailable");
+        return response.json();
+      })
+      .then((payload) => {
+        if (active) setRuntime({
+          generatedAnswersEnabled: payload?.generatedAnswersEnabled === true,
+          model: typeof payload?.model === "string" ? payload.model : null,
+          message: typeof payload?.message === "string" ? payload.message : "ยังไม่สามารถตรวจสอบสถานะ AI ได้",
+        });
+      })
+      .catch(() => {
+        if (active) setRuntime({
+          generatedAnswersEnabled: false,
+          model: null,
+          message: "ไม่สามารถตรวจสถานะ AI ได้ในขณะนี้ ระบบยังให้ค้นคืนหลักฐานได้",
+        });
+      });
+    return () => { active = false; };
+  }, []);
+
   const lastMessages = turns.slice(-8).map(({ role, content }) => ({ role, content }));
 
   function startNewConversation() {
@@ -74,6 +100,7 @@ export function HealthAssistantChatPanel() {
         disclaimer: typeof payload?.disclaimer === "string" ? payload.disclaimer : undefined,
         abstained: payload?.abstained === true,
         evidenceOnly: payload?.mode === "evidence-only" && payload?.abstained !== true,
+        draftOnly: payload?.draftOnly === true,
       }]);
     } catch {
       setError("ไม่สามารถเชื่อมต่อระบบถามตอบได้ กรุณาลองใหม่อีกครั้ง");
@@ -88,10 +115,10 @@ export function HealthAssistantChatPanel() {
         <div>
           <span className="dg-eyebrow"><MessageCircle size={14} /> GROUNDED CONVERSATIONAL ASSISTANT</span>
           <h2 id="health-assistant-chat-title">ถาม–ตอบความรู้ไข้เลือดออก</h2>
-          <p>ค้นคืนเอกสารและประเด็นที่เกี่ยวข้อง พร้อมเปิดอ่านต้นฉบับได้ โดยไม่สังเคราะห์คำตอบทางการแพทย์ด้วย AI</p>
+          <p>ถามความรู้ทั่วไปเกี่ยวกับไข้เลือดออก พร้อมค้นหลักฐานและแสดงแหล่งอ้างอิงที่ใช้ประกอบคำตอบ</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="dg-pill dg-pill-muted">Evidence-only · Production</span>
+          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบ AI…" : runtime.generatedAnswersEnabled ? `AI Preview · ${runtime.model ?? "Draft only"}` : "Evidence-only · Production"}</span>
           <button type="button" className="dg-chip" onClick={startNewConversation} disabled={busy || turns.length === 0} aria-label="เริ่มบทสนทนาใหม่">
             <Trash2 size={14} /> เริ่มบทสนทนาใหม่
           </button>
@@ -100,7 +127,7 @@ export function HealthAssistantChatPanel() {
 
       <div className="dg-note" style={{ marginTop: 14 }}>
         <ShieldAlert size={18} />
-        <div><strong>โหมดค้นคืนหลักฐาน</strong><div>ระบบแสดงเอกสารและประเด็นจากคลังความรู้ ยังไม่สร้างคำตอบด้วย AI เพราะแหล่งความรู้รอผู้เชี่ยวชาญทบทวน ระบบไม่รับผลตรวจส่วนบุคคล ไม่วินิจฉัย และไม่แนะนำยา หากมีอาการรุนแรงให้ไปโรงพยาบาลโดยไม่รอแชต</div></div>
+        <div><strong>{runtime?.generatedAnswersEnabled ? "AI Preview · คำตอบร่างเพื่อการศึกษา" : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ระบบใช้เอกสารในคลังที่ยังรอผู้เชี่ยวชาญทบทวน จึงไม่ใช่คำแนะนำทางคลินิก ระบบไม่รับผลตรวจส่วนบุคคล ไม่วินิจฉัย และไม่แนะนำยา หากมีอาการรุนแรงให้ไปโรงพยาบาลโดยไม่รอแชต</div></div>
       </div>
 
       <div aria-live="polite" style={{ display: "grid", gap: 12, marginTop: 18 }}>
@@ -111,6 +138,7 @@ export function HealthAssistantChatPanel() {
               {turn.role === "assistant" ? "DengueYosoku Assistant" : "คุณ"}
               {turn.evidenceOnly && <span className="dg-pill dg-pill-muted">แสดงหลักฐานเท่านั้น</span>}
               {turn.abstained && <span className="dg-pill dg-pill-muted">งดตอบเพื่อความปลอดภัย</span>}
+              {turn.draftOnly && <span className="dg-pill dg-pill-muted">AI draft · รอทบทวนทางคลินิก</span>}
             </div>
             <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{turn.content}</div>
             {turn.citations && turn.citations.length > 0 && (
@@ -177,7 +205,7 @@ export function HealthAssistantChatPanel() {
           <Send size={16} /> ส่ง
         </button>
       </form>
-      <div className="dg-source-meta" style={{ marginTop: 9 }}>บทสนทนาเก็บไว้ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูล เมื่อปิดหรือโหลดหน้าใหม่ ประวัติจะหายไป · โหมดนี้ใช้ค้นหลักฐาน ไม่ใช่คำตอบที่สร้างโดย AI</div>
+      <div className="dg-source-meta" style={{ marginTop: 9 }}>บทสนทนาเก็บไว้ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูล เมื่อปิดหรือโหลดหน้าใหม่ ประวัติจะหายไป · AI Preview แสดงเฉพาะร่างเพื่อการศึกษา ไม่ใช่คำแนะนำทางการแพทย์ และ Production ยังคง Evidence-only</div>
     </section>
   );
 }
