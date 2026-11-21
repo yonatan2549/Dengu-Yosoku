@@ -9,6 +9,11 @@ on:
       - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
       - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
       - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
+      - "dengueguard-vercel/scripts/prepare_current_model_snapshot.py"
+      - "dengueguard-vercel/scripts/test_prepare_current_model_snapshot.py"
+      - "dengueguard-vercel/scripts/convert_model_outputs.py"
+      - "dengueguard-vercel/scripts/build_tanrabad_current_model_inputs.py"
+      - "dengueguard-vercel/scripts/test_build_tanrabad_current_model_inputs.py"
 
 permissions:
   contents: write
@@ -16,7 +21,7 @@ permissions:
 
 concurrency:
   group: dengueyosoku-tanrabad-weather-probe-v2
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   inspect:
