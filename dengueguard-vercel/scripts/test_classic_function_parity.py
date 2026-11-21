@@ -43,7 +43,9 @@ class ClassicFunctionParityTests(unittest.TestCase):
 
     def test_prevention_auto_selects_only_a_current_model_and_keeps_manual_review(self):
         self.assertIn('useState<DashboardDatasetPreference>("auto")', self.prevention)
-        self.assertIn("resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek)", self.prevention)
+        self.assertIn("const isApprovedModel = data.modelPredictions?.release_status === \"approved\"", self.prevention)
+        self.assertIn("resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek, isApprovedModel)", self.prevention)
+        self.assertIn("Snapshot 77 จังหวัดนี้ยังเป็น Review-only", self.prevention)
         self.assertNotIn("useEffect(", self.prevention)
         self.assertIn("disabled={!hasModel}", self.prevention)
 
