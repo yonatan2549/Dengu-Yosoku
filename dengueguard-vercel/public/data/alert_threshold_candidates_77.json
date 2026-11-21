@@ -972,12 +972,17 @@
       {
         "id": "temporal-split",
         "status": "pass_with_limitations",
-        "detail": "Fit P75/P90 on the first 18 weeks and checked exceedance frequency on the final 8 weeks; this is frequency calibration, not outbreak classification accuracy."
+        "detail": "First 18 weeks fit, final 8 weeks evaluate threshold exceedance and forecast-vs-persistence confusion matrices."
       },
       {
         "id": "leave-one-week-out",
         "status": "pass_with_limitations",
         "detail": "Recomputed P75/P90 after omitting each of the 26 weeks to quantify small-sample sensitivity."
+      },
+      {
+        "id": "prediction-vs-persistence",
+        "status": "warning",
+        "detail": "Model forecast micro-F1 is below persistence at both Watch and Alert; macro Alert recall is 9.3% versus 15.7% for persistence."
       }
     ],
     "fallback_count": 3,
@@ -1151,9 +1156,10 @@
     "limitations": [
       "Only 26 weeks are available in the current model holdout (about six months), not a full 52-week seasonal cycle.",
       "Thresholds are absolute weekly case counts and do not adjust for provincial population size, testing volume, reporting completeness, or outbreak context.",
-      "Temporal split rates are exceedance frequencies, not sensitivity, specificity, positive predictive value, or proof of outbreak detection.",
       "The underlying model snapshot is review_only and targets 2026-11-15; it is stale for the epidemiological week beginning 2026-11-22.",
-      "An automated quantitative review is not an independent epidemiologist's sign-off or clinical approval."
+      "An automated quantitative review is not an independent epidemiologist's sign-off or clinical approval.",
+      "Temporal split confusion matrices measure prediction of a statistical threshold exceedance, not sensitivity/specificity for disease outbreak detection or clinical diagnosis.",
+      "On the 8-week temporal validation, model forecast micro-F1 is lower than persistence for Watch (0.598 vs 0.616) and Alert (0.531 vs 0.606); macro Alert recall is 0.093 vs 0.157 for persistence."
     ]
   }
 }
