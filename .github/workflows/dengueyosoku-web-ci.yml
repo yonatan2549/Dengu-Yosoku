@@ -106,6 +106,9 @@ jobs:
       - name: Health Assistant chat tests
         run: npm run test:health-assistant-chat
 
+      - name: Health Assistant request body size tests
+        run: npm run test:health-assistant-request-body
+
       - name: Model temporal monitor tests
         run: npm run test:model-temporal-monitor
 
