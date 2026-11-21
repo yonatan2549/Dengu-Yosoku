@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - feature/dengueguard-improvements
+      - integration/phase9-12-final-review
+      - feature/health-assistant-real-ai
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
@@ -11,6 +13,7 @@ on:
     branches:
       - main
       - feature/dengueguard-improvements
+      - integration/phase9-12-final-review
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
