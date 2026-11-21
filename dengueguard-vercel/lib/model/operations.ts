@@ -3,6 +3,7 @@ export type ModelOperationsStatus = "ready" | "stale" | "blocked";
 export interface ModelOperationsInput {
   predictions: {
     schema_version?: number;
+    release_status?: "review_only" | "approved";
     model_name?: string;
     source_repository?: string;
     model_revision?: string | null;
@@ -175,6 +176,21 @@ export function evaluateModelOperations(input: ModelOperationsInput): ModelOpera
     "Model Revision",
     revisionMatch ? "pass" : "blocked",
     revisionMatch ? `Revision ${predictionRevision?.slice(0, 12)}… ตรงกับ Metrics และเป็น Commit SHA 40 ตัวอักษร` : "Model Revision ของ Predictions และ Metrics ต้องเป็น Commit SHA 40 ตัวอักษรและตรงกัน",
+  );
+
+  const requiresExplicitReleaseStatus = (predictions.schema_version ?? 0) >= 3;
+  const releaseApproved = !requiresExplicitReleaseStatus || predictions.release_status === "approved";
+  add(
+    "release-approval",
+    "สถานะการอนุมัติ Model Snapshot",
+    releaseApproved ? "pass" : "blocked",
+    !requiresExplicitReleaseStatus
+      ? "Snapshot รุ่นเดิมไม่มี release approval field; ใช้กติกาเดิม"
+      : predictions.release_status === "review_only"
+        ? "Snapshot เป็น Review-only: แสดงบน Dashboard ได้ แต่ยังไม่พร้อมใช้กับ Alert"
+        : releaseApproved
+          ? "Snapshot ผ่านสถานะอนุมัติ"
+          : "ไม่พบการอนุมัติสำหรับ Snapshot รุ่นนี้",
   );
 
   const predictionRepository = predictions.source_repository?.trim() || null;
