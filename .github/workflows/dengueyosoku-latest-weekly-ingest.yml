@@ -11,7 +11,8 @@ on:
       - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
 
 permissions:
-  contents: read
+  contents: write
+  actions: write
 
 concurrency:
   group: dengueyosoku-tanrabad-weather-probe-v2
@@ -1027,7 +1028,21 @@ jobs:
             --rounds 400,600,800 \
             --require-current
 
-      - name: Upload validated intake and experimental model artifacts
+      - name: Prepare review-only model files for the national Dashboard
+        if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dengueguard-vercel
+          python -m py_compile scripts/convert_model_outputs.py scripts/prepare_current_model_snapshot.py scripts/test_prepare_current_model_snapshot.py
+          python -m unittest scripts.test_prepare_current_model_snapshot -v
+          python scripts/prepare_current_model_snapshot.py \
+            --artifact-dir "$RUNNER_TEMP/phase13-current-model-review" \
+            --output-dir "$RUNNER_TEMP/dashboard-model-snapshot" \
+            --model-revision "$GITHUB_SHA" \
+            --training-run-id "$GITHUB_RUN_ID"
+
+      - name: Upload validated intake, model review and Dashboard snapshot artifacts
         if: ${{ always() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/upload-artifact@v4
         with:
@@ -1049,6 +1064,9 @@ jobs:
             ${{ runner.temp }}/phase13-current-model-review/holdout_predictions.csv
             ${{ runner.temp }}/phase13-current-model-review/predictions.csv
             ${{ runner.temp }}/phase13-current-model-review/model.txt
+            ${{ runner.temp }}/dashboard-model-snapshot/public/data/model_predictions.json
+            ${{ runner.temp }}/dashboard-model-snapshot/public/data/model_metrics.json
+            ${{ runner.temp }}/dashboard-model-snapshot/model-snapshot-preparation-report.json
             ${{ runner.temp }}/openmeteo-weather/openmeteo_weather_compatibility.json
             ${{ runner.temp }}/openmeteo-weather/openmeteo_weekly_weather_candidates.csv
             ${{ runner.temp }}/case-only-experiment/experimental_case_only_metrics.json
@@ -1058,9 +1076,112 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Commit review-only Dashboard snapshot to integration branch
+        if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
+        uses: actions/github-script@v7
+        env:
+          SNAPSHOT_DIRECTORY: ${{ runner.temp }}/dashboard-model-snapshot/public/data
+          EXPECTED_BRANCH: integration/phase9-12-final-review
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const branch = context.ref.replace(/^refs\/heads\//, "");
+            if (branch !== process.env.EXPECTED_BRANCH) {
+              core.setFailed(`Refusing to write model files to unexpected branch: ${branch}`);
+              return;
+            }
+
+            const files = [
+              "model_predictions.json",
+              "model_metrics.json",
+            ];
+            const baseRef = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${branch}`,
+            });
+            const parentSha = baseRef.data.object.sha;
+            const treeItems = [];
+
+            for (const fileName of files) {
+              const repoPath = `dengueguard-vercel/public/data/${fileName}`;
+              const localPath = path.join(process.env.SNAPSHOT_DIRECTORY, fileName);
+              if (!fs.existsSync(localPath)) {
+                core.setFailed(`Required review-only snapshot file is missing: ${localPath}`);
+                return;
+              }
+              const payload = fs.readFileSync(localPath);
+              let unchanged = false;
+              try {
+                const existing = await github.rest.repos.getContent({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: repoPath,
+                  ref: branch,
+                });
+                if (!Array.isArray(existing.data) && existing.data.type === "file" && existing.data.encoding === "base64") {
+                  unchanged = Buffer.from(existing.data.content.replace(/\n/g, ""), "base64").equals(payload);
+                }
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              if (unchanged) {
+                core.info(`No content change for ${repoPath}`);
+                continue;
+              }
+              const blob = await github.rest.git.createBlob({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                content: payload.toString("base64"),
+                encoding: "base64",
+              });
+              treeItems.push({
+                path: repoPath,
+                mode: "100644",
+                type: "blob",
+                sha: blob.data.sha,
+              });
+            }
+
+            if (treeItems.length) {
+              const tree = await github.rest.git.createTree({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                base_tree: parentSha,
+                tree: treeItems,
+              });
+              const commit = await github.rest.git.createCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                message: `Add review-only 77-province model snapshot from run ${context.runId}`,
+                tree: tree.data.sha,
+                parents: [parentSha],
+              });
+              await github.rest.git.updateRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branch}`,
+                sha: commit.data.sha,
+                force: false,
+              });
+              core.setOutput("snapshot_commit", commit.data.sha);
+              core.info(`Committed review-only model snapshot: ${commit.data.sha}`);
+            } else {
+              core.info("Dashboard snapshot files already match the current branch.");
+            }
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "dengueyosoku-web-ci.yml",
+              ref: branch,
+            });
+            core.info("Dispatched web CI to validate the branch containing the Dashboard snapshot.");
+
       - name: Confirm intake audit and research preview status
         if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
-        run: echo "TanRabad panel, 52-week Open-Meteo weather equivalence, original Phase 13 12-feature current-model preview and separate case-only research experiment completed. All model artifacts remain review-only; no public website data or deployment was changed."
+        run: echo "TanRabad panel, 52-week Open-Meteo weather equivalence, original Phase 13 12-feature model and review-only Dashboard snapshot completed. Alert eligibility remains blocked; no Production deployment was triggered."
 
 # Re-trigger intake after the repository Drive secret was configured (2026-11-21).
 
