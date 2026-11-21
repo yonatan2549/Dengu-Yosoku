@@ -10,6 +10,7 @@ export interface DraftSourcePolicyReport {
   sourceCount: number;
   passageCount: number;
   pendingClinicalReview: number;
+  projectApprovalFailures: number;
   note: string;
 }
 
@@ -19,6 +20,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidIsoDate(value: unknown): boolean {
+  if (!nonEmpty(value) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function hasAcademicDemoApproval(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return value.status === "approved" &&
+    value.scope === "academic-demonstration-only" &&
+    value.approvedBy === "project-owner" &&
+    isValidIsoDate(value.approvedAt);
 }
 
 function isHttpsUrl(value: unknown): value is string {
@@ -50,6 +65,7 @@ export function evaluateDraftSourcePolicy(
   let duplicateIds = 0;
   let invalidSourceMetadata = 0;
   let pendingClinicalReview = 0;
+  let projectApprovalFailures = 0;
 
   if (sources.length === 0) {
     add("sources-present", "blocked", "ไม่มีเอกสารหลักฐานให้ตรวจสอบ");
@@ -71,6 +87,7 @@ export function evaluateDraftSourcePolicy(
       (raw.reviewStatus === "awaiting_clinical_review" || raw.reviewStatus === "clinically_reviewed");
     if (!metadataValid) invalidSourceMetadata += 1;
     if (raw.reviewStatus === "awaiting_clinical_review") pendingClinicalReview += 1;
+    if (!hasAcademicDemoApproval(raw.projectApproval)) projectApprovalFailures += 1;
   }
 
   add("unique-source-ids", duplicateIds === 0 ? "pass" : "blocked",
@@ -79,6 +96,11 @@ export function evaluateDraftSourcePolicy(
     invalidSourceMetadata === 0
       ? "ชื่อ ผู้เผยแพร่ วันที่ URL HTTPS และสถานะทบทวนครบ"
       : `พบเอกสารที่ Metadata ไม่ครบหรือไม่ถูกต้อง ${invalidSourceMetadata} รายการ`);
+
+  add("project-owner-approval", projectApprovalFailures === 0 ? "pass" : "blocked",
+    projectApprovalFailures === 0
+      ? "ทุกเอกสารได้รับอนุมัติจากเจ้าของโครงการสำหรับการศึกษา/สาธิตเท่านั้น"
+      : `พบเอกสารที่ไม่มีการอนุมัติเพื่อการศึกษา/สาธิตครบถ้วน ${projectApprovalFailures} รายการ`);
 
   let invalidPassages = 0;
   for (const raw of passages) {
@@ -113,13 +135,15 @@ export function evaluateDraftSourcePolicy(
     add("clinical-review", "blocked", "ยังไม่มีเอกสารให้ตรวจสถานะทบทวน");
   }
 
-  const allowed = sources.length > 0 && duplicateIds === 0 && invalidSourceMetadata === 0 && invalidPassages === 0;
+  const allowed = sources.length > 0 && duplicateIds === 0 &&
+    invalidSourceMetadata === 0 && invalidPassages === 0 && projectApprovalFailures === 0;
   return {
     allowed,
     checks,
     sourceCount: sources.length,
     passageCount: passages.length,
     pendingClinicalReview,
+    projectApprovalFailures,
     note: "Source Policy ตรวจเฉพาะความครบถ้วนและความเชื่อมโยงของ Metadata ไม่ได้รับรองความถูกต้องทางคลินิก และไม่อนุญาตให้เปิด Production AI",
   };
 }
