@@ -18,8 +18,8 @@ export default function HealthAssistantPage() {
       <ProductHero
         eyebrow="DENGUE HEALTH COMPANION · GROUNDED KNOWLEDGE"
         title="ผู้ช่วยความรู้ไข้เลือดออก"
-        description="ค้นคืนเอกสารความรู้ด้านโรค อาการ การป้องกัน และห้องปฏิบัติการ พร้อมแสดงประเด็นที่เกี่ยวข้องและลิงก์ต้นฉบับให้ตรวจสอบได้"
-        status="พร้อมค้นคืนหลักฐาน · ยังไม่เปิดการสร้างคำตอบด้วย AI"
+        description="สนทนาความรู้ทั่วไปโดยใช้ AI ใน Preview พร้อมค้นคืนหลักฐาน แสดงแหล่งอ้างอิง และคงมาตรการความปลอดภัยสำหรับคำถามสุขภาพ"
+        status="AI Preview แบบ Draft · Production Evidence-only"
         statusTone="warning"
         icon={Bot}
         stats={[
