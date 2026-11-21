@@ -190,6 +190,7 @@ export default function ModelDashboard() {
   if (!model) return null;
   const mapGeo = data?.thailandGeo ?? null;
 
+  const forecastProvinceCount = new Set(model.forecast.map((row) => row.province)).size;
   const totalPrediction = sum(selectedRows.map((row) => row.prediction));
   const totalActual = selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
     ? sum(selectedRows.map((row) => row.actualCases))
@@ -204,7 +205,7 @@ export default function ModelDashboard() {
         <div>
           <div className="eyebrow">NATIONAL DENGUE FORECAST · 77 PROVINCES</div>
           <h1>ภาพรวมผลพยากรณ์ไข้เลือดออกทั่วประเทศ</h1>
-          <p>ข้อมูล DenguYosoku LightGBM ประกอบด้วย Holdout ย้อนหลัง {model.coverage.history_week_count} สัปดาห์ และ Forecast เป้าหมาย {formatWeek(forecastWeek)} ไม่ใช่ข้อมูลเฝ้าระวังแบบเรียลไทม์</p>
+          <p>ข้อมูล DenguYosoku LightGBM มีผลพยากรณ์ครบ <strong>{forecastProvinceCount}/77 จังหวัด</strong> พร้อม Holdout ย้อนหลัง {model.coverage.history_week_count} สัปดาห์ และ Forecast เป้าหมาย {formatWeek(forecastWeek)} ไม่ใช่ข้อมูลเฝ้าระวังแบบเรียลไทม์</p>
         </div>
         <button
           className="button button-secondary"
@@ -383,7 +384,7 @@ export default function ModelDashboard() {
         <div className="panel-heading">
           <div>
             <h2>{isForecastWeek ? "ผลพยากรณ์รายจังหวัด" : "ผล Holdout รายจังหวัด"}</h2>
-            <p>เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
+            <p>{isForecastWeek ? `ผลพยากรณ์ ${displayRows.length}/77 จังหวัด` : `ข้อมูล Holdout ${displayRows.length}/77 จังหวัด`} · เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
           </div>
         </div>
         <div className="table-toolbar">
