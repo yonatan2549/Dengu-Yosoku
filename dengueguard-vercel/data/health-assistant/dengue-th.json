@@ -1,0 +1,165 @@
+{
+  "schemaVersion": 1,
+  "datasetId": "dengueyosoku-health-th-v1-2026-11-21",
+  "language": "th",
+  "createdAt": "2026-11-21",
+  "description": "ชุดความรู้ภาษาไทยที่เรียบเรียงใหม่จากแหล่งสาธารณสุขทางการสำหรับสาธิต Local RAG ไม่ใช่เอกสารฉบับเต็ม และยังรอผู้เชี่ยวชาญทางคลินิกทบทวน",
+  "sources": [
+    {
+      "id": "who-dengue-fact-sheet-2025",
+      "title": "Dengue",
+      "publisher": "World Health Organization",
+      "publishedAt": "2025-08-21",
+      "sourceType": "Public health fact sheet",
+      "sourceUrl": "https://www.who.int/news-room/fact-sheets/detail/dengue-and-severe-dengue",
+      "checkedAt": "2026-11-21",
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-clinical-features-2025",
+      "title": "Clinical Features of Dengue",
+      "publisher": "US Centers for Disease Control and Prevention",
+      "publishedAt": "2025-05-15",
+      "sourceType": "Clinical features guidance for healthcare providers",
+      "sourceUrl": "https://www.cdc.gov/dengue/hcp/clinical-signs/index.html",
+      "checkedAt": "2026-11-21",
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-clinical-care-2026",
+      "title": "Clinical Care of Dengue",
+      "publisher": "US Centers for Disease Control and Prevention",
+      "publishedAt": "2026-04-15",
+      "sourceType": "Clinical care guidance for healthcare providers",
+      "sourceUrl": "https://www.cdc.gov/dengue/hcp/clinical-care/",
+      "checkedAt": "2026-11-21",
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-dengue-testing-2025",
+      "title": "Clinical Testing Guidance for Dengue",
+      "publisher": "US Centers for Disease Control and Prevention",
+      "publishedAt": "2025-08-26",
+      "sourceType": "Laboratory testing guidance for healthcare providers",
+      "sourceUrl": "https://www.cdc.gov/dengue/hcp/diagnosis-testing/index.html",
+      "checkedAt": "2026-11-21",
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "ddc-dengue-guidelines-index-2026",
+      "title": "แนวทางและคู่มือปฏิบัติงานโรคไข้เลือดออก",
+      "publisher": "กรมควบคุมโรค กระทรวงสาธารณสุข",
+      "publishedAt": "หน้าแหล่งรวมเอกสาร ปรับปรุง 2026-11-20",
+      "sourceType": "Thai national guidelines directory",
+      "sourceUrl": "https://ddc.moph.go.th/dvb/pagecontent.php?dept=dvb164&page=17",
+      "checkedAt": "2026-11-21",
+      "reviewStatus": "awaiting_clinical_review"
+    }
+  ],
+  "chunks": [
+    {
+      "id": "who-basics-transmission-th-01",
+      "sourceId": "who-dengue-fact-sheet-2025",
+      "section": "สาเหตุและการติดต่อ",
+      "content": "โรคไข้เลือดออกเดงกีเกิดจากการติดเชื้อไวรัสเดงกี (DENV) และแพร่สู่คนเป็นหลักผ่านการกัดของยุงตัวเมียที่มีเชื้อ โดยยุงลายบ้าน Aedes aegypti เป็นพาหะสำคัญ การติดเชื้อเดงกีเป็นโรคจากไวรัส ไม่ใช่โรคจากแบคทีเรีย น้ำเสีย หรือการสัมผัสใกล้ชิดกับผู้ป่วยตามปกติ",
+      "keywords": ["สาเหตุ", "ไวรัสเดงกี", "DENV", "ยุงลาย", "ติดต่อ", "แพร่เชื้อ", "ไข้เหลือง"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "who-symptoms-th-02",
+      "sourceId": "who-dengue-fact-sheet-2025",
+      "section": "อาการทั่วไป",
+      "content": "ผู้ติดเชื้อเดงกีบางรายไม่มีอาการ ส่วนผู้ที่มีอาการอาจมีไข้สูง ปวดศีรษะ ปวดกระบอกตา ปวดกล้ามเนื้อและข้อต่อ คลื่นไส้ อาเจียน ต่อมน้ำเหลืองโต หรือมีผื่น อาการมักเริ่มประมาณ 4–10 วันหลังติดเชื้อและอาจอยู่ราว 2–7 วัน ข้อมูลนี้เป็นภาพรวม ไม่ใช้วินิจฉัยรายบุคคล",
+      "keywords": ["อาการ", "ไข้สูง", "ปวดศีรษะ", "ปวดกระบอกตา", "ปวดกล้ามเนื้อ", "ผื่น", "คลื่นไส้"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "who-severe-signs-th-03",
+      "sourceId": "who-dengue-fact-sheet-2025",
+      "section": "อาการรุนแรงที่ต้องรีบพบแพทย์",
+      "content": "อาการของไข้เลือดออกที่รุนแรงอาจเกิดหลังไข้ลดลงได้ สัญญาณที่ WHO ยกตัวอย่าง ได้แก่ ปวดท้องรุนแรง อาเจียนต่อเนื่อง หายใจเร็ว เลือดออกตามไรฟันหรือจมูก มีเลือดในอาเจียนหรืออุจจาระ อ่อนเพลียหรือกระสับกระส่ายมาก กระหายน้ำมาก ผิวซีดเย็น หรือรู้สึกอ่อนแรงมาก หากพบอาการรุนแรงดังกล่าวควรเข้ารับการรักษาทันที",
+      "keywords": ["อาการเตือน", "อาการรุนแรง", "ปวดท้อง", "อาเจียนต่อเนื่อง", "หายใจเร็ว", "เลือดออก", "ไข้ลด", "ผิวซีด"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "who-prevent-bites-th-04",
+      "sourceId": "who-dengue-fact-sheet-2025",
+      "section": "ป้องกันยุงกัด",
+      "content": "ยุงที่แพร่เชื้อไข้เลือดออกออกหากินในเวลากลางวัน การลดโอกาสถูกยุงกัดทำได้โดยสวมเสื้อผ้าที่ปกปิดผิวหนัง ใช้มุ้งหรือมุ้งลวด และใช้ผลิตภัณฑ์ไล่ยุงที่มี DEET, Picaridin หรือ IR3535 ตามฉลากผลิตภัณฑ์ โดยเฉพาะเมื่อต้องอยู่ในพื้นที่เสี่ยง",
+      "keywords": ["ป้องกัน", "ยุงกัด", "กลางวัน", "DEET", "Picaridin", "IR3535", "มุ้ง", "มุ้งลวด"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "who-prevent-breeding-th-05",
+      "sourceId": "who-dengue-fact-sheet-2025",
+      "section": "กำจัดแหล่งเพาะพันธุ์",
+      "content": "การป้องกันยุงแพร่พันธุ์ควรจัดการภาชนะหรือสิ่งของที่มีน้ำขัง กำจัดแหล่งน้ำขังที่ไม่จำเป็น ทิ้งขยะอย่างเหมาะสม และปิดฝา เทน้ำทิ้งพร้อมทำความสะอาดภาชนะเก็บน้ำในบ้านเป็นประจำทุกสัปดาห์ การใช้สารกำจัดลูกน้ำหรือสารเคมีต้องทำตามคำแนะนำของหน่วยงานสาธารณสุขและฉลากผลิตภัณฑ์",
+      "keywords": ["แหล่งเพาะพันธุ์", "น้ำขัง", "ภาชนะเก็บน้ำ", "ปิดฝา", "เทน้ำ", "ล้าง", "ลูกน้ำ", "ป้องกัน"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-phases-th-06",
+      "sourceId": "cdc-clinical-features-2025",
+      "section": "ระยะของโรค",
+      "content": "แนวทาง CDC อธิบายการดำเนินโรคไข้เลือดออกเป็น 3 ระยะ ได้แก่ ระยะไข้ ระยะวิกฤต และระยะฟื้นตัว โดยไข้มักอยู่ประมาณ 2–7 วัน ระยะวิกฤตมักเริ่มในช่วงไข้ลดลงและมักกินเวลาประมาณ 24–48 ชั่วโมง สัญญาณเตือนอาจเกิดในช่วงปลายระยะไข้ใกล้เวลาที่ไข้ลด จึงไม่ควรสรุปว่าปลอดภัยเพียงเพราะไข้ลดแล้ว",
+      "keywords": ["ระยะโรค", "ระยะไข้", "ระยะวิกฤต", "ระยะฟื้นตัว", "ไข้ลด", "24–48 ชั่วโมง"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-warning-signs-th-07",
+      "sourceId": "cdc-clinical-care-2026",
+      "section": "สัญญาณเตือนทางคลินิก",
+      "content": "CDC ระบุสัญญาณเตือนของไข้เลือดออก ได้แก่ ปวดท้องรุนแรงหรือกดเจ็บ อาเจียนต่อเนื่อง มีสารน้ำคั่งในช่องต่าง ๆ ของร่างกาย เลือดออกจากเยื่อบุ เช่น เหงือกหรือจมูก ระดับความรู้สึกตัวเปลี่ยน เช่น หงุดหงิดหรือซึม และตับโต ส่วนแนวโน้มฮีมาโตคริตที่เพิ่มขึ้นต่อเนื่องเป็นข้อมูลที่บุคลากรทางการแพทย์ต้องประเมินร่วมกับอาการและการตรวจซ้ำ",
+      "keywords": ["สัญญาณเตือน", "ปวดท้อง", "อาเจียน", "เลือดออก", "ซึม", "กระสับกระส่าย", "ฮีมาโตคริต", "hematocrit"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-persistent-vomiting-th-08",
+      "sourceId": "cdc-clinical-care-2026",
+      "section": "ความหมายของอาเจียนต่อเนื่อง",
+      "content": "ในแนวทาง CDC สำหรับบุคลากรสุขภาพ ตัวอย่างเกณฑ์อาเจียนต่อเนื่องคืออาเจียนอย่างน้อย 3 ครั้งใน 1 ชั่วโมง หรืออย่างน้อย 4 ครั้งใน 6 ชั่วโมง ตัวเลขนี้เป็นส่วนหนึ่งของเกณฑ์ทางคลินิก ไม่ใช่เครื่องมือให้ประชาชนรอจนถึงจำนวนดังกล่าวก่อนขอความช่วยเหลือ หากอาเจียนมากหรือมีอาการน่ากังวลควรรับการประเมินทางการแพทย์",
+      "keywords": ["อาเจียนต่อเนื่อง", "อาเจียนหลายครั้ง", "3 ครั้ง", "4 ครั้ง", "เกณฑ์ CDC"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-severe-dengue-th-09",
+      "sourceId": "cdc-clinical-features-2025",
+      "section": "ภาวะไข้เลือดออกรุนแรง",
+      "content": "CDC จัดภาวะไข้เลือดออกรุนแรงเมื่อมีอย่างน้อยหนึ่งภาวะ ได้แก่ พลาสมารั่วรุนแรงจนเกิดช็อกหรือมีสารน้ำคั่งร่วมกับภาวะหายใจลำบาก เลือดออกรุนแรง หรืออวัยวะทำงานผิดปกติรุนแรง เช่น ตับ ระบบประสาทส่วนกลาง หรือหัวใจ การจำแนกระดับความรุนแรงเป็นหน้าที่ของบุคลากรทางการแพทย์ ไม่ควรประเมินด้วยแชตบอต",
+      "keywords": ["ไข้เลือดออกรุนแรง", "ช็อก", "พลาสมารั่ว", "เลือดออกรุนแรง", "อวัยวะ", "หายใจลำบาก"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-test-acute-th-10",
+      "sourceId": "cdc-dengue-testing-2025",
+      "section": "การตรวจช่วง 0–7 วันแรก",
+      "content": "แนวทาง CDC สำหรับการตรวจทางห้องปฏิบัติการในช่วง 0–7 วันหลังเริ่มมีอาการ ระบุชุดการตรวจที่บุคลากรสุขภาพอาจเลือกใช้ ได้แก่ NAAT เช่น RT-PCR ร่วมกับการตรวจแอนติบอดี IgM หรือการตรวจแอนติเจน NS1 ร่วมกับ IgM การเลือกตรวจขึ้นกับวันเริ่มอาการและบริบทของผู้ป่วย ไม่ควรใช้ข้อมูลนี้เลือกตรวจหรือวินิจฉัยตนเอง",
+      "keywords": ["ตรวจไข้เลือดออก", "0–7 วัน", "NS1", "NAAT", "PCR", "IgM", "ตรวจเลือด"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-test-negative-th-11",
+      "sourceId": "cdc-dengue-testing-2025",
+      "section": "ข้อจำกัดผลตรวจระยะเฉียบพลัน",
+      "content": "CDC ระบุว่าผล NAAT หรือ NS1 ที่เป็นลบไม่ได้ตัดความเป็นไปได้ของการติดเชื้อเดงกีโดยสิ้นเชิง การแปลผลต้องพิจารณาวันเริ่มอาการ ชนิดตัวอย่าง วิธีตรวจ และข้อมูลทางคลินิกโดยบุคลากรสุขภาพ จึงไม่ควรใช้ผลตรวจลบเพียงครั้งเดียวสรุปว่าปลอดภัย",
+      "keywords": ["NS1 ลบ", "PCR ลบ", "NAAT ลบ", "ผลตรวจลบ", "ข้อจำกัด", "แปลผล"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "cdc-test-after-seven-days-th-12",
+      "sourceId": "cdc-dengue-testing-2025",
+      "section": "การตรวจหลังวันที่ 7",
+      "content": "เมื่อเกิน 7 วันหลังเริ่มมีอาการ CDC แนะนำให้พิจารณาการตรวจ IgM เป็นการตรวจหลักในระยะหลังของโรค ส่วนการตรวจ IgG จากตัวอย่างเลือดเพียงครั้งเดียวไม่แนะนำให้ใช้วินิจฉัยการติดเชื้อเดงกีเฉียบพลัน เพราะอาจตรวจพบแอนติบอดีจากการติดเชื้อเดิมหรือ flavivirus อื่น การเลือกและตีความผลตรวจเป็นหน้าที่ของบุคลากรสุขภาพ",
+      "keywords": ["หลัง 7 วัน", "IgM", "IgG", "แอนติบอดี", "ผลตรวจ", "flavivirus"],
+      "reviewStatus": "awaiting_clinical_review"
+    },
+    {
+      "id": "ddc-resource-directory-th-13",
+      "sourceId": "ddc-dengue-guidelines-index-2026",
+      "section": "แหล่งแนวทางของประเทศไทย",
+      "content": "กรมควบคุมโรค กระทรวงสาธารณสุขมีหน้ารวมแนวทางและคู่มือปฏิบัติงานโรคไข้เลือดออก ซึ่งแสดงรายการเอกสารด้านการดูแลผู้ป่วย การเฝ้าระวัง และการควบคุมยุงลาย รวมถึงรายการทรัพยากรที่ปรับปรุงในปี 2569 เนื่องจากรายการเอกสารมีหลายฉบับและหลายปี ต้องเปิดต้นฉบับตรวจวันเผยแพร่และขอบเขตก่อนนำคำแนะนำไปใช้ ห้ามใช้ชื่อหน้ารวมนี้แทนแนวทางฉบับเต็ม",
+      "keywords": ["กรมควบคุมโรค", "แนวทางประเทศไทย", "คู่มือ", "ฉบับล่าสุด", "กระทรวงสาธารณสุข", "ไทย"],
+      "reviewStatus": "awaiting_clinical_review"
+    }
+  ]
+}
