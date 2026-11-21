@@ -340,12 +340,12 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
         "computational_review": {
             "status": "passed_with_limitations",
             "checks": [
-                {"id": "coverage", "status": "pass", "detail": "77/77 unique provinces with exactly 26 weekly observations each."},
-                {"id": "quantile-dual-implementation", "status": "pass", "detail": "Two separately written Type-7 quantile implementations match within 1e-9."},
-                {"id": "threshold-order", "status": "pass", "detail": "Watch < Alert in all 77 provinces; tied P90/P75 cases are disclosed and adjusted."},
+                {"id": "coverage", "status": "pass", "detail": "77/77 unique provinces with exactly 26 weekly observations each (2,002 province-weeks)."},
+                {"id": "quantile-dual-implementation", "status": "pass", "detail": "Two separately written Type-7 quantile implementations matched within 1e-9 for every province at P75 and P90."},
+                {"id": "threshold-order", "status": "pass", "detail": "Watch < Alert in all 77 provinces; 3 tied P90/P75 cases were adjusted to the next distinct observed count."},
                 {"id": "temporal-split", "status": "pass_with_limitations", "detail": "First 18 weeks fit, final 8 weeks evaluate threshold exceedance and forecast-vs-persistence confusion matrices."},
                 {"id": "prediction-vs-persistence", "status": "warning", "detail": "Model forecast micro-F1 is below persistence at both Watch and Alert; macro Alert recall is 9.3% versus 15.7% for persistence."},
-                {"id": "leave-one-week-out", "status": "pass_with_limitations", "detail": "P75/P90 recalculated after omitting each week to show sample sensitivity."},
+                {"id": "leave-one-week-out", "status": "pass_with_limitations", "detail": "Recomputed P75/P90 after omitting each of the 26 weeks to quantify small-sample sensitivity."},
             ],
             "fallback_count": fallback_count,
             "leave_one_week_out_sensitivity": {
@@ -388,12 +388,12 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
             "may_classify_national_risk": False,
             "external_notifications_enabled": False,
             "limitations": [
-                "Only 26 weeks are available (about six months), not a full 52-week seasonal cycle.",
-                "Thresholds are absolute weekly counts and do not adjust for population, testing volume, reporting completeness, or outbreak context.",
+                "Only 26 weeks are available in the current model holdout (about six months), not a full 52-week seasonal cycle.",
+                "Thresholds are absolute weekly case counts and do not adjust for provincial population size, testing volume, reporting completeness, or outbreak context.",
                 "Temporal split confusion matrices measure prediction of a statistical threshold exceedance, not sensitivity/specificity for disease outbreak detection or clinical diagnosis.",
                 "On the 8-week temporal validation, model forecast micro-F1 is lower than persistence for Watch (0.598 vs 0.616) and Alert (0.531 vs 0.606); macro Alert recall is 0.093 vs 0.157 for persistence.",
-                "The source model snapshot is review_only and targets 2026-11-15; it is stale for the epidemiological week beginning 2026-11-22.",
-                "Automated quantitative review is not an independent epidemiologist's sign-off or clinical approval.",
+                "The underlying model snapshot is review_only and targets 2026-11-15; it is stale for the epidemiological week beginning 2026-11-22.",
+                "An automated quantitative review is not an independent epidemiologist's sign-off or clinical approval.",
             ],
         },
     }
