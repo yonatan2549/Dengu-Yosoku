@@ -25,16 +25,22 @@ testRunner("an unavailable model selection safely falls back to legacy", () => {
   assert.equal(resolveDashboardDatasetView("model", false), "legacy");
 });
 
-testRunner("prevention auto-selects the nationwide model only for the current week", () => {
-  assert.equal(resolvePreventionDatasetView("auto", true, true), "model");
-  assert.equal(resolvePreventionDatasetView("auto", true, false), "legacy");
+testRunner("prevention auto-selects only an approved, current nationwide model", () => {
+  assert.equal(resolvePreventionDatasetView("auto", true, true, true), "model");
+  assert.equal(resolvePreventionDatasetView("auto", true, false, true), "legacy");
 });
 
-testRunner("prevention can explicitly review a stale validated model snapshot", () => {
-  assert.equal(resolvePreventionDatasetView("model", true, false), "model");
+testRunner("prevention never auto-selects a review-only model, even for the current week", () => {
+  assert.equal(resolvePreventionDatasetView("auto", true, true, false), "legacy");
+  assert.equal(resolvePreventionDatasetView("auto", true, false, false), "legacy");
+});
+
+testRunner("prevention can explicitly review a review-only or stale model snapshot", () => {
+  assert.equal(resolvePreventionDatasetView("model", true, true, false), "model");
+  assert.equal(resolvePreventionDatasetView("model", true, false, false), "model");
 });
 
 testRunner("prevention safely falls back when the model snapshot is missing", () => {
-  assert.equal(resolvePreventionDatasetView("auto", false, true), "legacy");
-  assert.equal(resolvePreventionDatasetView("model", false, true), "legacy");
+  assert.equal(resolvePreventionDatasetView("auto", false, true, true), "legacy");
+  assert.equal(resolvePreventionDatasetView("model", false, true, false), "legacy");
 });
