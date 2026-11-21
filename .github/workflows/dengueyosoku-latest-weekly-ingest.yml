@@ -96,7 +96,19 @@ jobs:
           def normalize(value: str) -> str:
               return re.sub(r"[^a-z0-9ก-๙]", "", value.lower())
 
-          with source.open("r", encoding="utf-8-sig", newline="") as handle:
+          sample_bytes = source.read_bytes()[:8192]
+          encoding = None
+          for candidate in ("utf-8-sig", "utf-16", "cp874", "tis-620"):
+              try:
+                  sample_bytes.decode(candidate)
+                  encoding = candidate
+                  break
+              except UnicodeDecodeError:
+                  continue
+          if encoding is None:
+              raise SystemExit("CSV encoding is not recognized; manual review is required.")
+
+          with source.open("r", encoding=encoding, newline="") as handle:
               sample = handle.read(8192)
               handle.seek(0)
               try:
@@ -123,17 +135,29 @@ jobs:
                   if any(token in n for token in ("case", "count", "patient", "ผู้ป่วย", "จำนวน"))
               ]
 
-              direct_identifier_tokens = (
-                  "hospitalnumber", "patientid", "patientnumber", "citizenid",
-                  "nationalid", "idcard", "passport", "firstname", "lastname",
-                  "patientname", "fullname", "telephone", "phonenumber", "mobile",
-                  "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
+              direct_identifier_exact = {
+                  "hn", "cid", "pid", "an", "vn", "patientid", "patientnumber",
+                  "personid", "personnumber", "citizenid", "nationalid", "idcard",
+                  "passport", "firstname", "lastname", "patientname", "fullname",
+                  "telephone", "phonenumber", "mobile", "email", "dob", "dateofbirth",
+                  "birthdate", "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขที่บัตร",
                   "เลขโรงพยาบาล", "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "ชื่อ", "นามสกุล",
-                  "ชื่อจริง", "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร", "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
+                  "ชื่อจริง", "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร",
+                  "หมายเลขโทรศัพท์", "ที่อยู่", "บ้านเลขที่",
+              }
+              direct_identifier_fragments = (
+                  "hospitalnumber", "patientid", "personid", "citizenid",
+                  "nationalid", "idcard", "passport", "firstname", "lastname",
+                  "patientname", "fullname", "telephone", "phonenumber",
+                  "email", "dateofbirth", "birthdate",
+                  "เลขบัตรประชาชน", "เลขประจำตัวประชาชน", "เลขโรงพยาบาล",
+                  "หมายเลขผู้ป่วย", "ชื่อผู้ป่วย", "นามสกุล", "ชื่อจริง",
+                  "ชื่อสกุล", "ชื่อและนามสกุล", "เบอร์โทร", "หมายเลขโทรศัพท์",
+                  "บ้านเลขที่",
               )
               possible_identifiers = [
                   h for h, n in normalized.items()
-                  if n in ("hn", "cid") or any(token in n for token in direct_identifier_tokens)
+                  if n in direct_identifier_exact or any(token in n for token in direct_identifier_fragments)
               ]
 
               province_values = set()
@@ -155,6 +179,7 @@ jobs:
           report = {
               "file_name": source.name,
               "file_size_bytes": source.stat().st_size,
+              "encoding": encoding,
               "sha256": digest,
               "row_count": row_count,
               "column_count": len(headers),
