@@ -14,7 +14,7 @@
 | Symptom Checker | มีแบบประเมินและ regression tests | ประเมินอาการ/สัญญาณเตือนและแสดงคำเตือน | ไม่ใช่ diagnosis; ต้องผ่าน clinical review |
 | Health Knowledge | มี Knowledge Registry และค้นคืนหลักฐาน | แสดงความรู้และที่มา | Registry 6 records ยังรอ clinical review |
 | Health Assistant | มี evidence-only และ AI Preview implementation | ค้นคืนหลักฐาน; Preview AI draft มี safety/source gates | Production ไม่เปิด generated answers; Preview ล่าสุดติด deployment limit; retrieval ยังไม่ใช่ full-document/vector RAG |
-| Alert Center | มี workflow และ API draft | draft rules, readiness, dry-run, events, review controls | Rule Profile ยัง Draft; threshold ที่ approve ครบ 77 จังหวัดยังไม่มี; external notifications ปิดอยู่ |
+| Alert Center | มี workflow และ API draft; มี Draft threshold candidate ครบ 77 จังหวัด | คำนวณ Watch=P75 / Alert=P90 จาก 26 สัปดาห์รายจังหวัด, dual-implementation check, temporal split 18/8 สัปดาห์, leave-one-week-out sensitivity; โหลดเป็น Candidate ให้ Admin editor ได้โดยไม่อนุมัติ | ค่าคำนวณยังเป็น Draft, DB ยังไม่มี threshold บันทึก (0/77 ณ 21 พ.ย.); model snapshot ต้นทางเป็น review_only/stale; ยังไม่อนุญาต current Alert หรือ national risk; external notifications ปิดอยู่ |
 | Authentication / Supabase | มี integration และ migration source | มี Auth routes และ RLS/migration definitions | ต้อง reconcile remote schema/migration history ก่อน apply migrations เพิ่ม |
 | References / About | มีหน้าอ้างอิง/ข้อมูลโครงการ | ใช้ประกอบการตรวจสอบแหล่งข้อมูลและขอบเขต | ต้องอัปเดตเมื่อเพิ่มแหล่งข้อมูลหรือรุ่นโมเดลใหม่ |
 | Mobile responsive | มี responsive UI | layout ใช้งานได้หลายขนาดหน้าจอจาก design/components | ควรทดสอบอุปกรณ์จริงและเบราว์เซอร์เป้าหมายก่อนส่ง |
@@ -26,6 +26,14 @@
 - ผล: passed, รวม TypeScript, regression tests และ Next.js Production build
 - มี Preview deployment จาก commit ก่อนหน้าแล้ว แต่ต้องตรวจว่า SHA ตรงกับ commit ล่าสุด และต้อง smoke test deployment ก่อนใช้อ้างอิง
 - PR #2 ยัง Draft/Open และไม่ถูก merge ในเวลาจัดทำเอกสารนี้
+
+## ผลการคำนวณ Threshold 77 จังหวัด (Draft)
+
+- ไฟล์ Candidate: `public/data/alert_threshold_candidates_77.json` และรายงาน `docs/NATIONAL_ALERT_THRESHOLDS_77_TH.md`
+- Watch=P75 / Alert=P90 แบบ Type-7 จากข้อมูลจริง 26 สัปดาห์ต่อจังหวัด; คำนวณครบ 77/77 และตรวจด้วย quantile implementation อิสระ
+- Temporal split 18/8 สัปดาห์; validation exceedance 158/616 ที่ Watch และ 96/616 ที่ Alert; leave-one-week-out max span ของ Alert 20.8 ราย
+- Profile คงสถานะ Draft และ fallback ในแอปใช้เฉพาะเมื่อ DB Profile เป็น Draft และไม่มี threshold บันทึกเลย; การบันทึกจริงต้องผ่าน Admin RPC พร้อม audit log
+- ไม่ถือเป็น independent human review / clinical approval; ห้ามสร้าง Alert Candidate หรือ national risk classification
 
 ## เงื่อนไขก่อนประกาศ Production readiness
 
