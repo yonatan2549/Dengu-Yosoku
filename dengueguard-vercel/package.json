@@ -46,7 +46,9 @@
     "test:dashboard-view": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/dashboard-view-tests lib/dashboard-view.ts lib/epi-week.ts && node --test scripts/test-dashboard-view.mjs scripts/test-epi-week.mjs",
     "test:built-app-smoke": "node scripts/smoke-test-built-app.mjs",
     "test:health-assistant-request-body": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/health-assistant-request-body-tests lib/health-assistant/request-body.ts && node --test scripts/test-health-assistant-request-body.mjs",
-    "test:province-history": "node --test scripts/test_build_province_history_77.mjs"
+    "test:province-history": "node --test scripts/test_build_province_history_77.mjs",
+    "health:rag:index": "node scripts/build-local-health-rag-index.mjs",
+    "test:local-health-rag": "tsc --target ES2022 --module commonjs --moduleResolution node --esModuleInterop --strict --skipLibCheck --types node --rootDir . --outDir .next/local-health-rag-tests lib/health-assistant/local-rag.ts lib/health-assistant/chat-contract.ts && node --test scripts/test-local-health-rag.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
