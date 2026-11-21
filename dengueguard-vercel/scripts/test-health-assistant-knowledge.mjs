@@ -7,6 +7,8 @@ test("knowledge base contains dated source records with direct citation URLs", (
   for (const item of HEALTH_KNOWLEDGE) {
     assert.ok(item.sourceUrl.startsWith("https://"));
     assert.equal(item.reviewStatus, "awaiting_clinical_review");
+    assert.equal(item.projectApproval.status, "approved");
+    assert.equal(item.projectApproval.scope, "academic-demonstration-only");
   }
 });
 
