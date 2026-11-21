@@ -40,7 +40,7 @@ export interface ModelConsumerReadinessReport {
  */
 export function deriveModelConsumerReadiness(input: {
   validation: Pick<ModelValidationReport,
-    "status" | "freshness" | "canUseForDryRun" | "canUseForCurrentAlerting">;
+    "status" | "freshness" | "releaseStatus" | "canUseForDryRun" | "canUseForCurrentAlerting">;
   consistency: Pick<ModelSnapshotConsistencyReport, "status">;
   refreshStatus: RefreshObservabilityStatus | "unavailable";
 }): ModelConsumerReadinessReport {
@@ -82,11 +82,17 @@ export function deriveModelConsumerReadiness(input: {
       label: "Forecast ผ่านการตรวจสอบข้อมูล",
       detail: "โครงสร้าง ความใหม่ ลำดับเวลา และ SHA-256 ของ Snapshot ผ่านการตรวจสอบ; ยังต้องพิจารณาข้อจำกัดของโมเดลก่อนใช้งาน",
     };
-    prevention = {
-      status: "forecast-context",
-      label: "ใช้ Forecast เป็นข้อมูลประกอบได้",
-      detail: "แสดงจำนวนที่คาดการณ์ประกอบการวางแผนได้ แต่ยังไม่จัดระดับความเสี่ยงหรือสร้างคำเตือนหากไม่มี Threshold ที่ผ่านการรับรอง",
-    };
+    prevention = validation.releaseStatus === "review_only"
+      ? {
+          status: "general-guidance-only",
+          label: "Review-only · ใช้มาตรการพื้นฐาน",
+          detail: "Snapshot ยังไม่ได้รับการอนุมัติ จึงแสดง Forecast บน Dashboard เพื่อทดสอบเท่านั้น และไม่ใช้กำหนดคำแนะนำเฉพาะพื้นที่",
+        }
+      : {
+          status: "forecast-context",
+          label: "ใช้ Forecast เป็นข้อมูลประกอบได้",
+          detail: "แสดงจำนวนที่คาดการณ์ประกอบการวางแผนได้ แต่ยังไม่จัดระดับความเสี่ยงหรือสร้างคำเตือนหากไม่มี Threshold ที่ผ่านการรับรอง",
+        };
   } else {
     dashboard = {
       status: "historical-only",
