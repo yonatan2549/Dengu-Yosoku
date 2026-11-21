@@ -24,12 +24,21 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
+          # Standalone Next.js app source for reviewers who only need to run the web application.
           git archive --format=zip --prefix=DengueYosoku/ HEAD dengueguard-vercel > dist/DengueYosoku-Source.zip
-          sha256sum dist/DengueYosoku-Source.zip > dist/SHA256SUMS.txt
+
+          # Full source repository (app, CI/workflows, and Python model scripts).
+          # The 85 MB upstream raw surveillance CSV is intentionally excluded.
+          git archive --format=zip --prefix=DengueYosoku-Repository/ HEAD .github dengueguard-vercel plot_v1_champion.py v1_champion_lagw.py > dist/DengueYosoku-Repository.zip
+
+          sha256sum dist/DengueYosoku-Source.zip dist/DengueYosoku-Repository.zip > dist/SHA256SUMS.txt
           printf 'Source commit: %s\n' "${GITHUB_SHA}" > dist/SOURCE_COMMIT.txt
-          printf 'Included path: dengueguard-vercel/\n' >> dist/SOURCE_COMMIT.txt
+          printf 'Web app path: dengueguard-vercel/\n' >> dist/SOURCE_COMMIT.txt
+          printf 'Full repository paths: .github/, dengueguard-vercel/, plot_v1_champion.py, v1_champion_lagw.py\n' >> dist/SOURCE_COMMIT.txt
+          printf 'Excluded: dengue_full.csv (raw upstream surveillance source; 85 MB)\n' >> dist/SOURCE_COMMIT.txt
           printf 'Generated at: %s\n' "${GITHUB_RUN_ID}" >> dist/SOURCE_COMMIT.txt
           unzip -t dist/DengueYosoku-Source.zip
+          unzip -t dist/DengueYosoku-Repository.zip
 
       - name: Upload submission archive
         uses: actions/upload-artifact@v4
