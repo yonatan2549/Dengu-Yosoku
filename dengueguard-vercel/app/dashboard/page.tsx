@@ -167,12 +167,15 @@ function LegacyDashboardPage() {
 
 
 export default function DashboardPage() {
-  const { data } = useDengueData();
+  const { data, modelWarning } = useDengueData();
   const [view, setView] = useState<"legacy" | "model">("legacy");
   const modelWeek = data?.modelPredictions?.coverage.forecast_week ?? null;
 
+  // Show a validated 77-province snapshot by default. Freshness is handled
+  // inside ModelDashboard with a visible warning; it must not silently hide
+  // a valid snapshot behind the legacy ODPC4 dashboard.
   useEffect(() => {
-    setView(modelWeek && modelWeek === getCurrentEpiWeekStart() ? "model" : "legacy");
+    setView(modelWeek ? "model" : "legacy");
   }, [modelWeek]);
 
   if (!data) return null;
@@ -181,7 +184,14 @@ export default function DashboardPage() {
     (latest, row) => row.target_week_start > latest ? row.target_week_start : latest,
     "",
   );
-  const provinceCount = new Set(data.predictions.map((row) => row.province)).size;
+  const legacyProvinceCount = new Set(data.predictions.map((row) => row.province)).size;
+  const modelViewSelected = view === "model" && hasModel;
+  const selectedProvinceCount = modelViewSelected
+    ? data.modelPredictions?.province_count ?? 0
+    : legacyProvinceCount;
+  const modelWeekLabel = modelWeek
+    ? new Date(`${modelWeek}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
+    : "ไม่มีข้อมูล";
   const currentModel = Boolean(modelWeek && modelWeek === getCurrentEpiWeekStart());
   const latestLabel = latestWeek
     ? new Date(`${latestWeek}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })
@@ -197,9 +207,27 @@ export default function DashboardPage() {
         statusTone={currentModel ? "ready" : "warning"}
         icon={MapPinned}
         stats={[
-          { label: "จังหวัดที่มีข้อมูล", value: `${provinceCount}/77`, detail: "ครอบคลุมเฉพาะชุดข้อมูลเดิม สคร.4" },
-          { label: "ข้อมูลล่าสุดในชุดเดิม", value: latestLabel, detail: "ข้อมูลย้อนหลัง ไม่ใช่สถานการณ์ปัจจุบัน" },
-          { label: "Model Snapshot 77 จังหวัด", value: hasModel ? "พบไฟล์" : "ยังไม่มี", detail: hasModel ? "ต้องผ่านการตรวจสอบความใหม่ก่อนใช้" : "รอไฟล์เผยแพร่จากเจ้าของโมเดล" },
+          {
+            label: "จังหวัดในชุดข้อมูลที่เลือก",
+            value: `${selectedProvinceCount}/77`,
+            detail: modelViewSelected
+              ? "ผลพยากรณ์ใน Model Snapshot ทั่วประเทศ"
+              : "ข้อมูลย้อนหลังของระบบเดิม สคร.4 เท่านั้น",
+          },
+          {
+            label: modelViewSelected ? "สัปดาห์เป้าหมายของโมเดล" : "ข้อมูลล่าสุดในชุดเดิม",
+            value: modelViewSelected ? modelWeekLabel : latestLabel,
+            detail: modelViewSelected
+              ? "พยากรณ์รายจังหวัด ไม่ใช่ข้อมูลเรียลไทม์"
+              : "ข้อมูลย้อนหลัง ไม่ใช่สถานการณ์ปัจจุบัน",
+          },
+          {
+            label: "สถานะ Model Snapshot",
+            value: hasModel ? "Review-only" : "ยังไม่มี",
+            detail: hasModel
+              ? `Forecast ${data.modelPredictions?.forecast.length ?? 0}/77 จังหวัด · ยังไม่อนุมัติใช้งานเตือนภัย`
+              : "รอไฟล์ Forecast ที่ผ่านการตรวจสอบ",
+          },
         ]}
       />
 
@@ -221,9 +249,16 @@ export default function DashboardPage() {
         </div>
         {!hasModel && <p className="panel-note">ปุ่มโมเดลใหม่จะเปิดใช้งานเมื่อมีไฟล์ Forecast และ Metrics ที่ผ่านการตรวจสอบครบถ้วนเท่านั้น</p>}
         {hasModel && modelWeek !== getCurrentEpiWeekStart() && (
-          <p className="panel-note">Snapshot ที่พบไม่ใช่สัปดาห์ระบาดวิทยาปัจจุบัน ระบบจึงยังไม่เลือกเป็นค่าเริ่มต้น</p>
+          <p className="panel-note">Snapshot เป้าหมาย {modelWeekLabel} ไม่ตรงกับสัปดาห์ระบาดวิทยาปัจจุบัน จึงแสดงเพื่อการตรวจสอบย้อนหลังพร้อมคำเตือนความใหม่ ไม่ใช้เป็นผลเตือนภัยปัจจุบัน</p>
         )}
       </section>
+
+      {modelWarning && (
+        <div className="inline-callout warning" role="alert">
+          <Info size={17} />
+          <span>{modelWarning}</span>
+        </div>
+      )}
 
       {view === "model" && hasModel ? <ModelDashboard /> : <LegacyDashboardPage />}
     </div>
