@@ -14,6 +14,7 @@ import {
 } from "@/lib/alerting/audit";
 import { getCurrentEpiWeekStart } from "@/lib/utils";
 import { useDengueData } from "@/components/DataProvider";
+import { enforceCurrentAlertEligibility } from "@/lib/model/validation";
 import type { ModelPredictionsPayload } from "@/lib/types";
 import type { AlertCheckStatus, AlertModelSnapshot, AlertRuleProfile } from "@/lib/alerting/types";
 
@@ -97,10 +98,17 @@ export function AlertDryRunPanel({ model }: { model: ModelPredictionsPayload | n
     };
   }, []);
 
-  const report = useMemo(
-    () => evaluateAlertDryRun(auditSnapshot, runtimeProfile, currentEpiWeek),
-    [auditSnapshot, runtimeProfile, currentEpiWeek],
-  );
+  const report = useMemo(() => {
+    const evaluated = evaluateAlertDryRun(auditSnapshot, runtimeProfile, currentEpiWeek);
+    const releaseApproved = !model || model.schema_version < 3 || model.release_status === "approved";
+    return enforceCurrentAlertEligibility(
+      evaluated,
+      releaseApproved,
+      releaseApproved
+        ? ""
+        : "Model Snapshot ยังเป็น Review-only: Dashboard แสดงผลได้ แต่บล็อกการสร้าง WATCH/ALERT Candidate จนกว่าจะได้รับอนุมัติแยก",
+    );
+  }, [auditSnapshot, runtimeProfile, currentEpiWeek, model]);
   const [auditRecords, setAuditRecords] = useState<AlertAuditRecord[]>([]);
   const [auditStorageStatus, setAuditStorageStatus] = useState<AuditStorageStatus>("loading");
   const [databaseSyncStatus, setDatabaseSyncStatus] = useState<"checking" | "saved" | "signed_out" | "read_only" | "migration_required" | "snapshot_mismatch" | "unavailable" | "no_model">("checking");
