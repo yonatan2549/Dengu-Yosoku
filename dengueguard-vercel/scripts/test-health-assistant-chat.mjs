@@ -142,6 +142,7 @@ test("keeps Production evidence-only while enabling explicitly gated Preview dra
   assert.match(chatRouteSource, /reviewStatus: "awaiting_clinical_review"/);
   assert.match(chatRouteSource, /mode: "grounded-draft-answer"/);
   assert.match(chatRouteSource, /draftOnly: true/);
+  assert.match(chatRouteSource, /if \(!completion\.ok\)\s*\{[\s\S]*?return evidenceOnlyResponse\(/);
   assert.match(chatRouteSource, /return evidenceOnlyResponse\(/);
 });
 
