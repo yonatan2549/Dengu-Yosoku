@@ -14,16 +14,17 @@ export function resolveDashboardDatasetView(
 }
 
 /**
- * Keep prevention guidance on the classic source until the validated model
- * snapshot targets the current epidemiological week. An explicit model choice
- * remains available for review, with staleness warnings in the page.
+ * Prevention defaults to the legacy dataset unless a model snapshot is both
+ * approved and current. A review-only model can still be opened explicitly
+ * for inspection, where its review status and limitations are displayed.
  */
 export function resolvePreventionDatasetView(
   preference: DashboardDatasetPreference,
   hasValidatedModel: boolean,
   isCurrentModelWeek: boolean,
+  isApprovedModel: boolean,
 ): DashboardDatasetView {
   if (preference === "legacy" || !hasValidatedModel) return "legacy";
   if (preference === "model") return "model";
-  return isCurrentModelWeek ? "model" : "legacy";
+  return isApprovedModel && isCurrentModelWeek ? "model" : "legacy";
 }
