@@ -5,7 +5,7 @@
 - เพิ่ม Vercel AI Gateway เป็น provider เริ่มต้นผ่าน OpenAI-compatible Chat Completions endpoint
   (`https://ai-gateway.vercel.sh/v1/chat/completions`)
 - ตั้งโมเดลเริ่มต้นเป็น `google/gemini-4-neon`; เปลี่ยนได้ผ่าน `HEALTH_ASSISTANT_MODEL`
-- รองรับ credential ฝั่ง server จาก Vercel OIDC (`VERCEL_OIDC_TOKEN`, provided to the server runtime) หรือ `AI_GATEWAY_API_KEY`
+- รองรับ credential ฝั่ง server จาก Vercel OIDC (`VERCEL_OIDC_TOKEN` at build time and `x-vercel-oidc-token` injected by Vercel Functions at runtime) หรือ `AI_GATEWAY_API_KEY`
 - รองรับ legacy `HEALTH_ASSISTANT_API_KEY` และ `HEALTH_ASSISTANT_CHAT_ENDPOINT` เพื่อไม่ทำลาย provider เดิม
 - เพิ่ม `GET /api/health-assistant/chat` สำหรับตรวจสถานะ AI Preview โดยไม่เปิดเผย credential
 - หน้า Health Assistant แสดงสถานะ provider/model และติดป้ายคำตอบที่สร้างจาก AI ว่าเป็น Draft
@@ -27,7 +27,7 @@ HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true
 
 1. เปิดใช้ Vercel OIDC สำหรับ project หากต้องการให้ runtime ใช้ OIDC แทนการเก็บ API key
 2. เพิ่ม Environment Variable `HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true` เฉพาะ Preview และผูกกับ branch `feature/health-assistant-real-ai`
-3. Vercel Functions ใช้ `VERCEL_OIDC_TOKEN` จาก runtime เพื่อยืนยันตัวตนกับ AI Gateway โดยไม่ต้องบันทึก API key ของผู้ให้บริการ
+3. Vercel Functions ใช้ signed `x-vercel-oidc-token` ที่ Vercel inject ให้ใน Request (และ `VERCEL_OIDC_TOKEN` เมื่อมีใน environment) เพื่อยืนยันตัวตนกับ AI Gateway โดยไม่ต้องบันทึก API key ของผู้ให้บริการ
 4. หาก Vercel OIDC ไม่พร้อม ให้เพิ่ม `AI_GATEWAY_API_KEY` เป็น Encrypted/Sensitive Environment Variable เฉพาะ Preview ของ branch เดียวกัน
 5. ห้ามตั้ง flag นี้ใน Production
 6. ตรวจ `GET /api/health-assistant/chat` ว่าระบุ `generatedAnswersEnabled: true` ก่อนทดสอบถามตอบ
