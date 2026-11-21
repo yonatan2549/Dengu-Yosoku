@@ -496,10 +496,11 @@ export default function PreventionPage() {
 
   if (!data) return null;
   const hasModel = Boolean(data.modelPredictions);
+  const isApprovedModel = data.modelPredictions?.release_status === "approved";
   const isCurrentModelWeek = Boolean(modelWeek && modelWeek === getCurrentEpiWeekStart());
-  // Avoid an initial legacy-only flash while keeping stale snapshots out of the
-  // automatic prevention guidance path. Users may explicitly open them to review.
-  const view = resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek);
+  // A review-only snapshot is never selected automatically for prevention.
+  // Users may explicitly open it to inspect the experimental forecast.
+  const view = resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek, isApprovedModel);
 
   return (
     <div className="page-stack dy-prevention-selector">
@@ -515,11 +516,16 @@ export default function PreventionPage() {
             ระบบเดิม · สคร.4 (8 จังหวัด)
           </button>
           <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setViewPreference("model")} disabled={!hasModel} aria-pressed={view === "model"}>
-            โมเดลใหม่ · 77 จังหวัด
+            โมเดลใหม่ · 77 จังหวัด{!isApprovedModel ? " (Review-only)" : ""}
           </button>
         </div>
-        {hasModel && modelWeek !== getCurrentEpiWeekStart() && (
-          <p className="panel-note">โมเดลที่มีอยู่ไม่ใช่ Snapshot ของสัปดาห์ปัจจุบัน ระบบเดิมจึงเป็นค่าเริ่มต้น และหน้าโมเดลจะแสดงคำเตือนความเก่าเมื่อเลือกดู</p>
+        {hasModel && !isApprovedModel && (
+          <p className="inline-callout warning" role="status">
+            Snapshot 77 จังหวัดนี้ยังเป็น Review-only ระบบจึงใช้ข้อมูลเดิมเป็นค่าเริ่มต้นเพื่อไม่ให้นำผลทดลองไปใช้เป็นคำแนะนำป้องกันโดยอัตโนมัติ คุณยังสามารถเลือกเปิดโมเดลเพื่อดูผลทดลองพร้อมคำเตือนได้
+          </p>
+        )}
+        {hasModel && isApprovedModel && !isCurrentModelWeek && (
+          <p className="panel-note">โมเดลที่อนุมัติแล้วไม่ใช่ Snapshot ของสัปดาห์ปัจจุบัน ระบบจึงใช้ข้อมูลเดิมเป็นค่าเริ่มต้น และหน้าโมเดลจะแสดงคำเตือนความเก่าเมื่อเลือกดู</p>
         )}
         {!hasModel && <p className="panel-note">ยังไม่มี Model Snapshot ที่ผ่านการตรวจสอบ จึงแสดงระบบเดิมเป็นหลัก</p>}
       </section>
