@@ -1,0 +1,211 @@
+name: DengueYosoku Phase 13 model source inspection
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/phase9-12-final-review
+    paths:
+      - ".github/workflows/dengueyosoku-model-source-inspection.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dengueyosoku-model-source-inspection-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    name: Inspect bundled model contract and historical schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out DengueYosoku integration branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve and pin upstream source revision
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(python - <<'PY'
+          import json
+          import urllib.request
+          request = urllib.request.Request(
+              "https://api.github.com/repos/johnlovepizza/DenguYosoku/commits/main",
+              headers={"User-Agent": "DengueYosoku-Model-Source-Inspection/1.0"},
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          sha = payload.get("sha", "")
+          if len(sha) != 40:
+              raise SystemExit("Unable to resolve valid upstream source SHA.")
+          print(sha)
+          PY
+          )"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned upstream source revision: $source_sha"
+
+      - name: Download historical full-source CSV to ephemeral runner
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/model-source-inspection"
+          curl --fail --location --retry 3 --retry-all-errors --connect-timeout 30 \
+            "https://raw.githubusercontent.com/johnlovepizza/DenguYosoku/${SOURCE_SHA}/dengue_full.csv" \
+            --output "$RUNNER_TEMP/model-source-inspection/dengue_full.csv"
+          echo "Historical CSV downloaded to ephemeral runner. Only header and aggregate schema statistics will be emitted."
+
+      - name: Extract bundled pipeline source and inspect CLI/data contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$GITHUB_WORKSPACE/dengueguard-vercel/scripts/phase13-model-source-bundle.zip" "$RUNNER_TEMP/model-source-inspection" <<'PY'
+          import ast
+          import json
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          archive_path = Path(sys.argv[1])
+          output = Path(sys.argv[2])
+          extracted = output / "pipeline-source"
+          extracted.mkdir(parents=True, exist_ok=True)
+
+          with zipfile.ZipFile(archive_path) as archive:
+              names = [name for name in archive.namelist() if not name.endswith("/")]
+              pipeline_member = next((name for name in names if name.endswith("national_model_pipeline.py")), None)
+              test_member = next((name for name in names if name.endswith("test_national_model_pipeline.py")), None)
+              requirements_member = next((name for name in names if name.endswith("requirements-model-pipeline.txt")), None)
+              if not pipeline_member:
+                  raise SystemExit("national_model_pipeline.py was not found in the versioned source bundle.")
+
+              pipeline_text = archive.read(pipeline_member).decode("utf-8")
+              (extracted / "national_model_pipeline.py").write_text(pipeline_text, encoding="utf-8")
+              if test_member:
+                  (extracted / "test_national_model_pipeline.py").write_bytes(archive.read(test_member))
+              if requirements_member:
+                  (extracted / "requirements-model-pipeline.txt").write_bytes(archive.read(requirements_member))
+
+          tree = ast.parse(pipeline_text)
+          declarations = []
+          for node in tree.body:
+              if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                  declarations.append({
+                      "kind": type(node).__name__,
+                      "name": node.name,
+                      "line": node.lineno,
+                      "end_line": getattr(node, "end_lineno", None),
+                  })
+          keyword_lines = []
+          for number, line in enumerate(pipeline_text.splitlines(), start=1):
+              if any(token in line for token in (
+                  "w_apparent_temperature_mean", "week_start", "cases_L1",
+                  "REQUIRED_COLUMNS", "FEATURE_COLUMNS", "target_week",
+                  "add_argument", "subparsers",
+              )):
+                  keyword_lines.append({"line": number, "text": line.strip()[:240]})
+
+          report = {
+              "archive_member_count": len(names),
+              "archive_members": names,
+              "pipeline_member": pipeline_member,
+              "test_member": test_member,
+              "requirements_member": requirements_member,
+              "pipeline_line_count": len(pipeline_text.splitlines()),
+              "top_level_declarations": declarations,
+              "contract_and_cli_source_lines": keyword_lines[:300],
+              "raw_case_data_exported": False,
+          }
+          (output / "pipeline-source-inspection.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          print("Bundled model source inspected:")
+          print(f"  pipeline={pipeline_member}")
+          print(f"  tests={test_member}")
+          print(f"  requirements={requirements_member}")
+          print(f"  top_level_declarations={len(declarations)}")
+          print("No dengue case rows were read or exported by this step.")
+          PY
+
+      - name: Inspect historical CSV header and coverage metadata only
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          python - "$RUNNER_TEMP/model-source-inspection/dengue_full.csv" "$RUNNER_TEMP/model-source-inspection/historical-schema.json" "$SOURCE_SHA" <<'PY'
+          import csv
+          import datetime as dt
+          import json
+          import sys
+          from pathlib import Path
+
+          source = Path(sys.argv[1])
+          destination = Path(sys.argv[2])
+          source_sha = sys.argv[3]
+          province_col = None
+          week_col = None
+          row_count = 0
+          provinces = set()
+          min_week = None
+          max_week = None
+          weekly_counts = {}
+
+          with source.open("r", encoding="utf-8-sig", newline="") as handle:
+              reader = csv.DictReader(handle)
+              headers = reader.fieldnames or []
+              normalized = {str(name).strip().casefold(): name for name in headers}
+              province_col = next((normalized[k] for k in ("province", "changwat") if k in normalized), None)
+              week_col = next((normalized[k] for k in ("week_start", "weekstart", "target_week_start") if k in normalized), None)
+              if not province_col or not week_col:
+                  raise SystemExit("Historical source is missing the province/week_start contract.")
+              for row in reader:
+                  row_count += 1
+                  province = str(row.get(province_col) or "").strip()
+                  if province:
+                      provinces.add(province)
+                  try:
+                      week = dt.date.fromisoformat(str(row.get(week_col) or "").strip()[:10])
+                  except ValueError:
+                      continue
+                  min_week = week if min_week is None or week < min_week else min_week
+                  max_week = week if max_week is None or week > max_week else max_week
+                  weekly_counts[week.isoformat()] = weekly_counts.get(week.isoformat(), 0) + 1
+
+          report = {
+              "source_commit": source_sha,
+              "field_count": len(headers),
+              "headers": headers,
+              "row_count": row_count,
+              "distinct_province_count": len(provinces),
+              "min_week_start": min_week.isoformat() if min_week else None,
+              "max_week_start": max_week.isoformat() if max_week else None,
+              "rows_per_week_last_5": dict(sorted(weekly_counts.items())[-5:]),
+              "raw_case_values_exported": False,
+          }
+          destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(
+              f"Historical schema inspected: columns={len(headers)}, rows={row_count}, "
+              f"provinces={len(provinces)}, week_range={report['min_week_start']}..{report['max_week_start']}."
+          )
+          print("Column names and aggregate coverage only; no case values or patient records printed.")
+          PY
+
+      - name: Upload source inspection metadata and bundled pipeline code
+        uses: actions/upload-artifact@v4
+        with:
+          name: dengueyosoku-phase13-source-inspection-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/model-source-inspection/pipeline-source-inspection.json
+            ${{ runner.temp }}/model-source-inspection/historical-schema.json
+            ${{ runner.temp }}/model-source-inspection/pipeline-source/national_model_pipeline.py
+            ${{ runner.temp }}/model-source-inspection/pipeline-source/test_national_model_pipeline.py
+            ${{ runner.temp }}/model-source-inspection/pipeline-source/requirements-model-pipeline.txt
+          if-no-files-found: ignore
+          retention-days: 7
