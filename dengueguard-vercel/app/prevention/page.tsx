@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
 import { AlertDryRunPanel } from "@/components/AlertDryRunPanel";
-import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear } from "@/lib/utils";
+import { ModelValidationPanel } from "@/components/ModelValidationPanel";
+import { compareProvinceWeek, formatCases, formatNumber, getCurrentEpiWeekStart, getEpiWeekLagWeeks, getCurrentRows, getRegionalSummary, getUniqueYears, getWeeksForYear, normalizeProvince } from "@/lib/utils";
 
 function RiskPill({ level }: { level: string }) {
   const cls = level === "เตือนระบาด" ? "risk-high" : level === "เฝ้าระวัง" ? "risk-watch" : "risk-normal";
@@ -31,6 +32,32 @@ function LegacyPreventionPage() {
   const comparison = province ? compareProvinceWeek(data.predictions, province, week) : { current: undefined, previous: undefined, delta: null, percent: null };
   const actions = selected ? data.preventionActions.filter((item) => item.level === selected.level).sort((a, b) => a.priority - b.priority) : [];
   const alerts = [...currentRows].sort((a, b) => b.pred - a.pred);
+
+  const weekStartTime = week ? Date.parse(`${week}T00:00:00Z`) : Number.NaN;
+  const weekEnd = Number.isFinite(weekStartTime)
+    ? new Date(weekStartTime + 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    : "";
+  const selectedWeather = data.weather.filter((row) => (
+    normalizeProvince(row.province) === normalizeProvince(province) &&
+    row.date >= week && row.date <= weekEnd
+  ));
+  const rainfallValues = selectedWeather
+    .map((row) => row.precipitation_sum)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const temperatureValues = selectedWeather
+    .map((row) => row.temperature_2m_mean)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const humidityValues = selectedWeather
+    .map((row) => row.humidity_mean)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+  const selectedRainfall = rainfallValues.length ? rainfallValues.reduce((sum, value) => sum + value, 0) : null;
+  const selectedTemperature = temperatureValues.length
+    ? temperatureValues.reduce((sum, value) => sum + value, 0) / temperatureValues.length
+    : null;
+  const selectedHumidity = humidityValues.length
+    ? humidityValues.reduce((sum, value) => sum + value, 0) / humidityValues.length
+    : null;
+  const selectedWeatherDays = new Set(selectedWeather.map((row) => row.date)).size;
 
   return (
     <div className="page-stack">
@@ -94,6 +121,22 @@ function LegacyPreventionPage() {
         </article>
       </section>
 
+      <section className="panel regional-weather-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>สภาพอากาศจังหวัดที่เลือก</h2>
+            <p>{province ? `จังหวัด${province} · 7 วันของสัปดาห์เป้าหมาย ${week ? new Date(`${week}T00:00:00`).toLocaleDateString("th-TH") : ""}` : "ไม่มีจังหวัดสำหรับแสดงข้อมูล"}</p>
+          </div>
+          <Wind size={19} />
+        </div>
+        <div className="weather-large-metrics">
+          <div><span>ฝนสะสม 7 วัน</span><strong>{selectedRainfall === null ? "ไม่มีข้อมูล" : `${formatNumber(selectedRainfall)} มม.`}</strong></div>
+          <div><span>อุณหภูมิเฉลี่ย</span><strong>{selectedTemperature === null ? "ไม่มีข้อมูล" : `${formatNumber(selectedTemperature)} °C`}</strong></div>
+          <div><span>ความชื้นเฉลี่ย</span><strong>{selectedHumidity === null ? "ไม่มีข้อมูล" : `${formatNumber(selectedHumidity)}%`}</strong></div>
+        </div>
+        <p className="panel-note">มีข้อมูลตรวจวัด {selectedWeatherDays}/7 วัน · เป็นข้อมูลอากาศย้อนหลัง ไม่ใช่การพยากรณ์อากาศ และไม่ใช้แทนผลประเมินทางระบาดวิทยา</p>
+      </section>
+
       <section className="panel actions-panel">
         <div className="panel-heading"><div><h2>คำแนะนำในการป้องกัน</h2><p>{province ? `แนวทางสำหรับจังหวัด${province} ตามระดับ ${selected?.level ?? "ไม่มีข้อมูล"}` : "แนวทางป้องกันตามระดับความเสี่ยง"}</p></div><ShieldCheck size={20} /></div>
         {actions.length ? <div className="action-list">{actions.map((item, index) => <article className="action-item" key={`${item.level}-${item.priority}-${index}`}><div className="action-number">{index + 1}</div><div className="action-copy"><strong>{item.action}</strong><p>{item.frequency}</p><small>กลุ่มเป้าหมาย: {item.target_group} · แหล่งข้อมูล: {item.source}</small></div></article>)}</div> : <p className="muted">ไม่พบคำแนะนำสำหรับระดับนี้</p>}
@@ -142,6 +185,7 @@ function ModelPreventionPage() {
 
   return (
     <div className="page-stack">
+      <ModelValidationPanel compact />
       <section className="page-heading-row">
         <div>
           <div className="eyebrow">PROACTIVE DISEASE PREVENTION · 77 PROVINCES</div>
@@ -385,6 +429,39 @@ function ModelPreventionPage() {
 
 export default function PreventionPage() {
   const { data } = useDengueData();
-  if (data?.modelPredictions) return <ModelPreventionPage />;
-  return <LegacyPreventionPage />;
+  const [view, setView] = useState<"legacy" | "model">("legacy");
+  const modelWeek = data?.modelPredictions?.coverage.forecast_week ?? null;
+
+  useEffect(() => {
+    setView(modelWeek && modelWeek === getCurrentEpiWeekStart() ? "model" : "legacy");
+  }, [modelWeek]);
+
+  if (!data) return null;
+  const hasModel = Boolean(data.modelPredictions);
+
+  return (
+    <div className="page-stack">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>เลือกระบบป้องกันโรค</h2>
+            <p>เลือกใช้คำแนะนำและเกณฑ์เดิมของ สคร.4 หรือดูผลโมเดลใหม่ 77 จังหวัดแยกจากกัน</p>
+          </div>
+        </div>
+        <div className="table-pagination-actions">
+          <button type="button" className={`button ${view === "legacy" ? "button-primary" : "button-secondary"}`} onClick={() => setView("legacy")} aria-pressed={view === "legacy"}>
+            ระบบเดิม · สคร.4 (8 จังหวัด)
+          </button>
+          <button type="button" className={`button ${view === "model" ? "button-primary" : "button-secondary"}`} onClick={() => setView("model")} disabled={!hasModel} aria-pressed={view === "model"}>
+            โมเดลใหม่ · 77 จังหวัด
+          </button>
+        </div>
+        {hasModel && modelWeek !== getCurrentEpiWeekStart() && (
+          <p className="panel-note">โมเดลที่มีอยู่ไม่ใช่ Snapshot ของสัปดาห์ปัจจุบัน ระบบเดิมจึงเป็นค่าเริ่มต้น และหน้าโมเดลจะแสดงคำเตือนความเก่าเมื่อเลือกดู</p>
+        )}
+        {!hasModel && <p className="panel-note">ยังไม่มี Model Snapshot ที่ผ่านการตรวจสอบ จึงแสดงระบบเดิมเป็นหลัก</p>}
+      </section>
+      {view === "model" && hasModel ? <ModelPreventionPage /> : <LegacyPreventionPage />}
+    </div>
+  );
 }

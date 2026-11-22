@@ -20,6 +20,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from .model_artifact_transaction import publish_file_bundle
+except ImportError:  # direct execution: python scripts/fetch_model_outputs.py
+    from model_artifact_transaction import publish_file_bundle
+
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = ROOT / "source-data" / "model"
 REPOSITORY = "johnlovepizza/DenguYosoku"
@@ -51,8 +56,12 @@ def main() -> int:
         api_url = f"https://api.github.com/repos/{REPOSITORY}/commits/{REF}"
         commit_payload = json.loads(download(api_url).decode("utf-8"))
         commit_sha = commit_payload.get("sha")
-        if not isinstance(commit_sha, str) or len(commit_sha) != 40:
-            raise RuntimeError("GitHub did not return a valid 40-character commit SHA")
+        if not isinstance(commit_sha, str) or len(commit_sha) != 40 or any(
+            character not in "0123456789abcdefABCDEF" for character in commit_sha
+        ):
+            raise RuntimeError("GitHub did not return a valid 40-character hexadecimal commit SHA")
+        if not isinstance(REF, str) or not REF.strip():
+            raise RuntimeError("DENGUYOSOKU_MODEL_REF must be a non-empty Git reference")
 
         pending: dict[str, bytes] = {}
         manifest_artifacts: dict[str, dict[str, object]] = {}
@@ -69,31 +78,25 @@ def main() -> int:
                 "sha256": hashlib.sha256(payload).hexdigest(),
             }
 
-        DESTINATION.mkdir(parents=True, exist_ok=True)
-        temporary_paths: list[tuple[Path, Path]] = []
-        for filename, payload in pending.items():
-            destination = DESTINATION / filename
-            temporary = destination.with_suffix(destination.suffix + ".tmp")
-            temporary.write_bytes(payload)
-            temporary_paths.append((temporary, destination))
-
         manifest = {
             "repository": f"https://github.com/{REPOSITORY}",
             "ref": REF,
-            "commit_sha": commit_sha,
+            "commit_sha": commit_sha.lower(),
             "retrieved_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "artifacts": manifest_artifacts,
         }
         manifest_path = DESTINATION / "source_manifest.json"
-        manifest_tmp = manifest_path.with_suffix(".json.tmp")
-        manifest_tmp.write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        bundle = {
+            DESTINATION / filename: payload
+            for filename, payload in pending.items()
+        }
+        bundle[manifest_path] = json.dumps(
+            manifest, ensure_ascii=False, indent=2
+        ).encode("utf-8")
 
-        for temporary, destination in temporary_paths:
-            temporary.replace(destination)
-        manifest_tmp.replace(manifest_path)
+        # Stage every artifact and the manifest before replacing any destination.
+        # If a replacement fails, previously replaced files are restored.
+        publish_file_bundle(bundle)
 
         print(f"Downloaded model artifacts from {REPOSITORY}@{commit_sha[:12]}")
         for filename, info in manifest_artifacts.items():

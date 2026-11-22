@@ -25,6 +25,8 @@ export interface AlertLifecycleTransition {
 }
 
 export interface AlertLifecycleEvent {
+  /** UUID ของแถว alert_events สำหรับเรียก API ฝั่งเซิร์ฟเวอร์ */
+  databaseId?: string;
   eventId: string;
   province: string;
   weekStart: string;

@@ -133,3 +133,16 @@ python scripts/convert_model_outputs.py
 สคริปต์จะนำเข้าเฉพาะผล Holdout, ผลพยากรณ์สัปดาห์ล่าสุด และ Metrics จาก https://github.com/johnlovepizza/DenguYosoku โดยไม่ดาวน์โหลด `answer_key.csv`, ข้อมูลดิบ หรือ `model.txt` เข้าเว็บไซต์ ผลลัพธ์จะอยู่ใน `public/data/model_predictions.json` และ `public/data/model_metrics.json` แยกจาก `predictions.json` รุ่นเดิม
 
 **ข้อจำกัด:** โมเดลส่งออกค่าพยากรณ์จำนวนผู้ป่วย แต่ไม่ได้ส่งเกณฑ์เตือน (`thr_watch`, `thr_alert`) หรือระดับความเสี่ยง (`level`) มาให้ จึงยังไม่ควรนำผลใหม่ไปสร้างสถานะเตือนใน Prevention จนกว่าจะกำหนดและทบทวนเกณฑ์ดังกล่าวแยกต่างหาก ข้อมูลสภาพอากาศต้องอัปเดตจากแหล่งข้อมูลใหม่ด้วย
+
+## Local SQLite RAG (development only)
+
+The Health Assistant evidence-search panel can call the local SQLite RAG on the developer's Windows machine.
+
+Add these values to `.env.local` (do not commit `.env.local`):
+
+```dotenv
+DENGUE_RAG_PROJECT_DIR=D:/AI/DengueYosoku
+DENGUE_RAG_PYTHON=py
+```
+
+Keep Ollama running with `qwen3-embedding:0.6b` available. The local API invokes `scripts/search.py` with `--audience public` and `--output-format json` using a non-shell process call. Review mode is never exposed to the browser. The route is restricted to loopback hosts and disabled in production. It retrieves evidence only; it does not call a generative model or change the SQLite database.
