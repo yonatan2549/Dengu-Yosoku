@@ -22,8 +22,14 @@ function rateLimitKey(request: Request): string {
 function isRateLimited(request: Request): boolean {
   const key = rateLimitKey(request);
   const now = Date.now();
-  const current = requestCounts.get(key);
 
+  if (requestCounts.size > 500) {
+    for (const [entryKey, entry] of requestCounts) {
+      if (entry.resetAt <= now) requestCounts.delete(entryKey);
+    }
+  }
+
+  const current = requestCounts.get(key);
   if (!current || current.resetAt <= now) {
     requestCounts.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return false;
@@ -46,13 +52,6 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { status: "error", message: "คำถามมีขนาดใหญ่เกินกำหนด" },
       { status: 413 },
-    );
-  }
-
-  if (isRateLimited(request)) {
-    return NextResponse.json(
-      { status: "error", message: "ส่งคำถามถี่เกินไป กรุณารอสักครู่แล้วลองใหม่" },
-      { status: 429 },
     );
   }
 
@@ -89,6 +88,7 @@ export async function POST(request: Request) {
     );
   }
 
+  // Never rate-limit an emergency response behind a retrieval request.
   const emergencySignals = detectEmergencySignals(normalizedQuestion);
   if (emergencySignals.length > 0) {
     return NextResponse.json({
@@ -100,6 +100,13 @@ export async function POST(request: Request) {
       evidence: [],
       emergencySignals,
     });
+  }
+
+  if (isRateLimited(request)) {
+    return NextResponse.json(
+      { status: "error", message: "ส่งคำถามถี่เกินไป กรุณารอสักครู่แล้วลองใหม่" },
+      { status: 429 },
+    );
   }
 
   try {
