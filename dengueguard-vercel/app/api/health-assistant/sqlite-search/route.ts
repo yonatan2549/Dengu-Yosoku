@@ -201,7 +201,7 @@ export async function POST(request: Request) {
     mode: "evidence-only",
     generatedAnswer: false,
     generatedAnswersEnabled: false,
-    abstained: payload.status === "no_evidence",
+    abstained: false,
     answer,
     citations,
     evidencePassages,
