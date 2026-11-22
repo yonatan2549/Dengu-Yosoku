@@ -112,7 +112,9 @@ export function HealthAssistantChatPanel() {
         ? payload.answer
         : typeof payload?.safetyMessage === "string"
           ? payload.safetyMessage
-          : typeof payload?.message === "string" ? payload.message : "ระบบงดตอบคำถามนี้เพื่อความปลอดภัย";
+          : typeof payload?.safety?.message === "string"
+            ? payload.safety.message
+            : typeof payload?.message === "string" ? payload.message : "ระบบงดตอบคำถามนี้เพื่อความปลอดภัย";
       setTurns((current) => [...current, {
         role: "assistant",
         content: answer,
@@ -135,7 +137,7 @@ export function HealthAssistantChatPanel() {
       <div className="dg-section-head">
         <div>
           <span className="dg-eyebrow"><MessageCircle size={14} /> AI HEALTH ASSISTANT</span>
-          <h2 id="health-assistant-chat-title">ถาม–ตอบความรู้ไข้เลือดออก</h2>
+          <h2 id="health-assistant-chat-title">{runtime?.provider === "SQLite Local" ? "ค้นหลักฐานความรู้ไข้เลือดออก" : "ถาม–ตอบความรู้ไข้เลือดออก"}</h2>
           <p>ถามเรื่องไข้เลือดออกได้ทันที ระบบจะแสดงแหล่งอ้างอิงเมื่อมีหลักฐานรองรับ</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -196,7 +198,7 @@ export function HealthAssistantChatPanel() {
             {turn.disclaimer && <p className="dg-source-meta" style={{ marginTop: 10 }}>{turn.disclaimer}</p>}
           </article>
         ))}
-        {busy && <div className="dg-note"><LoaderCircle size={17} /> กำลังค้นหลักฐานและเตรียมคำตอบ…</div>}
+        {busy && <div className="dg-note"><LoaderCircle size={17} /> {runtime?.provider === "SQLite Local" ? "กำลังค้นหลักฐานจาก SQLite…" : "กำลังค้นหลักฐานและเตรียมคำตอบ…"}</div>}
       </div>
 
       {turns.length === 0 && (
