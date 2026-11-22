@@ -41,7 +41,7 @@ function isRateLimited(request: Request): boolean {
 
 function isLoopbackHost(headers: Headers): boolean {
   const host = headers.get("host")?.toLowerCase() ?? "";
-  return /^(localhost|127\\.0\\.0\\.1)(:\\d+)?$/.test(host) || /^\\[::1\\](?::\\d+)?$/.test(host);
+  return /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host) || /^\[::1\](?::\d+)?$/.test(host);
 }
 
 export async function POST(request: Request) {
