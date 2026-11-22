@@ -39,8 +39,13 @@ function isRateLimited(request: Request): boolean {
   return current.count > RATE_LIMIT;
 }
 
+function isLoopbackHost(headers: Headers): boolean {
+  const host = headers.get("host")?.toLowerCase() ?? "";
+  return /^(localhost|127\\.0\\.0\\.1)(:\\d+)?$/.test(host) || /^\\[::1\\](?::\\d+)?$/.test(host);
+}
+
 export async function POST(request: Request) {
-  if (!isSameOriginRequest(request.headers)) {
+  if (!isLoopbackHost(request.headers) || !isSameOriginRequest(request.headers)) {
     return NextResponse.json(
       { status: "error", message: "คำขอไม่ผ่านการตรวจสอบแหล่งที่มา" },
       { status: 403 },
