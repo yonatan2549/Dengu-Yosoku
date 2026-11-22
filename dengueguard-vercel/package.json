@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:alerts": "tsc --target ES2022 --module commonjs --moduleResolution node --esModuleInterop --strict --skipLibCheck --types node --outDir .next/alert-engine-tests scripts/test-alert-engine.ts lib/alerting/engine.ts lib/alerting/profile.ts lib/alerting/types.ts lib/alerting/audit.ts lib/alerting/lifecycle.ts && node --test .next/alert-engine-tests/scripts/test-alert-engine.js"
+    "test:alerts": "tsc --target ES2022 --module commonjs --moduleResolution node --esModuleInterop --strict --skipLibCheck --types node --outDir .next/alert-engine-tests scripts/test-alert-engine.ts lib/alerting/engine.ts lib/alerting/profile.ts lib/alerting/types.ts lib/alerting/audit.ts lib/alerting/lifecycle.ts && node --test .next/alert-engine-tests/scripts/test-alert-engine.js",
+    "test:health-assistant": "tsc --target ES2022 --module commonjs --moduleResolution node --esModuleInterop --strict --skipLibCheck --types node --outDir .next/health-assistant-tests scripts/test-health-assistant-core.ts lib/health-assistant/contracts.ts && node --test .next/health-assistant-tests/scripts/test-health-assistant-core.js"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
