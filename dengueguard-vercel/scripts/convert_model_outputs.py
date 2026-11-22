@@ -17,14 +17,23 @@ risk levels, or a four-week rolling baseline.
 """
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import json
 import math
+import re
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+try:
+    from .model_artifact_transaction import publish_file_bundle
+    from .model_release_contract import validate_operational_release
+except ImportError:  # direct execution: python scripts/convert_model_outputs.py
+    from model_artifact_transaction import publish_file_bundle
+    from model_release_contract import validate_operational_release
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT / "source-data" / "model"
@@ -325,7 +334,20 @@ def write_json(path: Path, payload: Any) -> None:
     temporary.replace(path)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Validate and convert the 77-province model outputs.")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="validate all source artifacts and print the publication plan without writing output files",
+    )
+    parser.add_argument(
+        "--require-current",
+        action="store_true",
+        help="refuse publication when the forecast week is older than the current epidemiological week",
+    )
+    args = parser.parse_args(argv)
+
     try:
         history, province_list, history_weeks = load_history()
         forecast, forecast_week = load_forecast(set(province_list))
@@ -349,6 +371,28 @@ def main() -> int:
             max(0, (current_week_start - forecast_week).days // 7)
             if forecast_week < current_week_start else 0
         )
+        if args.require_current and not forecast_is_current_or_future:
+            raise DataValidationError(
+                f"forecast week {forecast_week} is {forecast_lag_weeks} epidemiological week(s) behind "
+                f"current week {current_week_start}; --require-current prevents publication"
+            )
+        if args.require_current:
+            if forecast_week != current_week_start:
+                raise DataValidationError(
+                    f"forecast week {forecast_week} must equal current week {current_week_start} "
+                    "for a one-week nowcast; --require-current prevents publication"
+                )
+            provenance_issues = validate_operational_release(
+                metrics,
+                forecast_week=forecast_week,
+                current_week=current_week_start,
+                now=datetime.now(timezone.utc),
+            )
+            if provenance_issues:
+                raise DataValidationError(
+                    "operational release acceptance failed; --require-current prevents publication: "
+                    + "; ".join(provenance_issues)
+                )
 
         manifest_path = SOURCE_DIR / "source_manifest.json"
         if not manifest_path.is_file():
@@ -369,31 +413,57 @@ def main() -> int:
             )
 
         model_revision = manifest.get("commit_sha")
-        if not isinstance(model_revision, str) or len(model_revision) != 40:
-            raise DataValidationError(f"{manifest_path.name} contains an invalid commit_sha")
+        if not isinstance(model_revision, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", model_revision):
+            raise DataValidationError(f"{manifest_path.name} contains an invalid hexadecimal commit_sha")
+        model_revision = model_revision.lower()
+
+        source_ref = manifest.get("ref")
+        if not isinstance(source_ref, str) or not source_ref.strip():
+            raise DataValidationError(f"{manifest_path.name} is missing a non-empty source ref")
 
         source_retrieved_at = manifest.get("retrieved_at_utc")
         if not isinstance(source_retrieved_at, str):
             raise DataValidationError(f"{manifest_path.name} is missing retrieved_at_utc")
         try:
-            datetime.fromisoformat(source_retrieved_at.replace("Z", "+00:00"))
+            retrieved_datetime = datetime.fromisoformat(source_retrieved_at.replace("Z", "+00:00"))
+            if retrieved_datetime.tzinfo is None or retrieved_datetime.utcoffset() is None:
+                raise ValueError("timezone is required")
         except ValueError as exc:
             raise DataValidationError(
-                f"{manifest_path.name} retrieved_at_utc must be an ISO timestamp"
+                f"{manifest_path.name} retrieved_at_utc must be an ISO timestamp with an explicit timezone"
             ) from exc
 
         artifact_manifest = manifest.get("artifacts", {})
         if not isinstance(artifact_manifest, dict):
             raise DataValidationError(f"{manifest_path.name} artifacts must be an object")
+        expected_source_paths = {
+            HISTORY_FILE.name: "DenguYosoku/holdout_predictions.csv",
+            FORECAST_FILE.name: "predict_week/predictions.csv",
+            METRICS_FILE.name: "DenguYosoku/metrics.json",
+        }
         for artifact_path in (HISTORY_FILE, FORECAST_FILE, METRICS_FILE):
             artifact_info = artifact_manifest.get(artifact_path.name)
-            expected_hash = artifact_info.get("sha256") if isinstance(artifact_info, dict) else None
-            if not isinstance(expected_hash, str) or len(expected_hash) != 64:
+            if not isinstance(artifact_info, dict):
+                raise DataValidationError(
+                    f"{manifest_path.name} is missing artifact metadata for {artifact_path.name}"
+                )
+            expected_hash = artifact_info.get("sha256")
+            expected_size = artifact_info.get("size_bytes")
+            expected_source = artifact_info.get("source_path")
+            if not isinstance(expected_hash, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", expected_hash):
                 raise DataValidationError(
                     f"{manifest_path.name} is missing a valid SHA-256 for {artifact_path.name}"
                 )
+            if isinstance(expected_size, bool) or not isinstance(expected_size, int) or expected_size != artifact_path.stat().st_size:
+                raise DataValidationError(
+                    f"{manifest_path.name} size_bytes does not match {artifact_path.name}"
+                )
+            if expected_source != expected_source_paths[artifact_path.name]:
+                raise DataValidationError(
+                    f"{manifest_path.name} source_path does not match the expected artifact for {artifact_path.name}"
+                )
             actual_hash = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
-            if actual_hash != expected_hash:
+            if actual_hash != expected_hash.lower():
                 raise DataValidationError(
                     f"{artifact_path.name} does not match the downloaded source_manifest.json hash"
                 )
@@ -443,10 +513,23 @@ def main() -> int:
 
         predictions_path = PUBLIC_DATA_DIR / "model_predictions.json"
         metrics_path = PUBLIC_DATA_DIR / "model_metrics.json"
-        write_json(predictions_path, prediction_payload)
-        write_json(metrics_path, metrics_payload)
+        predictions_bytes = json.dumps(
+            prediction_payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+        metrics_bytes = json.dumps(
+            metrics_payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
 
-        print("Model data conversion completed.")
+        if args.check:
+            print("Model artifact preflight passed (--check): no output files were written.")
+            print(f"  Forecast week      : {forecast_week}")
+            print(f"  Holdout end        : {history_weeks[-1]}")
+            print(f"  Source revision    : {model_revision[:12]}")
+            print(f"  Predictions SHA256 : {hashlib.sha256(predictions_bytes).hexdigest()}")
+            print(f"  Metrics SHA256     : {hashlib.sha256(metrics_bytes).hexdigest()}")
+        else:
+            publish_file_bundle({predictions_path: predictions_bytes, metrics_path: metrics_bytes})
+            print("Model data conversion completed.")
         print(f"  Province coverage : {len(province_list)}")
         print(
             f"  Holdout history   : {len(history):,} rows, "
@@ -455,6 +538,10 @@ def main() -> int:
         print(f"  Forecast           : {len(forecast)} provinces, week {forecast_week}")
         print(f"  Output             : {predictions_path.relative_to(ROOT)}")
         print(f"  Metrics            : {metrics_path.relative_to(ROOT)}")
+        if args.check:
+            print("  Publication        : CHECK ONLY · existing output files unchanged")
+        else:
+            print("  Publication        : staged bundle with rollback on replacement errors")
         print(
             f"  Current epi week   : {current_week_start} (Asia/Bangkok)"
         )

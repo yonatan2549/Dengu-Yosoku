@@ -29,6 +29,7 @@ const navigationGroups = [
     title: "WORKSPACE",
     items: [
       { href: "/dashboard", label: "ภาพรวมสถานการณ์", sub: "Forecast dashboard", icon: LayoutDashboard },
+      { href: "/model-operations", label: "ความพร้อมของโมเดล", sub: "Model operations", icon: Activity },
       { href: "/prevention", label: "ป้องกันเชิงรุก", sub: "Early warning & prevention", icon: ShieldCheck },
       { href: "/alerts", label: "ศูนย์จัดการเหตุการณ์", sub: "Alert event center", icon: BellRing },
       { href: "/symptom-checker", label: "ประเมินอาการเบื้องต้น", sub: "Symptom checker", icon: ClipboardCheck },
