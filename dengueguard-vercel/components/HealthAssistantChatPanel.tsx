@@ -179,8 +179,8 @@ export function HealthAssistantChatPanel() {
             )}
             {turn.evidencePassages && turn.evidencePassages.length > 0 && (
               <div style={{ marginTop: 12, borderTop: "1px solid var(--border, #dce7e4)", paddingTop: 10 }}>
-                <strong style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}><BookOpen size={15} /> ข้อความจากทะเบียนความรู้ที่ใช้ประกอบคำตอบ</strong>
-                <p className="dg-source-meta">ข้อความต่อไปนี้เป็นสรุป/ประเด็นสำคัญในทะเบียน ไม่ใช่ข้อความคัดตรงจากต้นฉบับหรือเอกสารฉบับเต็ม</p>
+                <strong style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}><BookOpen size={15} /> {runtime?.provider === "SQLite Local" ? "ข้อความหลักฐานจาก SQLite" : "ข้อความจากทะเบียนความรู้ที่ใช้ประกอบคำตอบ"}</strong>
+                <p className="dg-source-meta">ข้อความต่อไปนี้เป็น excerpt จาก chunk ที่ผ่านตัวกรอง ไม่ใช่เอกสารฉบับเต็มหรือการรับรองความถูกต้องทางคลินิก</p>
                 <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                   {turn.evidencePassages.map((passage) => (
                     <article key={passage.chunkId} className="dg-card">
@@ -220,7 +220,7 @@ export function HealthAssistantChatPanel() {
           maxLength={500}
           minLength={2}
           placeholder="พิมพ์คำถามเกี่ยวกับไข้เลือดออก…"
-          disabled={busy}
+          disabled={busy || runtime === null}
         />
         <button type="submit" disabled={busy || runtime === null || query.trim().length < 2} style={{ display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 12, padding: "0 16px", background: "#17685f", color: "white", fontWeight: 700 }}>
           <Send size={16} /> ส่ง
@@ -228,12 +228,14 @@ export function HealthAssistantChatPanel() {
       </form>
       <div className="dg-source-meta" style={{ marginTop: 9 }}>
         ประวัติแชตอยู่ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูลของ DengueYosoku และจะหายไปเมื่อปิดหรือโหลดหน้าใหม่
-        {runtime?.provider === "Ollama (local)"
-          ? "· โหมด Local AI ส่งคำถามความรู้ทั่วไปที่ผ่าน Safety Gate ไปยัง Ollama บนเครื่องนี้ โดยไม่เรียก Vercel AI Gateway"
-          : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
+        {runtime?.provider === "SQLite Local"
+          ? "· โหมด SQLite Local ส่งเฉพาะคำถามไปค้นฐานข้อมูลบนเครื่อง ผ่าน Public Allow-list; ไม่ส่งประวัติสนทนาไปยัง AI Provider และไม่สร้างคำตอบด้วยโมเดล"
+          : runtime?.provider === "Ollama (local)"
+            ? "· โหมด Local AI ส่งคำถามความรู้ทั่วไปที่ผ่าน Safety Gate ไปยัง Ollama บนเครื่องนี้ โดยไม่เรียก Vercel AI Gateway"
+            : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
         · ห้ามใส่ชื่อ เลขบัตรประชาชน HN/AN เบอร์โทร วันเกิด อาการเฉพาะบุคคล หรือผลตรวจของผู้ป่วย
-        {runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
-        · คำตอบเป็นร่างเพื่อการศึกษา ไม่ใช่คำแนะนำทางการแพทย์ และ Production ยังคง Evidence-only
+        {runtime?.provider === "SQLite Local" || runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
+        {runtime?.provider === "SQLite Local" ? "· ข้อความที่แสดงเป็นหลักฐานจากเอกสาร ไม่ใช่ข้อสรุปที่ผ่านการทบทวนทางคลินิก" : "· คำตอบเป็นร่างเพื่อการศึกษา ไม่ใช่คำแนะนำทางการแพทย์ และ Production ยังคง Evidence-only"}
       </div>
     </section>
   );
