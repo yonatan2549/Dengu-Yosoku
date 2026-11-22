@@ -86,9 +86,9 @@ test("keeps safety blocked separate from no evidence", () => {
     status: "blocked",
     safety: { blocked: true, gate_reasons: ["medication_dosing"], message: "blocked" },
     retrieval: {
-      engine: "public-safety-gate", version: "1.0", indexed_chunks: 126,
-      eligible_chunks: 0, result_count: 0, semantic_weight: 0.8, query_intent: null,
-      withheld: { source_policy: 0, audience_policy: 0, text_quality: 0 },
+      engine: "hybrid-semantic-character-overlap-intent-rerank",
+      version: "0.6.2",
+      result_count: 0,
     },
     results: [],
   });
