@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { classifyHealthQuery } from "@/lib/health-assistant/evidence";
 import { containsPersonalLabValue } from "@/lib/health-assistant/chat-contract";
+import { readBoundedJson } from "@/lib/health-assistant/request-body";
 import { getLocalSqliteRagStatus, searchLocalSqliteRagEvidence } from "@/lib/health-assistant/sqlite-rag";
 
 export const runtime = "nodejs";
@@ -101,20 +102,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Local SQLite RAG อนุญาตเฉพาะ Loopback และ Same-Origin Request" }, { status: 403, headers: noStore });
   }
 
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > 4096) {
-    return NextResponse.json({ error: "คำขอมีขนาดเกินกำหนด" }, { status: 413, headers: noStore });
-  }
   if (isRateLimited(rateLimitKey(request))) {
     return NextResponse.json({ error: "ส่งคำถามถี่เกินไป กรุณารอสักครู่" }, { status: 429, headers: noStore });
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "คำขอต้องอยู่ในรูปแบบ JSON" }, { status: 400, headers: noStore });
+  const parsedBody = await readBoundedJson(request, 4096);
+  if (!parsedBody.ok) {
+    return NextResponse.json({ error: parsedBody.error }, { status: parsedBody.status, headers: noStore });
   }
+  const body = parsedBody.value;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "รูปแบบคำขอไม่ถูกต้อง" }, { status: 400, headers: noStore });
   }
