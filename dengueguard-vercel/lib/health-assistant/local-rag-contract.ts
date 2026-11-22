@@ -151,16 +151,25 @@ export function validatePublicRagPayload(input: unknown): PublicRagValidation {
     return { ok: false, error: "ข้อความ Safety Gate ไม่ถูกต้อง" };
   }
 
+  const blockedInput = input.status === "blocked";
+  const indexedChunks = retrieval.indexed_chunks ?? (blockedInput ? 0 : undefined);
+  const eligibleChunks = retrieval.eligible_chunks ?? (blockedInput ? 0 : undefined);
+  const semanticWeight = retrieval.semantic_weight ?? (blockedInput ? 0 : undefined);
+  const queryIntent = retrieval.query_intent ?? null;
+  const withheld = isRecord(retrieval.withheld) ? retrieval.withheld : (blockedInput ? {} : null);
+
   if (!isText(retrieval.engine, 120) || !isText(retrieval.version, 40) ||
-      !isCount(retrieval.indexed_chunks) || !isCount(retrieval.eligible_chunks) ||
-      !isCount(retrieval.result_count) || !isFiniteNumber(retrieval.semantic_weight) ||
-      retrieval.semantic_weight < 0 || retrieval.semantic_weight > 1 ||
-      !(retrieval.query_intent === null || isText(retrieval.query_intent, 80)) ||
-      !isRecord(retrieval.withheld)) {
+      !isCount(indexedChunks) || !isCount(eligibleChunks) ||
+      !isCount(retrieval.result_count) || !isFiniteNumber(semanticWeight) ||
+      semanticWeight < 0 || semanticWeight > 1 ||
+      !(queryIntent === null || isText(queryIntent, 80)) ||
+      !withheld) {
     return { ok: false, error: "ข้อมูลสถิติ Retrieval ไม่ถูกต้อง" };
   }
-  const withheld = retrieval.withheld;
-  if (!isCount(withheld.source_policy) || !isCount(withheld.audience_policy) || !isCount(withheld.text_quality)) {
+  const withheldSourcePolicy = withheld.source_policy ?? (blockedInput ? 0 : undefined);
+  const withheldAudiencePolicy = withheld.audience_policy ?? (blockedInput ? 0 : undefined);
+  const withheldTextQuality = withheld.text_quality ?? (blockedInput ? 0 : undefined);
+  if (!isCount(withheldSourcePolicy) || !isCount(withheldAudiencePolicy) || !isCount(withheldTextQuality)) {
     return { ok: false, error: "ข้อมูลจำนวนรายการที่ถูกกักกันไม่ถูกต้อง" };
   }
 
@@ -203,15 +212,15 @@ export function validatePublicRagPayload(input: unknown): PublicRagValidation {
       retrieval: {
         engine: retrieval.engine.trim(),
         version: retrieval.version.trim(),
-        indexedChunks: retrieval.indexed_chunks,
-        eligibleChunks: retrieval.eligible_chunks,
+        indexedChunks,
+        eligibleChunks,
         resultCount: retrieval.result_count,
-        semanticWeight: retrieval.semantic_weight,
-        queryIntent: typeof retrieval.query_intent === "string" ? retrieval.query_intent : null,
+        semanticWeight,
+        queryIntent: typeof queryIntent === "string" ? queryIntent : null,
         withheld: {
-          sourcePolicy: withheld.source_policy,
-          audiencePolicy: withheld.audience_policy,
-          textQuality: withheld.text_quality,
+          sourcePolicy: withheldSourcePolicy,
+          audiencePolicy: withheldAudiencePolicy,
+          textQuality: withheldTextQuality,
         },
       },
       results,
