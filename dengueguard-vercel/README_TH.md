@@ -133,3 +133,20 @@ python scripts/convert_model_outputs.py
 สคริปต์จะนำเข้าเฉพาะผล Holdout, ผลพยากรณ์สัปดาห์ล่าสุด และ Metrics จาก https://github.com/johnlovepizza/DenguYosoku โดยไม่ดาวน์โหลด `answer_key.csv`, ข้อมูลดิบ หรือ `model.txt` เข้าเว็บไซต์ ผลลัพธ์จะอยู่ใน `public/data/model_predictions.json` และ `public/data/model_metrics.json` แยกจาก `predictions.json` รุ่นเดิม
 
 **ข้อจำกัด:** โมเดลส่งออกค่าพยากรณ์จำนวนผู้ป่วย แต่ไม่ได้ส่งเกณฑ์เตือน (`thr_watch`, `thr_alert`) หรือระดับความเสี่ยง (`level`) มาให้ จึงยังไม่ควรนำผลใหม่ไปสร้างสถานะเตือนใน Prevention จนกว่าจะกำหนดและทบทวนเกณฑ์ดังกล่าวแยกต่างหาก ข้อมูลสภาพอากาศต้องอัปเดตจากแหล่งข้อมูลใหม่ด้วย
+
+## Health Assistant — Local RAG Evidence Mode
+
+หน้า `/health-assistant` เชื่อมกับ Python `scripts/search.py` และฐานข้อมูล RAG บนเครื่องพัฒนา โดยแสดงข้อความหลักฐานพร้อม URL ต้นฉบับ ไม่ใช้โมเดลขนาดเล็กสร้างคำแนะนำทางการแพทย์ และไม่บันทึกประวัติการสนทนา
+
+สร้างไฟล์ `.env.local` ในโฟลเดอร์ `dengueguard-vercel` ซึ่งอยู่ระดับเดียวกับ `package.json` แล้วกำหนด:
+
+```dotenv
+DENGUE_RAG_PROJECT_DIR=D:\AI\DengueYosoku
+DENGUE_RAG_PYTHON=py
+```
+
+โฟลเดอร์ RAG ที่ตั้งค่าต้องมี `scripts/search.py` และ `knowledge-base/knowledge.db` และต้องเปิด Ollama พร้อม Embedding model ที่ `search.py` ใช้อยู่ จากนั้นเริ่ม `npm run dev` ใหม่
+
+โหมด Local RAG จะปิดตัวเองเมื่อ `NODE_ENV=production` เพราะ Vercel ไม่สามารถเข้าถึงไดรฟ์ D: หรือ Ollama บนเครื่องส่วนตัวได้ การเปิดใช้บน Production ต้องมี RAG service แยกที่โฮสต์อย่างปลอดภัย ตรวจสอบตัวตน จำกัดสิทธิ์ และมีการทดสอบก่อน
+
+ทดสอบ logic ของตัวตรวจอาการฉุกเฉินและ parser ด้วย `npm run test:health-assistant`
