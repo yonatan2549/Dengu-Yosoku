@@ -17,7 +17,7 @@ export type SqliteRagSearchOutcome =
 export interface SqliteRagRuntimeStatus {
   configured: boolean;
   available: boolean;
-  code?: SqliteRagSearchOutcome extends { ok: false; code: infer C } ? C : never;
+  code?: "production_disabled" | "not_configured" | "invalid_runtime" | "unavailable" | "invalid_output";
   message: string;
 }
 
