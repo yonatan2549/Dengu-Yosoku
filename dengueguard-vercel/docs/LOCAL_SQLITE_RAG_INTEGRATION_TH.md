@@ -23,7 +23,7 @@ DENGUE_RAG_PYTHON=py
 
 ## วิธีทำงาน
 
-1. Browser เรียก `POST /api/health-assistant/chat` เฉพาะเมื่อ runtime ระบุว่าตั้งค่า SQLite local แล้ว; API route ใช้ `POST /api/health-assistant/sqlite-search`.
+1. Browser ตรวจสถานะด้วย `GET /api/health-assistant/sqlite-search`; เมื่อพบการตั้งค่า SQLite local จะส่งเฉพาะคำถามไปยัง `POST /api/health-assistant/sqlite-search`. หากไม่ได้ตั้งค่า จึงใช้ Health Assistant chat path เดิม.
 2. Safety preflight จะ block emergency/personal-medical queries ก่อนเปิด subprocess
 3. Node เรียก Python ด้วย `execFile` โดยไม่ผ่าน shell และส่ง query เป็น argv แยก
 4. Python ค้นด้วย Public audience เท่านั้น แล้วคืน JSON
