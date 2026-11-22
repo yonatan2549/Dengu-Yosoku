@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/dengueguard-improvements
+      - feature/health-assistant-local-rag-integration
     paths:
       - "dengueguard-vercel/**"
       - ".github/workflows/dengueyosoku-web-ci.yml"
@@ -56,6 +57,18 @@ jobs:
 
       - name: Alert dry-run engine tests
         run: npm run test:alerts
+
+      - name: Health Assistant chat contract tests
+        run: npm run test:health-assistant-chat
+
+      - name: Health Knowledge retrieval tests
+        run: npm run test:health-knowledge-rag
+
+      - name: Health Knowledge governance tests
+        run: npm run test:health-knowledge-governance
+
+      - name: Local RAG public payload contract tests
+        run: npm run test:health-assistant-local-rag
 
       - name: Production build
         run: npm run build

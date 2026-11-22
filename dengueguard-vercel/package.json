@@ -37,7 +37,8 @@
     "test:model-source-probe": "python -m unittest scripts.test_model_source_probe -v",
     "test:model-release-guard": "python -m unittest scripts.test_model_release_guard -v",
     "check:model-release": "python scripts/inspect_model_release.py",
-    "test:model-release-inspection": "python -m unittest scripts.test_model_release_inspection -v"
+    "test:model-release-inspection": "python -m unittest scripts.test_model_release_inspection -v",
+    "test:health-assistant-local-rag": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/health-assistant-local-rag-tests lib/health-assistant/local-rag-contract.ts && node --test scripts/test-health-assistant-local-rag.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

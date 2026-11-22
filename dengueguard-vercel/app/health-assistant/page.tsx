@@ -21,7 +21,7 @@ export default function HealthAssistantPage() {
             <h1>AI Health Assistant</h1>
             <p className="dg-lede">ผู้ช่วยค้นหาความรู้เฉพาะด้านไข้เลือดออก โดยเริ่มจากเอกสารอ้างอิงที่เชื่อถือได้ แสดงที่มา และระบุข้อจำกัดของเนื้อหาอย่างชัดเจน</p>
             <div className="dg-pill dg-pill-muted" style={{ marginTop: 17 }}>
-              <span className="status-dot" style={{ background: "#b58b3b" }} /> HA-1 · Knowledge Retrieval Preview · ยังไม่สร้างคำตอบด้วย AI
+              <span className="status-dot" style={{ background: "#b58b3b" }} /> HA-4 · Local SQLite RAG Preview · Evidence only
             </div>
           </div>
           <div className="dg-hero-art"><Bot size={86} strokeWidth={1.15} /></div>
