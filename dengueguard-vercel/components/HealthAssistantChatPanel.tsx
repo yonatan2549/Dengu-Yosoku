@@ -36,26 +36,44 @@ export function HealthAssistantChatPanel() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/health-assistant/chat", { cache: "no-store" })
-      .then(async (response) => {
+    async function loadRuntime() {
+      try {
+        const sqliteResponse = await fetch("/api/health-assistant/sqlite-search", { cache: "no-store" });
+        const sqliteStatus = await sqliteResponse.json();
+        if (active && sqliteStatus?.configured === true) {
+          setRuntime({
+            generatedAnswersEnabled: false,
+            model: null,
+            provider: "SQLite Local",
+            message: typeof sqliteStatus?.message === "string"
+              ? sqliteStatus.message
+              : "พร้อมค้นหลักฐานจาก SQLite ในเครื่อง",
+          });
+          return;
+        }
+      } catch {
+        // Keep the existing AI/evidence runtime as a fallback when local SQLite is not configured.
+      }
+
+      try {
+        const response = await fetch("/api/health-assistant/chat", { cache: "no-store" });
         if (!response.ok) throw new Error("status unavailable");
-        return response.json();
-      })
-      .then((payload) => {
+        const payload = await response.json();
         if (active) setRuntime({
           generatedAnswersEnabled: payload?.generatedAnswersEnabled === true,
           model: typeof payload?.model === "string" ? payload.model : null,
           provider: typeof payload?.provider === "string" ? payload.provider : undefined,
           message: typeof payload?.message === "string" ? payload.message : "ยังไม่สามารถตรวจสอบสถานะ AI ได้",
         });
-      })
-      .catch(() => {
+      } catch {
         if (active) setRuntime({
           generatedAnswersEnabled: false,
           model: null,
           message: "ไม่สามารถตรวจสถานะ AI ได้ในขณะนี้ ระบบยังให้ค้นคืนหลักฐานได้",
         });
-      });
+      }
+    }
+    void loadRuntime();
     return () => { active = false; };
   }, []);
 
@@ -77,17 +95,19 @@ export function HealthAssistantChatPanel() {
     setTurns((current) => [...current, { role: "user", content: question }]);
     setQuery("");
     try {
-      const response = await fetch("/api/health-assistant/chat", {
+      const sqliteMode = runtime?.provider === "SQLite Local";
+      const response = await fetch(sqliteMode ? "/api/health-assistant/sqlite-search" : "/api/health-assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: question, history: lastMessages }),
+        body: JSON.stringify(sqliteMode ? { query: question } : { query: question, history: lastMessages }),
         cache: "no-store",
       });
       const payload = await response.json();
       if (!response.ok) {
-        setError(typeof payload?.error === "string" ? payload.error : "ระบบถามตอบยังไม่พร้อมใช้งาน");
+        setError(typeof payload?.error === "string" ? payload.error : "ระบบค้นความรู้ยังไม่พร้อมใช้งาน");
         return;
       }
+
       const answer = typeof payload?.answer === "string"
         ? payload.answer
         : typeof payload?.safetyMessage === "string"
@@ -119,7 +139,7 @@ export function HealthAssistantChatPanel() {
           <p>ถามเรื่องไข้เลือดออกได้ทันที ระบบจะแสดงแหล่งอ้างอิงเมื่อมีหลักฐานรองรับ</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบ AI…" : runtime.generatedAnswersEnabled ? `${runtime.provider === "Ollama (local)" ? "Local AI" : "AI Preview"} · ${runtime.model ?? "Draft only"}` : "Evidence-only · Production"}</span>
+          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบระบบ…" : runtime.provider === "SQLite Local" ? "SQLite Local · Evidence only" : runtime.generatedAnswersEnabled ? `${runtime.provider === "Ollama (local)" ? "Local AI" : "AI Preview"} · ${runtime.model ?? "Draft only"}` : "Evidence-only"}</span>
           <button type="button" className="dg-chip" onClick={startNewConversation} disabled={busy || turns.length === 0} aria-label="เริ่มบทสนทนาใหม่">
             <Trash2 size={14} /> เริ่มบทสนทนาใหม่
           </button>
@@ -128,7 +148,7 @@ export function HealthAssistantChatPanel() {
 
       <div className="dg-note" style={{ marginTop: 14 }}>
         <ShieldAlert size={18} />
-        <div><strong>{runtime?.generatedAnswersEnabled ? (runtime.provider === "Ollama (local)" ? "Local AI · คำตอบร่างเพื่อการศึกษา" : "AI Preview · คำตอบร่างเพื่อการศึกษา") : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
+        <div><strong>{runtime?.provider === "SQLite Local" ? "SQLite Local RAG · แสดงหลักฐานเท่านั้น" : runtime?.generatedAnswersEnabled ? (runtime.provider === "Ollama (local)" ? "Local AI · คำตอบร่างเพื่อการศึกษา" : "AI Preview · คำตอบร่างเพื่อการศึกษา") : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
       </div>
 
       <div aria-live="polite" style={{ display: "grid", gap: 12, marginTop: 18 }}>
@@ -183,7 +203,7 @@ export function HealthAssistantChatPanel() {
         <div style={{ marginTop: 16 }}>
           <p className="dg-source-meta">ลองถามคำถามความรู้ทั่วไป</p>
           <div className="dg-chip-row">
-            {suggestions.map((item) => <button key={item} type="button" className="dg-chip" disabled={busy} onClick={() => void send(undefined, item)}>{item}</button>)}
+            {suggestions.map((item) => <button key={item} type="button" className="dg-chip" disabled={busy || runtime === null} onClick={() => void send(undefined, item)}>{item}</button>)}
           </div>
         </div>
       )}
@@ -202,7 +222,7 @@ export function HealthAssistantChatPanel() {
           placeholder="พิมพ์คำถามเกี่ยวกับไข้เลือดออก…"
           disabled={busy}
         />
-        <button type="submit" disabled={busy || query.trim().length < 2} style={{ display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 12, padding: "0 16px", background: "#17685f", color: "white", fontWeight: 700 }}>
+        <button type="submit" disabled={busy || runtime === null || query.trim().length < 2} style={{ display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 12, padding: "0 16px", background: "#17685f", color: "white", fontWeight: 700 }}>
           <Send size={16} /> ส่ง
         </button>
       </form>
