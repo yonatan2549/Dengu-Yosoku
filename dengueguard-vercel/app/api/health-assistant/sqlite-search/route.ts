@@ -1,0 +1,215 @@
+import { NextResponse } from "next/server";
+import { classifyHealthQuery } from "@/lib/health-assistant/evidence";
+import { containsPersonalLabValue } from "@/lib/health-assistant/chat-contract";
+import { getLocalSqliteRagStatus, searchLocalSqliteRagEvidence } from "@/lib/health-assistant/sqlite-rag";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const noStore = { "Cache-Control": "no-store, max-age=0" };
+const WINDOW_MS = 60_000;
+const MAX_REQUESTS_PER_WINDOW = 12;
+const requests = new Map<string, { startedAt: number; count: number }>();
+
+function isLoopback(hostname: string): boolean {
+  const value = hostname.toLowerCase();
+  return value === "localhost" || value === "127.0.0.1" || value === "::1" || value === "[::1]";
+}
+
+function blockedResponse(query: string, reason: string, message: string) {
+  return NextResponse.json({
+    mode: "sqlite-evidence-only",
+    generatedAnswersEnabled: false,
+    generatedAnswer: false,
+    status: "blocked",
+    query,
+    audience: "public",
+    safety: { blocked: true, gateReasons: [reason], message },
+    retrieval: {
+      engine: "public-safety-preflight",
+      version: "1.0",
+      indexedChunks: 0,
+      eligibleChunks: 0,
+      resultCount: 0,
+      semanticWeight: 0,
+      queryIntent: reason,
+      withheld: { sourcePolicy: 0, audiencePolicy: 0, textQuality: 0 },
+    },
+    results: [],
+    warnings: ["คำถามนี้ไม่ถูกส่งไปยัง Python, SQLite หรือ Ollama"],
+    abstained: true,
+    answer: null,
+    citations: [],
+    evidencePassages: [],
+  }, { headers: noStore });
+}
+
+function rateLimitKey(request: Request): string {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local-client";
+}
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  const current = requests.get(key);
+  if (!current || now - current.startedAt >= WINDOW_MS) {
+    requests.set(key, { startedAt: now, count: 1 });
+    return false;
+  }
+  current.count += 1;
+  return current.count > MAX_REQUESTS_PER_WINDOW;
+}
+
+function isSameLoopbackRequest(request: Request): boolean {
+  const url = new URL(request.url);
+  const hostHeader = request.headers.get("host") ?? "";
+  let headerHost = "";
+  try {
+    headerHost = new URL("http://" + hostHeader).hostname;
+  } catch {
+    return false;
+  }
+  if (!isLoopback(url.hostname) || !isLoopback(headerHost) || url.hostname !== headerHost) return false;
+
+  const origin = request.headers.get("origin");
+  if (!origin) return true;
+  try {
+    return new URL(origin).origin === url.origin;
+  } catch {
+    return false;
+  }
+}
+
+export async function GET() {
+  const status = getLocalSqliteRagStatus();
+  return NextResponse.json({
+    mode: "sqlite-evidence-only",
+    generatedAnswersEnabled: false,
+    provider: status.configured ? "SQLite Local" : null,
+    configured: status.configured,
+    available: status.available,
+    message: status.message,
+    productionPolicy: "local-development-only; no generated medical answers",
+  }, { headers: noStore });
+}
+
+export async function POST(request: Request) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Local SQLite RAG ใช้ได้เฉพาะ Local Development" }, { status: 503, headers: noStore });
+  }
+  if (!isSameLoopbackRequest(request)) {
+    return NextResponse.json({ error: "Local SQLite RAG อนุญาตเฉพาะ Loopback และ Same-Origin Request" }, { status: 403, headers: noStore });
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > 4096) {
+    return NextResponse.json({ error: "คำขอมีขนาดเกินกำหนด" }, { status: 413, headers: noStore });
+  }
+  if (isRateLimited(rateLimitKey(request))) {
+    return NextResponse.json({ error: "ส่งคำถามถี่เกินไป กรุณารอสักครู่" }, { status: 429, headers: noStore });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "คำขอต้องอยู่ในรูปแบบ JSON" }, { status: 400, headers: noStore });
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return NextResponse.json({ error: "รูปแบบคำขอไม่ถูกต้อง" }, { status: 400, headers: noStore });
+  }
+
+  const rawQuery = (body as Record<string, unknown>).query;
+  if (typeof rawQuery !== "string" || rawQuery.trim().length < 2 || rawQuery.trim().length > 500) {
+    return NextResponse.json({ error: "คำถามต้องมีความยาว 2–500 ตัวอักษร" }, { status: 400, headers: noStore });
+  }
+  const query = rawQuery.trim();
+
+  const intent = classifyHealthQuery(query);
+  if (intent === "emergency-warning") {
+    return blockedResponse(query, "emergency_warning",
+      "หากมีอาการปวดท้องรุนแรง อาเจียนต่อเนื่อง เลือดออก ซึม สับสน หรือหายใจลำบาก ให้ไปโรงพยาบาลหรือห้องฉุกเฉินทันที อย่ารอผลค้นจากระบบนี้");
+  }
+  if (intent === "personal-medical" || containsPersonalLabValue(query)) {
+    return blockedResponse(query, "personal_medical",
+      "ระบบนี้ไม่วินิจฉัย แปลผลตรวจเฉพาะบุคคล เลือกยา หรือกำหนดขนาดยา โปรดปรึกษาบุคลากรทางการแพทย์");
+  }
+
+  const result = await searchLocalSqliteRagEvidence(query);
+  if (!result.ok) {
+    return NextResponse.json({
+      error: result.message,
+      code: result.code,
+      mode: "sqlite-rag-unavailable",
+      generatedAnswersEnabled: false,
+    }, { status: 503, headers: noStore });
+  }
+
+  const payload = result.data;
+  if (payload.status === "blocked") {
+    return blockedResponse(query, payload.safety.gateReasons[0] || "safety_gate",
+      payload.safety.message || "ระบบงดค้นคำถามนี้เพื่อความปลอดภัย");
+  }
+
+  const citationsBySource = new Map<string, {
+    marker: string; id: string; title: string; publisher: string; publishedAt: string;
+    sourceUrl: string; reviewStatus: string;
+  }>();
+  const evidencePassages = payload.results.map((item) => {
+    if (!citationsBySource.has(item.sourceId)) {
+      citationsBySource.set(item.sourceId, {
+        marker: "[S" + (citationsBySource.size + 1) + "]",
+        id: item.sourceId,
+        title: item.title,
+        publisher: item.authority,
+        publishedAt: "ไม่ระบุวันที่เผยแพร่ใน Metadata ของ chunk",
+        sourceUrl: item.sourceUrl,
+        reviewStatus: "Public general · ยังไม่ผ่านการทบทวนทางคลินิก",
+      });
+    }
+    return {
+      chunkId: item.sourceId + "-" + item.rank,
+      documentId: item.sourceId,
+      title: item.title,
+      sectionLabel: item.pageLabel,
+      text: item.text,
+      publisher: item.authority,
+      publishedAt: "สกัดข้อมูลเมื่อ " + (item.retrievedAt || "ไม่ระบุ"),
+      sourceUrl: item.sourceUrl,
+      reviewStatus: item.extractionMethod === "legacy_unknown"
+        ? "วิธีสกัดเดิมไม่ทราบแน่ชัด · รอทบทวนทางคลินิก"
+        : "Public general · รอทบทวนทางคลินิก",
+      similarity: item.scores.combined,
+    };
+  });
+
+  const citations = Array.from(citationsBySource.values());
+  const answer = payload.status === "no_evidence"
+    ? "ยังไม่พบหลักฐานจากคลัง SQLite ที่ผ่าน Public Allow-list ตรงกับคำถามนี้ ระบบจึงงดสรุปคำตอบ"
+    : "ค้นพบหลักฐานจาก SQLite ในเครื่อง " + payload.results.length +
+      " รายการ ด้านล่างเป็นข้อความจากเอกสารต้นทางที่ผ่านตัวกรองสาธารณะ ระบบไม่ได้สร้างหรือสังเคราะห์คำตอบด้วย AI";
+
+  const retrievalSummary = "Indexed " + payload.retrieval.indexedChunks +
+    " · Eligible public " + payload.retrieval.eligibleChunks +
+    " · Retrieved " + payload.retrieval.resultCount +
+    " · Withheld by policy: source " + payload.retrieval.withheld.sourcePolicy +
+    ", audience " + payload.retrieval.withheld.audiencePolicy +
+    ", quality " + payload.retrieval.withheld.textQuality +
+    ". คะแนนจัดอันดับไม่ใช่คะแนนความถูกต้องทางการแพทย์";
+
+  return NextResponse.json({
+    mode: "evidence-only",
+    generatedAnswer: false,
+    generatedAnswersEnabled: false,
+    abstained: payload.status === "no_evidence",
+    answer,
+    citations,
+    evidencePassages,
+    retrievalMethod: payload.retrieval.engine + " v" + payload.retrieval.version,
+    fullDocumentRag: false,
+    disclaimer: retrievalSummary + ". " +
+      "ผลลัพธ์เป็น excerpt จาก chunk ที่ผ่าน Public Allow-list เท่านั้น; extraction quality ok ไม่ได้หมายถึงผ่านการทบทวนทางคลินิก",
+    sqliteRetrieval: payload.retrieval,
+    warnings: payload.warnings,
+  }, { headers: noStore });
+}
