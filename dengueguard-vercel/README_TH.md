@@ -141,7 +141,7 @@ The Health Assistant evidence-search panel can call the local SQLite RAG on the 
 Add these values to `.env.local` (do not commit `.env.local`):
 
 ```dotenv
-DENGUE_RAG_PROJECT_DIR=D:\\AI\\DengueYosoku
+DENGUE_RAG_PROJECT_DIR=D:/AI/DengueYosoku
 DENGUE_RAG_PYTHON=py
 ```
 
