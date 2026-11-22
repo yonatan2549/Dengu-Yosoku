@@ -6,6 +6,7 @@ on:
     branches:
       - feature/dengueguard-improvements
       - feature/local-ollama-health-rag-2026-11-21
+      - feature/health-assistant-sqlite-rag-modern-ui
       - integration/phase9-12-final-review
       - review/national-alerts-independent-audit-2026-11-21
     paths:
@@ -15,6 +16,8 @@ on:
     branches:
       - main
       - feature/dengueguard-improvements
+      - feature/local-ollama-health-rag-2026-11-21
+      - feature/health-assistant-sqlite-rag-modern-ui
       - integration/phase9-12-final-review
       - review/national-alerts-independent-audit-2026-11-21
     paths:
@@ -144,6 +147,9 @@ jobs:
 
       - name: Local Ollama Health RAG contract tests
         run: npm run test:local-health-rag
+
+      - name: Local SQLite RAG public evidence contract tests
+        run: npm run test:health-assistant-sqlite-rag
 
 
       - name: Snapshot actual-history bridge and MMWR contract tests
