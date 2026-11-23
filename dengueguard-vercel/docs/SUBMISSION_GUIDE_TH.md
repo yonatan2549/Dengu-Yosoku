@@ -81,23 +81,31 @@ SQL migrations เป็นไฟล์ source ใน repository เท่าน
 
 ## 8. หลักฐานการทดสอบ
 
-ผล GitHub Actions ที่ตรวจสอบได้:
+ผล GitHub Actions ล่าสุดที่ตรวจสอบได้:
 - Workflow: **DengueYosoku web CI**
-- Run: [#228](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/44865828911)
-- Commit: `92629dad0de4d0fd206e70151e2d6a418a5a1da0`
-- ผล: **completed / success** ณ 21 พฤศจิกายน 2026
+- Run: [#545](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/45204470351)
+- Commit: `1f847f80ce5a1a09e328d15d16ee0611e532b8b5`
+- ผล: **completed / success** รวม 42 ขั้นตอน
 
-ครอบคลุม TypeScript, Dashboard selection, Alert engine/lifecycle/profile/readiness, Symptom Checker assessment, model validation/freshness/loader/performance/operations/release integrity, Health Knowledge, Health Assistant evidence/chat/source policy/governance/RAG, model temporal monitor/refresh/snapshot/consumer readiness, source policy, Python model artifact pipeline, release source guard และ Next.js Production build
+ครอบคลุม TypeScript, Dashboard/Prevention selection, Prevention header/icon regression, Alert engine/lifecycle/readiness, Alert Presentation Demo contract, Symptom Checker assessment, Model validation/freshness/loader/performance/operations/release integrity, Health Knowledge, Health Assistant evidence/chat/runtime-pause/source-policy/governance/RAG, Python model artifact/classic parity, release guard, Next.js Production build และ built-app route/safety smoke tests
 
-หลักฐาน CI ยืนยันว่า code ใน commit นั้นผ่านการตรวจที่กำหนด ไม่ได้ยืนยัน clinical validity, security penetration test, production deployment หรือ readiness ของข้อมูลพยากรณ์ล่าสุด
+ผลทดสอบยืนยันว่าโค้ดใน commit นี้ผ่านชุดตรวจที่ตั้งไว้ ไม่ได้ยืนยัน clinical validity, security penetration test, Production deployment หรือความสดใหม่ของข้อมูลพยากรณ์
 
 ## 9. สถานะ Deployment ณ วันจัดทำ
 
-- PR #2 ยังเป็น Draft/Open; ยังไม่ merge
-- PR #3 เป็น branch ที่มีประวัติแตกต่างและไม่ควร merge ทั้งก้อน
-- Vercel Preview ของ integration commit ล่าสุดสร้างไม่สำเร็จเพราะ daily deployment API/build limit
-- Deployment Production เดิมไม่ได้ถูกแทนที่จากงาน integration นี้
-- จึงต้องสาธิต local หรือ Preview ที่ตรวจสอบ commit SHA ให้ตรงกับ ZIP ก่อนเท่านั้น
+- PR #5 ยังเป็น Draft/Open และยังไม่ Merge เข้า `main`
+- Vercel Preview ใหม่จาก Commit `1f847f80...` ถูกจำกัดด้วย Vercel Build Rate Limit ทั้งสองโปรเจกต์ จึงยังไม่มี Preview ที่ตรงกับ Commit ล่าสุด
+- Preview ที่เคย READY จาก Commit `d9968e0...` เป็นรุ่นก่อนปรับไอคอนทุกหน้าและก่อนปิด AI ที่ Server Gate จึงห้ามอ้างว่าเป็นเวอร์ชันล่าสุด
+- ไม่ได้เปลี่ยน Production, ไม่ได้ Promote deployment และไม่ได้แก้ไข environment ของ Production
+- สำหรับการนำเสนอรอบนี้ให้ใช้ ZIP จาก artifact ของ Commit ล่าสุด หรือรอ Preview ที่ตรง SHA เมื่อ Vercel เปิดให้ Build ใหม่
+
+## 9.1 ชุดซอร์สสำหรับส่งอาจารย์
+
+- GitHub Actions run [#66](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/45204452218) สร้างไฟล์ `DengueYosoku-Source.zip` และ `DengueYosoku-Repository.zip` จาก Commit `1f847f80ce5a1a09e328d15d16ee0611e532b8b5`
+- Artifact: `DengueYosoku-Submission-1f847f80ce5a1a09e328d15d16ee0611e532b8b5`
+- SHA-256 ของ Artifact: `3a9d00d9b205456eb2d6fc8bf235a73826cca408a13fed86fef474e84455239f`
+- Artifact เก็บ 30 วัน นับจาก 23 พฤศจิกายน 2026
+- ZIP สร้างจากไฟล์ที่ Git ติดตามเท่านั้น ไม่รวม `.env.local`, API keys, credentials หรือ raw surveillance CSV ขนาดใหญ่
 
 ## 10. แนวทางนำเสนอ
 
