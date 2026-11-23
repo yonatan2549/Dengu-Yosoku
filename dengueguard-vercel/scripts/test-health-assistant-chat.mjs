@@ -95,11 +95,14 @@ test("rejects malformed URLs and non-HTTPS production endpoints", () => {
   assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "http://localhost:11434/v1/chat/completions", AI_GATEWAY_API_KEY: "x" }, "production").ok, false);
 });
 
-test("enables AI draft generation only in local development or explicitly enabled Vercel Preview", () => {
-  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "development", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), true);
-  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), true);
-  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "production", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), false);
-  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "false" }), false);
+test("keeps AI answer generation paused by default and requires a separate explicit unpause", () => {
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "development", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), false);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), false);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "development", HEALTH_ASSISTANT_PAUSED: "true", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), false);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "development", HEALTH_ASSISTANT_PAUSED: "false", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), true);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", HEALTH_ASSISTANT_PAUSED: "false", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), true);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "production", VERCEL_ENV: "production", HEALTH_ASSISTANT_PAUSED: "false", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "true" }), false);
+  assert.equal(isDraftAnswersEnabled({ NODE_ENV: "development", HEALTH_ASSISTANT_PAUSED: "false", HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS: "false" }), false);
 });
 
 test("sends a platform-provided OIDC token only in the server-side Authorization header", async () => {
@@ -142,6 +145,7 @@ test("keeps Production evidence-only while enabling explicitly gated Preview dra
   assert.match(chatRouteSource, /reviewStatus: "awaiting_clinical_review"/);
   assert.match(chatRouteSource, /mode: "grounded-draft-answer"/);
   assert.match(chatRouteSource, /draftOnly: true/);
+  assert.match(chatRouteSource, /if \(!completion\.ok\)\s*\{[\s\S]*?return evidenceOnlyResponse\(/);
   assert.match(chatRouteSource, /return evidenceOnlyResponse\(/);
 });
 

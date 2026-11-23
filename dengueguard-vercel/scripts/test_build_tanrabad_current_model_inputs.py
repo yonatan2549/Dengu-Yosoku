@@ -147,5 +147,75 @@ class BuildTanRabadCurrentInputTests(unittest.TestCase):
             )
 
 
+    def test_accepts_three_dynamic_weeks_and_targets_the_following_sunday(self):
+        incoming_rows = []
+        weather_rows = []
+        extension = (
+            (44, date(2026, 11, 1)),
+            (45, date(2026, 11, 8)),
+            (46, date(2026, 11, 15)),
+        )
+        for week_number, week_start in extension:
+            for province_index, province in enumerate(PROVINCES):
+                incoming_rows.append({
+                    "province": province, "year": 2026, "week": week_number,
+                    "cases": 200 + province_index + week_number,
+                })
+                weather_rows.append({
+                    "model": "best_match", "province": province,
+                    "week_start": week_start.isoformat(),
+                    "w_apparent_temperature_mean_api": 29.0 + province_index / 100,
+                })
+        write_csv(self.incoming, ["province", "year", "week", "cases"], incoming_rows)
+        write_csv(
+            self.weather,
+            ["model", "province", "week_start", "w_apparent_temperature_mean_api"],
+            weather_rows,
+        )
+
+        report = adapter.build_inputs(
+            self.historical, self.incoming, self.weather,
+            self.weather_report, self.output,
+        )
+        self.assertEqual(report["incoming_tanrabad"]["rows"], 231)
+        self.assertEqual(report["training_panel"]["appended_week_count"], 3)
+        self.assertEqual(report["training_panel"]["end_week"], "2026-11-15")
+        self.assertEqual(report["forecast_target"]["week_start"], "2026-11-22")
+        self.assertEqual(report["forecast_target"]["epidemiological_week"], 47)
+        self.assertEqual(report["open_meteo_weather"]["values_added"], 231)
+
+    def test_blocks_a_gap_in_the_incoming_weekly_extension(self):
+        incoming_rows = []
+        weather_rows = []
+        for week_number, week_start in ((44, date(2026, 11, 1)), (46, date(2026, 11, 15))):
+            for province_index, province in enumerate(PROVINCES):
+                incoming_rows.append({
+                    "province": province, "year": 2026, "week": week_number,
+                    "cases": 200 + province_index + week_number,
+                })
+                weather_rows.append({
+                    "model": "best_match", "province": province,
+                    "week_start": week_start.isoformat(),
+                    "w_apparent_temperature_mean_api": 29.0 + province_index / 100,
+                })
+        write_csv(self.incoming, ["province", "year", "week", "cases"], incoming_rows)
+        write_csv(
+            self.weather,
+            ["model", "province", "week_start", "w_apparent_temperature_mean_api"],
+            weather_rows,
+        )
+        with self.assertRaises(adapter.BuildInputError):
+            adapter.build_inputs(
+                self.historical, self.incoming, self.weather,
+                self.weather_report, self.output,
+            )
+
+    def test_mmwr_year_boundary_uses_the_new_epi_year(self):
+        self.assertEqual(adapter.mmwr_sunday_start(2027, 1), date(2027, 1, 3))
+        self.assertEqual(adapter.mmwr_year_week(date(2027, 1, 3)), (2027, 1))
+        with self.assertRaises(adapter.BuildInputError):
+            adapter.mmwr_sunday_start(2026, 53)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,76 @@
+name: National Alert Draft technical review
+
+on:
+  push:
+    branches:
+      - "review/national-alerts-independent-audit-2026-11-21"
+    paths:
+      - "dengueguard-vercel/scripts/build_alert_threshold_draft.py"
+      - "dengueguard-vercel/scripts/test_alert_threshold_draft.py"
+      - "dengueguard-vercel/scripts/merge_model_snapshot_history.py"
+      - "dengueguard-vercel/scripts/test_merge_model_snapshot_history.py"
+      - "dengueguard-vercel/scripts/build_tanrabad_current_model_inputs.py"
+      - "dengueguard-vercel/scripts/test_build_tanrabad_current_model_inputs.py"
+      - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
+      - "dengueguard-vercel/scripts/test_experimental_case_only_nowcast.py"
+      - "dengueguard-vercel/public/data/model_predictions.json"
+      - "dengueguard-vercel/public/data/alert_threshold_candidates_77.json"
+      - "dengueguard-vercel/docs/NATIONAL_ALERT_THRESHOLDS_77_TH.md"
+      - "dengueguard-vercel/docs/INDEPENDENT_TECHNICAL_REVIEW_NATIONAL_ALERTS_77_TH.md"
+      - ".github/workflows/national-alerts-review-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: national-alerts-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-threshold-draft:
+    name: Verify 77-province threshold draft and freshness
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dengueguard-vercel
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile review and current-model bridge scripts
+        run: |
+          python -m py_compile \
+            scripts/build_alert_threshold_draft.py \
+            scripts/test_alert_threshold_draft.py \
+            scripts/merge_model_snapshot_history.py \
+            scripts/test_merge_model_snapshot_history.py \
+            scripts/build_tanrabad_current_model_inputs.py \
+            scripts/test_build_tanrabad_current_model_inputs.py
+
+      - name: Verify committed threshold candidate matches source snapshot
+        run: python scripts/build_alert_threshold_draft.py --check
+
+      - name: Run threshold, temporal validation, governance and freshness tests
+        run: python -m unittest scripts.test_alert_threshold_draft -v
+
+      - name: Run observed-history bridge tests
+        run: python -m unittest scripts.test_merge_model_snapshot_history -v
+
+      - name: Run dynamic 77-province weather and case input tests
+        run: python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
+
+      - name: Install model test dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==2.5.4" "pandas==3.1.1" "lightgbm==4.7.0"
+
+      - name: Run experimental case-only weekly input and MMWR tests
+        run: |
+          python -m py_compile scripts/experimental_case_only_nowcast.py scripts/test_experimental_case_only_nowcast.py
+          python -m unittest scripts.test_experimental_case_only_nowcast -v
+
+      - name: Verify technical review report exists
+        run: test -s docs/INDEPENDENT_TECHNICAL_REVIEW_NATIONAL_ALERTS_77_TH.md

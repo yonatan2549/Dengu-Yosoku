@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Info, MapPinned, Search, SlidersHorizontal } from "lucide-react";
 import {
   CartesianGrid,
@@ -16,13 +16,20 @@ import { useDengueData } from "@/components/DataProvider";
 import { ModelPerformanceDiagnostics } from "@/components/ModelPerformanceDiagnostics";
 import { getCurrentEpiWeekStart, getEpiWeekLagWeeks } from "@/lib/utils";
 import { ModelMapLoader } from "@/components/ModelMapLoader";
-import type { ModelForecastRow, ModelHistoryRow } from "@/lib/types";
+import type { ModelForecastRow, ModelHistoryRow, ProvinceHistorySnapshot } from "@/lib/types";
+import thresholdDraft from "../public/data/alert_threshold_candidates_77.json";
+import { formatEpiWeekLabel } from "@/lib/epi-week";
+import { buildModelTrendRows } from "@/lib/model/history-chart";
+
+const THRESHOLD_BY_PROVINCE = new Map(
+  thresholdDraft.thresholds.map((row) => [row.province, row] as const),
+);
 
 const ALL_PROVINCES = "รวม 77 จังหวัด";
 
 type DisplayRow = {
   province: string;
-  prediction: number;
+  prediction: number | null;
   actualCases: number | null;
   persistence: number | null;
 };
@@ -93,15 +100,46 @@ export default function ModelDashboard() {
   const [tableQuery, setTableQuery] = useState("");
   const [tablePageSize, setTablePageSize] = useState(10);
   const [tablePage, setTablePage] = useState(1);
+  const [historicalSnapshot, setHistoricalSnapshot] = useState<ProvinceHistorySnapshot | null>(null);
+  const [historicalSnapshotLoading, setHistoricalSnapshotLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/data/province_history_77.json", { cache: "force-cache" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("historical snapshot unavailable");
+        return response.json() as Promise<ProvinceHistorySnapshot>;
+      })
+      .then((payload) => {
+        if (active && payload?.schema_version === 1 && Array.isArray(payload.rows)) {
+          setHistoricalSnapshot(payload);
+        }
+      })
+      .catch(() => {
+        if (active) setHistoricalSnapshot(null);
+      })
+      .finally(() => {
+        if (active) setHistoricalSnapshotLoading(false);
+      });
+    return () => { active = false; };
+  }, []);
 
   const forecastWeek = model?.coverage.forecast_week ?? "";
+  const thresholdDraftMatchesSnapshot = Boolean(
+    model &&
+    thresholdDraft.status === "draft" &&
+    thresholdDraft.source.model_snapshot_revision === model.model_revision &&
+    thresholdDraft.source.forecast_week === forecastWeek &&
+    thresholdDraft.thresholds.length === 77,
+  );
   const years = useMemo(() => {
-    if (!model) return [];
+    if (!model) return historicalSnapshot?.years ?? [];
     return [...new Set([
       ...model.history.map((row) => row.year),
       ...model.forecast.map((row) => row.year),
+      ...(historicalSnapshot?.years ?? []),
     ])].sort((a, b) => a - b);
-  }, [model]);
+  }, [model, historicalSnapshot]);
 
   const activeYear = selectedYear ?? model?.forecast[0]?.year ?? years.at(-1) ?? 2025;
   const weeks = useMemo(() => {
@@ -109,8 +147,9 @@ export default function ModelDashboard() {
     return [...new Set([
       ...model.history.filter((row) => row.year === activeYear).map((row) => row.week_start),
       ...model.forecast.filter((row) => row.year === activeYear).map((row) => row.week_start),
+      ...(historicalSnapshot?.rows.filter((row) => row.year === activeYear).map((row) => row.week_start) ?? []),
     ])].sort();
-  }, [model, activeYear]);
+  }, [model, activeYear, historicalSnapshot]);
 
   const activeWeek = selectedWeek && weeks.includes(selectedWeek)
     ? selectedWeek
@@ -136,16 +175,29 @@ export default function ModelDashboard() {
         persistence: null,
       }));
     }
-    return model.history
-      .filter((row: ModelHistoryRow) => row.week_start === activeWeek)
-      .map((row) => ({
+    const holdoutRows = model.history.filter((row: ModelHistoryRow) => row.week_start === activeWeek);
+    if (holdoutRows.length) {
+      return holdoutRows.map((row) => ({
         province: row.province,
         prediction: row.prediction,
         actualCases: row.actual_cases,
         persistence: row.persistence,
       }));
-  }, [model, activeWeek, forecastWeek]);
+    }
+    return (historicalSnapshot?.rows ?? [])
+      .filter((row) => row.week_start === activeWeek)
+      .map((row) => ({
+        province: row.province,
+        prediction: null,
+        actualCases: row.actual_cases,
+        persistence: null,
+      }));
+  }, [model, activeWeek, forecastWeek, historicalSnapshot]);
 
+  const hasModelHistoryForWeek = Boolean(model?.history.some((row) => row.week_start === activeWeek));
+  const isHistoricalActualOnly = Boolean(
+    activeWeek && !isForecastWeek && !hasModelHistoryForWeek && displayRows.length,
+  );
   const selectedRows = selectedProvince === ALL_PROVINCES
     ? displayRows
     : displayRows.filter((row) => row.province === selectedProvince);
@@ -154,7 +206,7 @@ export default function ModelDashboard() {
     const query = tableQuery.trim().toLocaleLowerCase("th");
     return [...selectedRows]
       .filter((row) => !query || row.province.toLocaleLowerCase("th").includes(query))
-      .sort((a, b) => b.prediction - a.prediction);
+      .sort((a, b) => (b.prediction ?? b.actualCases ?? -1) - (a.prediction ?? a.actualCases ?? -1));
   }, [selectedRows, tableQuery]);
   const tablePageCount = Math.max(1, Math.ceil(filteredTableRows.length / tablePageSize));
   const safeTablePage = Math.min(tablePage, tablePageCount);
@@ -165,22 +217,21 @@ export default function ModelDashboard() {
 
   const trendRows = useMemo(() => {
     if (!model) return [];
-    const rows = model.history.filter((row) => (
-      row.year === activeYear &&
-      (selectedProvince === ALL_PROVINCES || row.province === selectedProvince)
-    ));
-    const groups = new Map<string, ModelHistoryRow[]>();
-    rows.forEach((row) => groups.set(row.week_start, [...(groups.get(row.week_start) ?? []), row]));
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, group]) => ({
-      date: new Date(week + "T00:00:00").toLocaleDateString("th-TH", {
-        day: "numeric",
-        month: "short",
-      }),
-      actual: sum(group.map((row) => row.actual_cases)),
-      prediction: sum(group.map((row) => row.prediction)),
-      persistence: sum(group.map((row) => row.persistence)),
+    return buildModelTrendRows(
+      model.history,
+      historicalSnapshot?.rows ?? [],
+      model.forecast,
+      activeYear,
+      selectedProvince === ALL_PROVINCES ? null : selectedProvince,
+    ).map((row) => ({
+      date: new Date(row.weekStart + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
+      actual: row.actual,
+      prediction: row.prediction,
+      persistence: row.persistence,
     }));
-  }, [model, activeYear, selectedProvince]);
+  }, [model, activeYear, selectedProvince, historicalSnapshot]);
+  const hasTrendPrediction = trendRows.some((row) => row.prediction !== null);
+  const hasTrendPersistence = trendRows.some((row) => row.persistence !== null);
 
   const metric = (key: string) => {
     const value = metrics[key];
@@ -191,7 +242,7 @@ export default function ModelDashboard() {
   const mapGeo = data?.thailandGeo ?? null;
 
   const forecastProvinceCount = new Set(model.forecast.map((row) => row.province)).size;
-  const totalPrediction = sum(selectedRows.map((row) => row.prediction));
+  const totalPrediction = isHistoricalActualOnly ? null : sum(selectedRows.map((row) => row.prediction));
   const totalActual = selectedRows.length && selectedRows.every((row) => row.actualCases !== null)
     ? sum(selectedRows.map((row) => row.actualCases))
     : null;
@@ -205,7 +256,7 @@ export default function ModelDashboard() {
         <div>
           <div className="eyebrow">NATIONAL DENGUE FORECAST · 77 PROVINCES</div>
           <h1>ภาพรวมผลพยากรณ์ไข้เลือดออกทั่วประเทศ</h1>
-          <p>ข้อมูล DenguYosoku LightGBM มีผลพยากรณ์ครบ <strong>{forecastProvinceCount}/77 จังหวัด</strong> พร้อม Holdout ย้อนหลัง {model.coverage.history_week_count} สัปดาห์ และ Forecast เป้าหมาย {formatWeek(forecastWeek)} ไม่ใช่ข้อมูลเฝ้าระวังแบบเรียลไทม์</p>
+          <p>ผลพยากรณ์ LightGBM ครบ <strong>{forecastProvinceCount}/77 จังหวัด</strong> และเลือกดูข้อมูลผู้ป่วยจริงย้อนหลังตามปีได้ ข้อมูลย้อนหลังที่ไม่มี Holdout จะแสดงเป็นยอดผู้ป่วยจริงเท่านั้น ไม่ใช่ผลพยากรณ์จากโมเดล</p>
         </div>
         <button
           className="button button-secondary"
@@ -220,19 +271,20 @@ export default function ModelDashboard() {
         <div className="inline-callout warning">
           <Info size={17} />
           <span>
-            Forecast ในชุดข้อมูลนี้เป็น Snapshot เป้าหมายสัปดาห์ {formatWeek(forecastWeek)}
-            ซึ่งอยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({formatWeek(model.coverage.history_end_week)}).
-            ปัจจุบันสัปดาห์ระบาดวิทยาเริ่ม {formatWeek(currentEpiWeekStart)} ทำให้ Snapshot นี้เก่ากว่า {forecastLagWeeks} สัปดาห์
-            จึงใช้ตรวจดูผลลัพธ์ของโมเดลได้ แต่ไม่ควรนำไปสื่อสารเป็นสถานการณ์ปัจจุบัน
-            การไม่มีค่าผู้ป่วยจริงของสัปดาห์ Forecast เป็นเรื่องปกติของผลพยากรณ์ล่วงหน้า และ Metrics ประเมินจาก Holdout เท่านั้น
+            <strong>ผลที่เลือกเป็นพยากรณ์ {formatEpiWeekLabel(forecastWeek)}</strong> · เป้าหมาย {formatWeek(forecastWeek)}
+            อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout สัปดาห์สุดท้าย ({formatWeek(model.coverage.history_end_week)}).
+            ปัจจุบันสัปดาห์ระบาดวิทยาเริ่ม {formatWeek(currentEpiWeekStart)} จึงเก่ากว่าสัปดาห์ปัจจุบัน {forecastLagWeeks} สัปดาห์
+            แสดงไว้เพื่อดูผลพยากรณ์ของสัปดาห์เป้าหมายตามชุดข้อมูลล่าสุด ไม่ใช่การยืนยันจำนวนผู้ป่วยจริง
+            และไม่ควรตีความเป็นสถานการณ์ปัจจุบันหลังเริ่มสัปดาห์ใหม่
           </span>
         </div>
       ) : (
         <div className="historical-notice">
           <Info size={17} />
           <span>
-            Forecast เป้าหมาย {formatWeek(forecastWeek)} · อยู่ {forecastHorizonWeeks ?? "ไม่ทราบ"} สัปดาห์หลัง Holdout
-            · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)} · ตรวจสอบรุ่นข้อมูลก่อนใช้งาน
+            แสดงพยากรณ์ {formatEpiWeekLabel(forecastWeek)} · เป้าหมาย {formatWeek(forecastWeek)}
+            · ข้อมูลผู้ป่วยจริงที่ใช้เป็น input ถึง {formatWeek(model.coverage.history_end_week)}
+            · สัปดาห์ระบาดวิทยาปัจจุบันเริ่ม {formatWeek(currentEpiWeekStart)}
           </span>
         </div>
       )}
@@ -277,23 +329,26 @@ export default function ModelDashboard() {
       </section>
 
       <div className="subtle-caption">
-        สัปดาห์ที่เลือก {activeWeek ? formatWeek(activeWeek) : "ไม่มีข้อมูล"}
+        {activeWeek ? formatEpiWeekLabel(activeWeek) + " · " + formatWeek(activeWeek) : "ไม่มีข้อมูลสัปดาห์"}
         {" · "}
-        {isForecastWeek ? "ผลพยากรณ์" : "ผลประเมินย้อนหลัง (Holdout)"}
+        {isForecastWeek ? "ผลพยากรณ์" : isHistoricalActualOnly ? "ผู้ป่วยจริงย้อนหลัง · ไม่มีผลพยากรณ์โมเดลในช่วงนี้" : "ผลประเมินย้อนหลัง (Holdout)"}
         {" · "}
         {selectedRows.length} จังหวัด
+        {historicalSnapshotLoading ? " · กำลังโหลดข้อมูลปีย้อนหลัง" : ""}
       </div>
 
       <section className="metric-grid metric-grid-four">
         <article className="metric-card">
-          <div className="metric-card-top"><span>{isForecastWeek ? "ค่าพยากรณ์รวม" : "ผลทำนายรวมใน Holdout"}</span><span className="metric-icon blue">Σ</span></div>
-          <strong>{formatCases(totalPrediction)}</strong>
-          <small>{isForecastWeek ? "ผลพยากรณ์ของสัปดาห์เป้าหมาย" : "ผลทำนายย้อนหลังของสัปดาห์ที่เลือก"}</small>
+          <div className="metric-card-top"><span>{isForecastWeek ? "ค่าพยากรณ์รวม" : isHistoricalActualOnly ? "ผลพยากรณ์รวม" : "ผลทำนายรวมใน Holdout"}</span><span className="metric-icon blue">Σ</span></div>
+          <strong>{totalPrediction === null ? "ไม่มีผลพยากรณ์" : formatCases(totalPrediction)}</strong>
+          <small>{isForecastWeek ? "ผลพยากรณ์ของสัปดาห์เป้าหมาย" : isHistoricalActualOnly ? "ปีนี้มีเฉพาะข้อมูลผู้ป่วยจริงย้อนหลัง" : "ผลทำนายย้อนหลังของสัปดาห์ที่เลือก"}</small>
         </article>
         <article className="metric-card">
           <div className="metric-card-top"><span>ผู้ป่วยจริงรวม</span><span className="metric-icon aqua">●</span></div>
           <strong>{totalActual === null ? "ไม่มีข้อมูล" : formatCases(totalActual)}</strong>
-          <small>{isForecastWeek ? "ยังไม่มีผลจริงสำหรับสัปดาห์พยากรณ์" : "ค่าจริงในชุด Holdout"}</small>
+          <small>{isForecastWeek
+            ? "ยังไม่มี actuals ระดับจังหวัดของสัปดาห์เป้าหมาย · ไม่ใช้ยอด WHO แทนข้อมูลรายจังหวัด"
+            : "ค่าจริงในชุด Holdout หรือข้อมูลประวัติศาสตร์ที่เลือก"}</small>
         </article>
         <article className="metric-card">
           <div className="metric-card-top"><span>จำนวนจังหวัด</span><span className="metric-icon blue">77</span></div>
@@ -302,11 +357,12 @@ export default function ModelDashboard() {
         </article>
         <article className="metric-card">
           <div className="metric-card-top"><span>MAE ของโมเดล</span><span className="metric-icon amber">±</span></div>
-          <strong>{mae === null ? "ไม่มีข้อมูล" : formatNumber(mae, 3)}</strong>
-          <small>ราย · ประเมินบนชุด Holdout</small>
+          <strong>{isHistoricalActualOnly || mae === null ? "—" : formatNumber(mae, 3)}</strong>
+          <small>{isHistoricalActualOnly ? "ไม่มีผลประเมินโมเดลสำหรับข้อมูลปีนี้" : "ราย · ประเมินบนชุด Holdout ของ Snapshot"}</small>
         </article>
       </section>
 
+      {!isHistoricalActualOnly && (
       <section className="panel map-panel">
         <div className="panel-heading">
           <div>
@@ -315,46 +371,60 @@ export default function ModelDashboard() {
           </div>
           <MapPinned size={20} />
         </div>
-        <div className="map-legend" aria-label="คำอธิบายสีแผนที่">
-          <span>ค่าพยากรณ์ต่ำ</span>
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-block",
-              width: "min(260px, 55vw)",
-              height: 10,
-              borderRadius: 999,
-              background: "linear-gradient(90deg, #e8f1fb 0%, #b8d3f0 25%, #78a9df 50%, #397fc4 75%, #174f91 100%)",
-            }}
-          />
-          <span>ค่าพยากรณ์สูง</span>
-          <span style={{ marginLeft: "auto" }}>สีเทา = ไม่มีข้อมูล</span>
+        <div className="map-legend" aria-label="คำอธิบายระดับตามเกณฑ์ทดลอง">
+          <span><i className="legend-dot normal" />ปกติ · Draft (&lt; P75)</span>
+          <span><i className="legend-dot watch" />เฝ้าระวัง · Draft (≥ P75)</span>
+          <span><i className="legend-dot high" />เตือนระบาด · Draft (≥ P90)</span>
+          <span><i className="legend-dot none" />ไม่มีเกณฑ์</span>
         </div>
         {mapGeo ? (
           <ModelMapLoader
             geo={mapGeo}
-            rows={displayRows.map((row) => ({
-              province: row.province,
-              prediction: row.prediction,
-              actual_cases: row.actualCases,
-              persistence: row.persistence,
-            }))}
+            rows={displayRows.map((row) => {
+              const threshold = thresholdDraftMatchesSnapshot ? THRESHOLD_BY_PROVINCE.get(row.province) : undefined;
+              return {
+                province: row.province,
+                prediction: row.prediction ?? 0,
+                actual_cases: row.actualCases,
+                persistence: row.persistence,
+                watch_threshold: threshold?.watch ?? null,
+                alert_threshold: threshold?.alert ?? null,
+              };
+            })}
           />
         ) : (
           <div className="map-placeholder">ไม่พบข้อมูลขอบเขตจังหวัดสำหรับแสดงแผนที่</div>
         )}
         <p className="panel-note">
-          สีเข้มหมายถึงจำนวนผู้ป่วยที่โมเดลคาดการณ์สูงกว่าเมื่อเทียบกับจังหวัดอื่นในสัปดาห์ที่เลือก
-          เป็นการไล่ระดับตามจำนวนพยากรณ์ ไม่ใช่ระดับความเสี่ยงหรือเกณฑ์เตือนระบาด
-          เลื่อนเมาส์เหนือจังหวัดเพื่อดูข้อมูล
+          {thresholdDraftMatchesSnapshot
+            ? "สีแสดงค่าพยากรณ์รายจังหวัดเทียบกับเกณฑ์ทดลอง P75/P90 ของจังหวัดนั้น (ปกติ / เฝ้าระวัง / เตือนระบาด) คำนวณจากข้อมูลย้อนหลัง 26 สัปดาห์และยังเป็น Draft ไม่ใช่เกณฑ์ประกาศการระบาดหรือเปิดแจ้งเตือนจริง"
+            : "ไม่พบ Threshold Draft ที่ตรงกับ Model Snapshot นี้ จึงไม่จัดระดับสีตามเกณฑ์และแสดงจังหวัดเป็นไม่มีเกณฑ์"}
+          {" "}เลื่อนเมาส์เหนือจังหวัดเพื่อดูค่าพยากรณ์และเกณฑ์ของแต่ละจังหวัด
         </p>
       </section>
+      )}
+      {isHistoricalActualOnly && (
+        <section className="panel historical-data-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>ข้อมูลผู้ป่วยจริงย้อนหลัง · {activeYear}</h2>
+              <p>ข้อมูลระดับจังหวัดจาก dengue_full.csv · สัปดาห์ที่เลือกมีข้อมูล {displayRows.length}/77 จังหวัด</p>
+            </div>
+          </div>
+          <p className="panel-note">
+            ช่วงปีนี้ไม่มีผล Holdout/Forecast จาก Model Snapshot จึงแสดงเฉพาะจำนวนผู้ป่วยจริงย้อนหลัง
+            ไม่สร้างค่าพยากรณ์ย้อนหลังหรือจัดระดับความเสี่ยงจากข้อมูลจริงแทนโมเดล
+          </p>
+        </section>
+      )}
+
+      
 
       <section className="panel chart-panel">
         <div className="panel-heading">
           <div>
-            <h2>ผลย้อนหลังเทียบค่าพยากรณ์ · {activeYear}</h2>
-            <p>{selectedProvince === ALL_PROVINCES ? "ผลรวม 77 จังหวัด" : "จังหวัด" + selectedProvince} · ใช้ข้อมูล Holdout เท่านั้น</p>
+            <h2>{hasTrendPrediction ? "ผลย้อนหลังเทียบค่าพยากรณ์ · " + activeYear : "แนวโน้มผู้ป่วยจริงย้อนหลัง · " + activeYear}</h2>
+            <p>{selectedProvince === ALL_PROVINCES ? "ผลรวมประเทศจากข้อมูลจังหวัดที่มี" : "จังหวัด" + selectedProvince} · {hasTrendPrediction ? "แสดงค่าพยากรณ์เฉพาะสัปดาห์ที่มีผล Holdout/Forecast" : "ปีที่เลือกไม่มีผลพยากรณ์จากโมเดล จึงแสดงเฉพาะผู้ป่วยจริง"}</p>
           </div>
         </div>
         {trendRows.length ? (
@@ -370,21 +440,25 @@ export default function ModelDashboard() {
                 />
                 <Legend />
                 <Line type="monotone" dataKey="actual" name="ผู้ป่วยจริง" stroke="#26374a" strokeWidth={2.2} dot={false} />
-                <Line type="monotone" dataKey="prediction" name="AI ทำนาย" stroke="#2e73d2" strokeWidth={2.5} dot={false} />
-                <Line type="monotone" dataKey="persistence" name="Persistence (สัปดาห์ก่อน)" stroke="#9aa5b3" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                {hasTrendPrediction && (
+                  <Line type="monotone" dataKey="prediction" name="ค่าพยากรณ์โมเดล (Holdout/Forecast)" stroke="#2e73d2" strokeWidth={2.5} dot={false} connectNulls={false} />
+                )}
+                {hasTrendPersistence && (
+                  <Line type="monotone" dataKey="persistence" name="Persistence (สัปดาห์ก่อน)" stroke="#9aa5b3" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="panel-note">ไม่มีข้อมูล Holdout สำหรับปีที่เลือก</div>
+          <div className="panel-note">ไม่พบข้อมูลรายสัปดาห์สำหรับปีที่เลือก</div>
         )}
       </section>
 
       <section className="panel province-table-panel">
         <div className="panel-heading">
           <div>
-            <h2>{isForecastWeek ? "ผลพยากรณ์รายจังหวัด" : "ผล Holdout รายจังหวัด"}</h2>
-            <p>{isForecastWeek ? `ผลพยากรณ์ ${displayRows.length}/77 จังหวัด` : `ข้อมูล Holdout ${displayRows.length}/77 จังหวัด`} · เรียงตามจำนวนผู้ป่วยที่โมเดลคาดการณ์ · {activeWeek ? formatWeek(activeWeek) : ""}</p>
+            <h2>{isForecastWeek ? "ผลพยากรณ์รายจังหวัด" : isHistoricalActualOnly ? "ข้อมูลผู้ป่วยจริงย้อนหลังรายจังหวัด" : "ผล Holdout รายจังหวัด"}</h2>
+            <p>{isForecastWeek ? `ผลพยากรณ์ ${displayRows.length}/77 จังหวัด` : isHistoricalActualOnly ? `ข้อมูลผู้ป่วยจริง ${displayRows.length}/77 จังหวัด` : `ข้อมูล Holdout ${displayRows.length}/77 จังหวัด`} · {isHistoricalActualOnly ? "เรียงตามผู้ป่วยจริง" : "เรียงตามค่าที่โมเดลทำนาย"} · {activeWeek ? formatWeek(activeWeek) : ""}</p>
           </div>
         </div>
         <div className="table-toolbar">
@@ -408,25 +482,31 @@ export default function ModelDashboard() {
           </label>
         </div>
         <div className="table-scroll">
-          <table className="data-table">
+          <table className={"data-table model-province-table" + (isHistoricalActualOnly ? " model-province-table-actual-only" : "")}>
+            <colgroup>
+              <col style={{ width: isHistoricalActualOnly ? "65%" : "38%" }} />
+              {!isHistoricalActualOnly && <col style={{ width: "21%" }} />}
+              <col style={{ width: isHistoricalActualOnly ? "35%" : "21%" }} />
+              {!isHistoricalActualOnly && <col style={{ width: "20%" }} />}
+            </colgroup>
             <thead>
               <tr>
                 <th>จังหวัด</th>
-                <th>AI Prediction</th>
-                <th>ผู้ป่วยจริง</th>
-                <th>Persistence</th>
+                {!isHistoricalActualOnly && <th className="numeric-heading">AI Prediction</th>}
+                <th className="numeric-heading">ผู้ป่วยจริง</th>
+                {!isHistoricalActualOnly && <th className="numeric-heading">Persistence</th>}
               </tr>
             </thead>
             <tbody>
               {tablePageRows.length ? tablePageRows.map((row) => (
                 <tr key={row.province}>
-                  <td>{row.province}</td>
-                  <td className="numeric-cell">{formatNumber(row.prediction, 2)}</td>
+                  <td className="province-cell">{row.province}</td>
+                  {!isHistoricalActualOnly && <td className="numeric-cell">{row.prediction === null ? "—" : formatNumber(row.prediction, 2)}</td>}
                   <td className="numeric-cell">{row.actualCases === null ? "—" : formatNumber(row.actualCases, 0)}</td>
-                  <td className="numeric-cell">{row.persistence === null ? "—" : formatNumber(row.persistence, 2)}</td>
+                  {!isHistoricalActualOnly && <td className="numeric-cell">{row.persistence === null ? "—" : formatNumber(row.persistence, 2)}</td>}
                 </tr>
               )) : (
-                <tr><td colSpan={4} className="table-empty">ไม่พบจังหวัดที่ตรงกับคำค้นหา</td></tr>
+                <tr><td colSpan={isHistoricalActualOnly ? 2 : 4} className="table-empty">ไม่พบจังหวัดที่ตรงกับคำค้นหา</td></tr>
               )}
             </tbody>
           </table>
@@ -448,7 +528,9 @@ export default function ModelDashboard() {
           </div>
         </div>
         <div className="panel-note">
-          Persistence คือค่าผู้ป่วยจากสัปดาห์ก่อน ไม่ใช่ค่าเฉลี่ยย้อนหลัง 4 สัปดาห์ · ดาวน์โหลด CSV จะรวมทุกแถวที่ตรงกับตัวกรอง ไม่จำกัดเฉพาะหน้าที่เปิดอยู่
+          {isHistoricalActualOnly
+            ? "ข้อมูลชุดนี้เป็นผู้ป่วยจริงย้อนหลังจากไฟล์ต้นทาง ไม่มีค่าพยากรณ์ AI หรือ Persistence สำหรับปีที่เลือก · ดาวน์โหลด CSV จะรวมทุกจังหวัดที่ตรงกับตัวกรอง"
+            : "Persistence คือค่าผู้ป่วยจากสัปดาห์ก่อน ไม่ใช่ค่าเฉลี่ยย้อนหลัง 4 สัปดาห์ · ดาวน์โหลด CSV จะรวมทุกแถวที่ตรงกับตัวกรอง ไม่จำกัดเฉพาะหน้าที่เปิดอยู่"}
         </div>
       </section>
 
@@ -456,7 +538,7 @@ export default function ModelDashboard() {
         <article className="panel model-panel">
           <div className="panel-heading"><div><h2>ประสิทธิภาพโมเดล</h2><p>ค่าประเมินจาก Holdout ใน Model Repository</p></div></div>
           <table className="data-table compact-table">
-            <thead><tr><th>Metric</th><th>ค่า</th></tr></thead>
+            <thead><tr><th>Metric</th><th className="numeric-heading">ค่า</th></tr></thead>
             <tbody>
               <tr><td>MAE</td><td className="numeric-cell">{mae === null ? "—" : formatNumber(mae, 3)}</td></tr>
               <tr><td>RMSE</td><td className="numeric-cell">{rmse === null ? "—" : formatNumber(rmse, 3)}</td></tr>

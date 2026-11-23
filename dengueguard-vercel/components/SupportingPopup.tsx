@@ -1,37 +1,96 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Users, CloudRain, Thermometer, TrendingUp, TrendingDown, Minus, Info, ArrowRight } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  CalendarDays,
+  Clock3,
+  Database,
+  Info,
+  MapPinned,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useDengueData } from "@/components/DataProvider";
-import { formatCases, formatNumber, getCurrentEpiWeekStart, getRegionalSummary } from "@/lib/utils";
+import { formatEpiWeekLabel } from "@/lib/epi-week";
+import { getCurrentEpiWeekStart } from "@/lib/utils";
 
-const STORAGE_KEY = "DengueYosoku-supporting-popup-dismissed-v1";
+const STORAGE_KEY = "DengueYosoku-model-forecast-popup-v4";
+const EXPECTED_PROVINCES = 77;
+
+function formatWeek(value?: string | null) {
+  if (!value) return "ไม่มีข้อมูล";
+  return new Date(value + "T00:00:00+07:00").toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "ไม่มีข้อมูล";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  }).format(date);
+}
 
 export function SupportingPopup() {
   const { data, loading } = useDengueData();
   const [open, setOpen] = useState(false);
   const [checkedSession, setCheckedSession] = useState(false);
 
-  const latestWeek = useMemo(() => {
-    if (!data?.predictions.length) return null;
-    return [...new Set(data.predictions.map((row) => row.target_week_start))].sort().at(-1) ?? null;
-  }, [data]);
+  const model = data?.modelPredictions ?? null;
+  const forecastWeek = model?.coverage.forecast_week ?? "";
+  const forecastWeekLabel = forecastWeek ? formatEpiWeekLabel(forecastWeek) : "ไม่มีสัปดาห์เป้าหมาย";
+  const currentEpiWeek = getCurrentEpiWeekStart();
 
-  const summary = useMemo(() => {
-    if (!data || !latestWeek) return null;
-    return getRegionalSummary(data.predictions, data.weather, latestWeek);
-  }, [data, latestWeek]);
+  const forecastRows = useMemo(
+    () => model?.forecast.filter((row) => row.week_start === forecastWeek) ?? [],
+    [model, forecastWeek],
+  );
+  const forecastComplete =
+    forecastRows.length === EXPECTED_PROVINCES &&
+    new Set(forecastRows.map((row) => row.province)).size === EXPECTED_PROVINCES;
+  const forecastTotal = forecastComplete
+    ? forecastRows.reduce((total, row) => total + row.prediction, 0)
+    : null;
+  const forecastAverage = forecastComplete && forecastTotal !== null
+    ? forecastTotal / EXPECTED_PROVINCES
+    : null;
+  const topProvinces = useMemo(
+    () => forecastComplete
+      ? [...forecastRows].sort((a, b) => b.prediction - a.prediction).slice(0, 5)
+      : [],
+    [forecastComplete, forecastRows],
+  );
+  const maxTopPrediction = topProvinces[0]?.prediction ?? 0;
+  const isStale = Boolean(forecastWeek && forecastWeek < currentEpiWeek);
+  const hasActualForTargetWeek = Boolean(
+    model?.history.some((row) => row.week_start === forecastWeek),
+  );
 
   useEffect(() => {
     if (loading || checkedSession) return;
-    const dismissed = window.sessionStorage.getItem(STORAGE_KEY) === "1";
-    setOpen(!dismissed);
+    try {
+      setOpen(window.sessionStorage.getItem(STORAGE_KEY) !== "1");
+    } catch {
+      setOpen(true);
+    }
     setCheckedSession(true);
   }, [loading, checkedSession]);
 
   function dismiss() {
-    window.sessionStorage.setItem(STORAGE_KEY, "1");
+    try {
+      window.sessionStorage.setItem(STORAGE_KEY, "1");
+    } catch {
+      // The dialog can still be closed when browser storage is unavailable.
+    }
     setOpen(false);
   }
 
@@ -46,97 +105,152 @@ export function SupportingPopup() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const isCurrentModelSnapshot = data?.modelPredictions?.coverage.forecast_week === getCurrentEpiWeekStart();
-  if (!summary || !data || isCurrentModelSnapshot) return null;
-
-  const weekLabel = new Date(`${summary.week}T00:00:00`).toLocaleDateString("th-TH", {
-    day: "numeric", month: "long", year: "numeric",
-  });
-  const trendIcon = summary.trend === "เพิ่มขึ้น"
-    ? <TrendingUp size={18} />
-    : summary.trend === "ลดลง"
-      ? <TrendingDown size={18} />
-      : <Minus size={18} />;
-  const trendClass = summary.trend === "เพิ่มขึ้น" ? "trend-up" : summary.trend === "ลดลง" ? "trend-down" : "trend-flat";
-  const hasWeather = summary.rainfallAverage !== null || summary.temperatureAverage !== null;
+  if (loading) return null;
 
   return (
     <>
-      <button className="floating-info-button" onClick={() => setOpen(true)} aria-label="ดูข้อมูลประกอบการประเมินความเสี่ยง">
-        <Info size={17} /> <span>ข้อมูลภาพรวม 8 จังหวัด</span>
+      <button
+        type="button"
+        className="floating-info-button"
+        onClick={() => setOpen(true)}
+        aria-label="ดูรายงานพยากรณ์ไข้เลือดออก"
+      >
+        <BarChart3 size={17} />
+        <span>{forecastWeek ? `รายงานพยากรณ์ · ${forecastWeekLabel}` : "รายงานพยากรณ์ล่าสุด"}</span>
       </button>
 
       {open && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) dismiss();
-        }}>
-          <section className="support-modal" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
-            <div className="modal-topline">
-              <div className="brand-mark small-mark">DY</div>
-              <div className="modal-heading">
-                <span className="eyebrow">DengueYosoku · REGIONAL OVERVIEW</span>
-                <h2 id="support-modal-title">สถานการณ์ความเสี่ยงโรคไข้เลือดออก</h2>
-                <p>ภาพรวมพื้นที่ 8 จังหวัด · สัปดาห์เป้าหมาย {weekLabel}</p>
+        <div
+          className="modal-backdrop support-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) dismiss();
+          }}
+        >
+          <section className="support-modal support-modal--forecast" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
+            <header className="support-modal-hero">
+              <div className="support-modal-brand">
+                <div className="brand-mark small-mark">DY</div>
+                <div>
+                  <span className="eyebrow">DENGUEYOSOKU · NATIONAL FORECAST</span>
+                  <h2 id="support-modal-title">รายงานพยากรณ์ไข้เลือดออก</h2>
+                  <p>ภาพรวมผลพยากรณ์จากโมเดลสำหรับ 77 จังหวัด</p>
+                </div>
               </div>
-              <button className="icon-button modal-close" onClick={dismiss} aria-label="ปิดหน้าต่าง">
+              <button type="button" className="icon-button modal-close" onClick={dismiss} aria-label="ปิดหน้าต่างรายงาน">
                 <X size={20} />
               </button>
-            </div>
+            </header>
 
-            <div className="support-metric-grid">
-              <article className="support-metric">
-                <div className="metric-icon blue"><Users size={18} /></div>
-                <span>ผู้ป่วยที่คาดการณ์รวม</span>
-                <strong>{formatCases(summary.totalPredicted)}</strong>
-                <small>ราย / 8 จังหวัด</small>
-              </article>
-              <article className="support-metric">
-                <div className="metric-icon red"><Info size={18} /></div>
-                <span>จังหวัดที่เตือนระบาด</span>
-                <strong>{summary.alertCount} จังหวัด</strong>
-                <small>จากทั้งหมด 8 จังหวัด</small>
-              </article>
-              <article className="support-metric">
-                <div className="metric-icon aqua"><CloudRain size={18} /></div>
-                <span>ปริมาณน้ำฝนเฉลี่ย</span>
-                <strong>{summary.rainfallAverage === null ? "ไม่มีข้อมูล" : `${formatNumber(summary.rainfallAverage, 1)} มม.`}</strong>
-                <small>สะสม 7 วัน / จังหวัดที่มีข้อมูล</small>
-              </article>
-              <article className="support-metric">
-                <div className="metric-icon amber"><Thermometer size={18} /></div>
-                <span>อุณหภูมิเฉลี่ย</span>
-                <strong>{summary.temperatureAverage === null ? "ไม่มีข้อมูล" : `${formatNumber(summary.temperatureAverage, 1)} °C`}</strong>
-                <small>เฉลี่ย 7 วัน / จังหวัดที่มีข้อมูล</small>
-              </article>
-            </div>
-
-            <div className="support-trend-panel">
-              <div>
-                <span className="eyebrow">FORECAST TREND</span>
-                <h3>แนวโน้มผู้ป่วยทั้งเขตสุขภาพ</h3>
-                <p>เปรียบเทียบยอดพยากรณ์รวมกับสัปดาห์เป้าหมายก่อนหน้า</p>
-              </div>
-              <div className={`trend-pill ${trendClass}`}>
-                {trendIcon}
-                <span>{summary.trend}</span>
-                {summary.trendPercent !== null && <b>{summary.trendPercent > 0 ? "+" : ""}{summary.trendPercent.toFixed(1)}%</b>}
-              </div>
-            </div>
-
-            <div className="modal-footnote">
-              <Info size={15} />
-              <span>
-                {hasWeather
-                  ? `สภาพอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ครอบคลุม ${summary.weatherProvinceCount}/8 จังหวัด (ข้อมูลสูงสุด ${summary.weatherDays} วัน)`
-                  : "ไม่พบข้อมูลสภาพอากาศในช่วงสัปดาห์เป้าหมาย จึงไม่แสดงค่าตัวอย่างแทนข้อมูลจริง"}
-                {" "}ชุดข้อมูลที่แนบมีข้อมูลพยากรณ์ถึง 25 ธันวาคม 2022 จึงเป็นข้อมูลย้อนหลัง ไม่ใช่สถานการณ์ปัจจุบัน
+            <div className="support-modal-meta">
+              <span><CalendarDays size={14} /> สัปดาห์เป้าหมาย {forecastWeekLabel}</span>
+              <span><MapPinned size={14} /> ขอบเขต 77 จังหวัด</span>
+              <span className={model?.release_status === "approved" ? "support-status-chip support-status-chip--ready" : "support-status-chip"}>
+                <ShieldAlert size={14} /> {model?.release_status === "approved" ? "Approved" : "Review-only"}
               </span>
             </div>
 
-            <div className="modal-actions">
-              <Link href="/prevention" className="text-link" onClick={dismiss}>ดูคำแนะนำการป้องกัน <ArrowRight size={15} /></Link>
-              <button className="button button-primary" onClick={dismiss}>ปิดและเข้าสู่เว็บไซต์</button>
-            </div>
+            {forecastComplete ? (
+              <>
+                <div className="support-forecast-kpis">
+                  <article className="support-forecast-kpi support-forecast-kpi--primary">
+                    <span className="support-forecast-kpi-icon"><MapPinned size={19} /></span>
+                    <div>
+                      <small>ผลรวมค่าพยากรณ์ 77 จังหวัด</small>
+                      <strong>{forecastTotal?.toLocaleString("th-TH", { maximumFractionDigits: 1 })} <em>ราย</em></strong>
+                      <p>เป็นค่าที่โมเดลคาดการณ์ ไม่ใช่ยอดผู้ป่วยจริง</p>
+                    </div>
+                  </article>
+                  <article className="support-forecast-kpi">
+                    <span className="support-forecast-kpi-icon"><BarChart3 size={19} /></span>
+                    <div>
+                      <small>ค่าเฉลี่ยต่อจังหวัด</small>
+                      <strong>{forecastAverage?.toLocaleString("th-TH", { maximumFractionDigits: 1 })} <em>ราย</em></strong>
+                      <p>ค่าเฉลี่ยเลขคณิตของค่าพยากรณ์</p>
+                    </div>
+                  </article>
+                  <article className="support-forecast-kpi">
+                    <span className="support-forecast-kpi-icon"><Database size={19} /></span>
+                    <div>
+                      <small>ความครอบคลุมของ Snapshot</small>
+                      <strong>77 / 77 <em>จังหวัด</em></strong>
+                      <p>มีค่าพยากรณ์ครบตามรายชื่อจังหวัด</p>
+                    </div>
+                  </article>
+                </div>
+
+                <section className="support-ranking">
+                  <div className="support-ranking-heading">
+                    <div>
+                      <span className="eyebrow">HIGHEST FORECAST VALUES</span>
+                      <h3>จังหวัดที่มีค่าพยากรณ์สูงสุด 5 อันดับ</h3>
+                      <p>เรียงตามค่าพยากรณ์เพื่อดูภาพรวม ไม่ใช่การจัดอันดับความเสี่ยงการระบาด</p>
+                    </div>
+                    <span className="support-ranking-count">TOP 5</span>
+                  </div>
+                  <ol>
+                    {topProvinces.map((row, index) => {
+                      const width = maxTopPrediction > 0 ? Math.max(4, (row.prediction / maxTopPrediction) * 100) : 0;
+                      return (
+                        <li key={row.province}>
+                          <span className="support-ranking-number">{String(index + 1).padStart(2, "0")}</span>
+                          <div className="support-ranking-data">
+                            <div><strong>{row.province}</strong><b>{row.prediction.toLocaleString("th-TH", { maximumFractionDigits: 1 })} ราย</b></div>
+                            <span className="support-ranking-track"><i style={{ width: `${width}%` }} /></span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </section>
+
+                <div className={isStale ? "support-forecast-notice support-forecast-notice--warning" : "support-forecast-notice"}>
+                  <Info size={18} />
+                  <div>
+                    <strong>{isStale ? "Snapshot นี้เก่ากว่าสัปดาห์ปัจจุบัน" : "โปรดแยกผลพยากรณ์ออกจากข้อมูลผู้ป่วยจริง"}</strong>
+                    <p>
+                      เป้าหมาย {formatWeek(forecastWeek)} · ข้อมูลผู้ป่วยจริงย้อนหลังถึง {formatWeek(model?.coverage.history_end_week)}.
+                      {hasActualForTargetWeek
+                        ? " พบข้อมูล actual ในประวัติของสัปดาห์เป้าหมาย โปรดตรวจสอบแหล่งที่มาก่อนนำไปใช้"
+                        : " ยังไม่มีข้อมูลผู้ป่วยจริงรายจังหวัดสำหรับสัปดาห์เป้าหมายใน Snapshot นี้"}
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="support-empty-state support-empty-state--polished" role="status">
+                <div className="support-empty-icon"><Clock3 size={26} /></div>
+                <strong>ยังไม่มีผลพยากรณ์ที่ครบถ้วนสำหรับ 77 จังหวัด</strong>
+                <p>ระบบจะไม่เติมค่าที่ขาดหาย หรือใช้ข้อมูลจากสัปดาห์ก่อนมาแทนผลพยากรณ์ของสัปดาห์เป้าหมาย</p>
+                <div className="support-empty-details">
+                  <span>จังหวัดที่มีผลพยากรณ์ <b>{forecastRows.length}/77</b></span>
+                  <span>สัปดาห์เป้าหมาย <b>{forecastWeek ? formatWeek(forecastWeek) : "ไม่มีข้อมูล"}</b></span>
+                </div>
+              </div>
+            )}
+
+            <section className="support-provenance">
+              <div><Clock3 size={15} /><span>สร้าง Snapshot <strong>{formatDateTime(model?.generated_at_utc)}</strong></span></div>
+              <div><Database size={15} /><span>ข้อมูลย้อนหลังถึง <strong>{formatWeek(model?.coverage.history_end_week)}</strong></span></div>
+              <div><ShieldAlert size={15} /><span>Model revision <strong>{model?.model_revision ? model.model_revision.slice(0, 12) : "ไม่มีข้อมูล"}</strong></span></div>
+            </section>
+
+            {model?.release_status !== "approved" && (
+              <div className="modal-footnote support-review-note">
+                <Info size={16} />
+                <span>
+                  โมเดลรุ่นนี้ยังไม่ผ่านการอนุมัติสำหรับการใช้งานปฏิบัติการ ผลลัพธ์เป็นข้อมูลประกอบการพัฒนาและสาธิตเท่านั้น
+                  ไม่ใช่คำเตือนการระบาดที่รับรองสำหรับการตัดสินใจด้านสาธารณสุข
+                </span>
+              </div>
+            )}
+
+            <footer className="modal-actions support-modal-actions">
+              <Link href="/dashboard" className="text-link" onClick={dismiss}>
+                ดู Dashboard และรายละเอียดเพิ่มเติม <ArrowRight size={15} />
+              </Link>
+              <button type="button" className="button button-primary" onClick={dismiss}>ปิดรายงาน</button>
+            </footer>
           </section>
         </div>
       )}

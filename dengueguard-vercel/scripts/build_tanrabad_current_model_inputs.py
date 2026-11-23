@@ -17,12 +17,6 @@ from pathlib import Path
 from typing import Any
 
 EXPECTED_PROVINCES = 77
-EXPECTED_HISTORICAL_END = dt.date(2026, 10, 25)
-EXPECTED_INCOMING_WEEKS = {
-    (2026, 44): dt.date(2026, 11, 1),
-    (2026, 45): dt.date(2026, 11, 8),
-}
-EXPECTED_TARGET_WEEK = dt.date(2026, 11, 15)
 WEATHER_MODEL = "best_match"
 OUTPUT_FIELDS = [
     "province", "week_start", "week", "cases",
@@ -55,13 +49,31 @@ def parse_number(value: Any, field: str, *, allow_blank: bool = False) -> float 
     return number
 
 
-def mmwr_sunday_start(year: int, week: int) -> dt.date:
-    if not 1 <= week <= 53:
-        raise BuildInputError(f"Invalid MMWR week: {year}-W{week}.")
+def _mmwr_first_sunday(year: int) -> dt.date:
     jan1 = dt.date(year, 1, 1)
-    first_sunday = jan1 + dt.timedelta(days=(6 - jan1.weekday()) % 7)
+    return jan1 + dt.timedelta(days=(6 - jan1.weekday()) % 7)
+
+
+def mmwr_sunday_start(year: int, week: int) -> dt.date:
+    first_sunday = _mmwr_first_sunday(year)
+    next_year_first_sunday = _mmwr_first_sunday(year + 1)
+    max_week = (next_year_first_sunday - first_sunday).days // 7
+    if not 1 <= week <= max_week:
+        raise BuildInputError(f"Invalid MMWR week: {year}-W{week}; {year} has {max_week} MMWR weeks.")
     return first_sunday + dt.timedelta(weeks=week - 1)
 
+
+def mmwr_year_week(week_start: dt.date) -> tuple[int, int]:
+    if week_start.weekday() != 6:
+        raise BuildInputError(f"Week start {week_start} is not Sunday.")
+    for year in (week_start.year - 1, week_start.year, week_start.year + 1):
+        first_sunday = _mmwr_first_sunday(year)
+        next_year_first_sunday = _mmwr_first_sunday(year + 1)
+        if first_sunday <= week_start < next_year_first_sunday:
+            week = ((week_start - first_sunday).days // 7) + 1
+            if mmwr_sunday_start(year, week) == week_start:
+                return year, week
+    raise BuildInputError(f"Could not resolve MMWR year/week for {week_start}.")
 
 def _read_csv(path: Path) -> tuple[list[str], list[dict[str, str]]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
@@ -114,74 +126,93 @@ def _validate_historical(rows: list[dict[str, str]], fields: list[str]) -> tuple
     for previous, current in zip(ordered_weeks, ordered_weeks[1:]):
         if current - previous != dt.timedelta(days=7):
             raise BuildInputError(f"Historical weekly grid gap between {previous} and {current}.")
-    if not ordered_weeks or ordered_weeks[-1] != EXPECTED_HISTORICAL_END:
-        raise BuildInputError(
-            f"Historical source must end at {EXPECTED_HISTORICAL_END}; "
-            f"found {ordered_weeks[-1] if ordered_weeks else 'no weeks'}."
-        )
+    if not ordered_weeks:
+        raise BuildInputError("Historical source contains no weekly observations.")
     return provinces, ordered_weeks
 
 
-def _read_incoming(path: Path, canonical_provinces: set[str]) -> tuple[dict[tuple[str, dt.date], int], dict[str, int]]:
+def _read_incoming(
+    path: Path,
+    canonical_provinces: set[str],
+    historical_latest: dt.date,
+) -> tuple[dict[tuple[str, dt.date], int], dict[str, int], list[dt.date]]:
     fields, rows = _read_csv(path)
     required = {"province", "year", "week", "cases"}
     missing = required - set(fields)
     if missing:
-        raise BuildInputError(f"TanRabad panel is missing columns: {sorted(missing)}.")
+        raise BuildInputError(f"TanRabad extension panel is missing columns: {sorted(missing)}.")
 
     cases_by_key: dict[tuple[str, dt.date], int] = {}
     incoming_coverage: dict[str, set[str]] = defaultdict(set)
-    seen_weeks: set[dt.date] = set()
     incoming_provinces: set[str] = set()
-    for row in rows:
+    for index, row in enumerate(rows, start=2):
         province = (row.get("province") or "").strip()
         if not province:
-            raise BuildInputError("TanRabad panel contains a blank province.")
-        year_number = parse_number(row.get("year"), "TanRabad year")
-        week_number = parse_number(row.get("week"), "TanRabad week")
-        case_number = parse_number(row.get("cases"), "TanRabad cases")
+            raise BuildInputError(f"Incoming weekly panel line {index} has a blank province.")
+        year_number = parse_number(row.get("year"), "Incoming MMWR year")
+        week_number = parse_number(row.get("week"), "Incoming MMWR week")
+        case_number = parse_number(row.get("cases"), "Incoming cases")
         if year_number is None or week_number is None or case_number is None:
-            raise BuildInputError("TanRabad panel contains a missing value.")
+            raise BuildInputError("Incoming weekly panel contains a missing value.")
         if not year_number.is_integer() or not week_number.is_integer() or not case_number.is_integer():
-            raise BuildInputError("TanRabad year, week and case count must be integers.")
+            raise BuildInputError("Incoming MMWR year/week and case counts must be integers.")
         year, week, cases = int(year_number), int(week_number), int(case_number)
         if cases < 0:
-            raise BuildInputError("TanRabad panel contains a negative case count.")
+            raise BuildInputError("Incoming weekly panel contains a negative case count.")
         week_start = mmwr_sunday_start(year, week)
-        expected = EXPECTED_INCOMING_WEEKS.get((year, week))
-        if expected is None or week_start != expected:
-            raise BuildInputError(f"Unexpected incoming MMWR week {year}-W{week} ({week_start}).")
+        if week_start <= historical_latest:
+            raise BuildInputError(
+                f"Incoming extension week {week_start} does not follow historical end {historical_latest}."
+            )
         key = (province, week_start)
         if key in cases_by_key:
-            raise BuildInputError(f"Duplicate TanRabad province-week key for {province}/{week_start}.")
+            raise BuildInputError(f"Duplicate incoming province-week key for {province}/{week_start}.")
         cases_by_key[key] = cases
         incoming_provinces.add(province)
-        seen_weeks.add(week_start)
         incoming_coverage[week_start.isoformat()].add(province)
 
     if incoming_provinces != canonical_provinces:
         missing = sorted(canonical_provinces - incoming_provinces)
         extra = sorted(incoming_provinces - canonical_provinces)
         raise BuildInputError(
-            f"TanRabad province set differs from historical source; missing={missing}, extra={extra}."
+            f"Incoming province set differs from historical source; missing={missing}, extra={extra}."
         )
-    if seen_weeks != set(EXPECTED_INCOMING_WEEKS.values()):
-        raise BuildInputError("TanRabad data must contain exactly MMWR weeks 44 and 45 of 2026.")
-    for week in EXPECTED_INCOMING_WEEKS.values():
+    if not cases_by_key:
+        raise BuildInputError("Incoming weekly panel is empty.")
+
+    weeks = sorted({week for _, week in cases_by_key})
+    if weeks[0] != historical_latest + dt.timedelta(days=7):
+        raise BuildInputError(
+            f"Incoming extension starts at {weeks[0]}, expected immediately after historical end "
+            f"{historical_latest + dt.timedelta(days=7)}."
+        )
+    for previous, current in zip(weeks, weeks[1:]):
+        if current - previous != dt.timedelta(days=7):
+            raise BuildInputError(f"Incoming weekly panel has a gap between {previous} and {current}.")
+    for week in weeks:
         if incoming_coverage[week.isoformat()] != canonical_provinces:
-            raise BuildInputError(f"TanRabad week {week} does not contain exactly 77 provinces.")
-    if len(cases_by_key) != EXPECTED_PROVINCES * 2:
-        raise BuildInputError("TanRabad panel must contain exactly 154 province-week rows.")
-    return cases_by_key, {week: len(provinces) for week, provinces in incoming_coverage.items()}
+            raise BuildInputError(f"Incoming week {week} does not contain exactly 77 provinces.")
+    if len(cases_by_key) != EXPECTED_PROVINCES * len(weeks):
+        raise BuildInputError("Incoming weekly panel row count does not match 77 provinces per week.")
 
+    return (
+        cases_by_key,
+        {week: len(provinces) for week, provinces in incoming_coverage.items()},
+        weeks,
+    )
 
-def _read_weather(path: Path, canonical_provinces: set[str]) -> tuple[dict[tuple[str, dt.date], float], dict[str, int]]:
+def _read_weather(
+    path: Path,
+    canonical_provinces: set[str],
+    expected_weeks: list[dt.date],
+) -> tuple[dict[tuple[str, dt.date], float], dict[str, int]]:
     fields, rows = _read_csv(path)
     required = {"model", "province", "week_start", "w_apparent_temperature_mean_api"}
     missing = required - set(fields)
     if missing:
         raise BuildInputError(f"Weather candidate CSV is missing columns: {sorted(missing)}.")
 
+    expected_set = set(expected_weeks)
     weather_by_key: dict[tuple[str, dt.date], float] = {}
     coverage: dict[str, set[str]] = defaultdict(set)
     for row in rows:
@@ -192,7 +223,7 @@ def _read_weather(path: Path, canonical_provinces: set[str]) -> tuple[dict[tuple
             week_start = dt.date.fromisoformat((row.get("week_start") or "").strip()[:10])
         except ValueError as exc:
             raise BuildInputError("Weather candidate has an invalid week_start.") from exc
-        if week_start not in EXPECTED_INCOMING_WEEKS.values():
+        if week_start not in expected_set:
             continue
         if province not in canonical_provinces:
             raise BuildInputError(f"Weather candidate has an unknown province: {province}.")
@@ -205,16 +236,16 @@ def _read_weather(path: Path, canonical_provinces: set[str]) -> tuple[dict[tuple
         weather_by_key[key] = value
         coverage[week_start.isoformat()].add(province)
 
-    counts = {week.isoformat(): len(coverage[week.isoformat()]) for week in EXPECTED_INCOMING_WEEKS.values()}
-    expected_keys = EXPECTED_PROVINCES * 2
+    counts = {week.isoformat(): len(coverage[week.isoformat()]) for week in expected_weeks}
+    expected_keys = EXPECTED_PROVINCES * len(expected_weeks)
     if len(weather_by_key) != expected_keys:
         raise BuildInputError(
-            f"Open-Meteo best_match needs 154 values for weeks 44-45; found {len(weather_by_key)}."
+            f"Open-Meteo best_match needs {expected_keys} values for extension weeks "
+            f"{[week.isoformat() for week in expected_weeks]}; found {len(weather_by_key)}."
         )
-    if any(counts[week.isoformat()] != EXPECTED_PROVINCES for week in EXPECTED_INCOMING_WEEKS.values()):
+    if any(counts[week.isoformat()] != EXPECTED_PROVINCES for week in expected_weeks):
         raise BuildInputError(f"Open-Meteo best_match weather coverage incomplete: {counts}.")
     return weather_by_key, counts
-
 
 def build_inputs(
     historical_csv: Path,
@@ -248,16 +279,16 @@ def build_inputs(
 
     historical_fields, historical_rows = _read_csv(historical_csv)
     canonical_provinces, historical_weeks = _validate_historical(historical_rows, historical_fields)
-    case_map, case_coverage = _read_incoming(incoming_csv, canonical_provinces)
-    weather_map, weather_coverage = _read_weather(weather_csv, canonical_provinces)
+    case_map, case_coverage, extension_weeks = _read_incoming(
+        incoming_csv, canonical_provinces, historical_weeks[-1]
+    )
+    weather_map, weather_coverage = _read_weather(weather_csv, canonical_provinces, extension_weeks)
 
     appended_rows: list[dict[str, str]] = []
     week_field_exists = "week" in historical_fields
     for (province, week_start), cases in sorted(case_map.items(), key=lambda item: (item[0][1], item[0][0])):
         weather = weather_map[(province, week_start)]
-        epidemiological_week = next(
-            week for (year, week), start in EXPECTED_INCOMING_WEEKS.items() if start == week_start
-        )
+        epidemiological_year, epidemiological_week = mmwr_year_week(week_start)
         appended_rows.append({
             "province": province,
             "week_start": week_start.isoformat(),
@@ -280,11 +311,14 @@ def build_inputs(
         })
     train_rows.extend(appended_rows)
 
+    latest_observed_week = extension_weeks[-1]
+    target_week_start = latest_observed_week + dt.timedelta(days=7)
+    target_year, target_week = mmwr_year_week(target_week_start)
     target_rows = [
         {
             "province": province,
-            "week_start": EXPECTED_TARGET_WEEK.isoformat(),
-            "week": str(EXPECTED_TARGET_WEEK.isocalendar().week),
+            "week_start": target_week_start.isoformat(),
+            "week": str(target_week),
             "cases": "",
             "w_apparent_temperature_mean": "",
         }
@@ -314,8 +348,8 @@ def build_inputs(
             "sha256": sha256_file(historical_csv),
         },
         "incoming_tanrabad": {
-            "weeks": [{"week_start": week.isoformat(), "year": 2026, "mmwr_week": number}
-                      for (year, number), week in sorted(EXPECTED_INCOMING_WEEKS.items())],
+            "weeks": [{"week_start": week.isoformat(), "year": mmwr_year_week(week)[0], "mmwr_week": mmwr_year_week(week)[1]}
+                      for week in extension_weeks],
             "rows": len(case_map),
             "province_count": len(canonical_provinces),
             "province_coverage_by_week": case_coverage,
@@ -325,6 +359,7 @@ def build_inputs(
             "model": WEATHER_MODEL,
             "province_coverage_by_week": weather_coverage,
             "values_added": len(weather_map),
+            "week_count": len(extension_weeks),
             "historical_comparison_window_weeks": len(validation_weeks),
             "historical_comparison_matched_province_weeks": comparison["matched_province_weeks"],
             "historical_comparison_mae_c": mae,
@@ -336,21 +371,24 @@ def build_inputs(
         },
         "training_panel": {
             "start_week": historical_weeks[0].isoformat(),
-            "end_week": EXPECTED_INCOMING_WEEKS[(2026, 45)].isoformat(),
-            "week_count": len(historical_weeks) + 2,
+            "end_week": latest_observed_week.isoformat(),
+            "week_count": len(historical_weeks) + len(extension_weeks),
+            "appended_week_starts": [week.isoformat() for week in extension_weeks],
+            "appended_week_count": len(extension_weeks),
             "row_count": len(train_rows),
             "province_count": len(canonical_provinces),
             "all_cases_and_weather_present_on_appended_weeks": True,
         },
         "forecast_target": {
-            "week_start": EXPECTED_TARGET_WEEK.isoformat(),
-            "epidemiological_week": EXPECTED_TARGET_WEEK.isocalendar().week,
+            "week_start": target_week_start.isoformat(),
+            "epidemiological_year": target_year,
+            "epidemiological_week": target_week,
             "row_count": len(target_rows),
             "province_count": len(canonical_provinces),
             "target_cases_blank": True,
             "target_week_weather_blank": True,
-            "feature_weather_source_week": EXPECTED_INCOMING_WEEKS[(2026, 45)].isoformat(),
-            "leakage_control": "target-week cases and target-week weather are blank; the model's L1 weather feature comes from week 45",
+            "feature_weather_source_week": latest_observed_week.isoformat(),
+            "leakage_control": "target-week cases and target-week weather are blank; the model's L1 weather feature comes from the final observed week",
         },
         "outputs": {
             "train_csv_sha256": sha256_file(train_path),

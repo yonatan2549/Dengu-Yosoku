@@ -169,7 +169,7 @@ function LegacyDashboardPage() {
 
 export default function DashboardPage() {
   const { data, modelWarning } = useDengueData();
-  const [viewPreference, setViewPreference] = useState<DashboardDatasetPreference>("auto");
+  const [viewPreference, setViewPreference] = useState<DashboardDatasetPreference>("model");
   const modelWeek = data?.modelPredictions?.coverage.forecast_week ?? null;
 
   if (!data) return null;

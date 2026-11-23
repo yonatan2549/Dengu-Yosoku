@@ -11,6 +11,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from datetime import date, timedelta
 from statistics import median
 from typing import Any
 
@@ -57,6 +58,43 @@ def nearest_rank(values: list[float], probability: float) -> float:
 def _round(value: float) -> float:
     rounded = round(float(value), 3)
     return 0.0 if rounded == 0 else rounded
+
+
+
+def _snapshot_freshness_limitation(snapshot: dict[str, Any]) -> str:
+    """Describe freshness relative to the epidemiological week recorded at snapshot creation."""
+    coverage = snapshot.get("coverage") or {}
+    freshness = snapshot.get("freshness") or {}
+    forecast_week = coverage.get("forecast_week")
+    current_week = freshness.get("current_week_start_at_conversion")
+    if not isinstance(forecast_week, str) or not isinstance(current_week, str):
+        return "Snapshot freshness could not be verified from its recorded Asia/Bangkok week metadata; do not use it operationally."
+    try:
+        forecast_date = date.fromisoformat(forecast_week)
+        current_date = date.fromisoformat(current_week)
+    except ValueError:
+        return "Snapshot freshness contains invalid epidemiological week metadata; do not use it operationally."
+
+    day_delta = (current_date - forecast_date).days
+    if day_delta == 0:
+        next_week = (current_date + timedelta(days=7)).isoformat()
+        return (
+            f"The review_only snapshot targets {forecast_week}; at its recorded generation time, "
+            f"that was the current epidemiological week. It must be refreshed for the next "
+            f"epidemiological week beginning {next_week} and must not be reused for later weeks."
+        )
+    if day_delta > 0:
+        lag_weeks = day_delta // 7
+        return (
+            f"The review_only snapshot targets {forecast_week} and was already {lag_weeks} "
+            f"epidemiological week(s) behind the current week beginning {current_week} at generation."
+        )
+    lead_weeks = (-day_delta) // 7
+    return (
+        f"The review_only snapshot targets {forecast_week}, {lead_weeks} epidemiological "
+        f"week(s) ahead of the current week beginning {current_week} at generation; verify that "
+        "the forecast horizon is intentional before use."
+    )
 
 
 def _binary_metrics(rows: list[dict[str, Any]], threshold_key: str, prediction_key: str) -> dict[str, Any]:
@@ -392,7 +430,7 @@ def build_candidate(snapshot: dict[str, Any]) -> dict[str, Any]:
                 "Thresholds are absolute weekly case counts and do not adjust for provincial population size, testing volume, reporting completeness, or outbreak context.",
                 "Temporal split confusion matrices measure prediction of a statistical threshold exceedance, not sensitivity/specificity for disease outbreak detection or clinical diagnosis.",
                 "On the 8-week temporal validation, model forecast micro-F1 is lower than persistence for Watch (0.598 vs 0.616) and Alert (0.531 vs 0.606); macro Alert recall is 0.093 vs 0.157 for persistence.",
-                "The underlying model snapshot is review_only and targets 2026-11-15; it is stale for the epidemiological week beginning 2026-11-22.",
+                _snapshot_freshness_limitation(snapshot),
                 "An automated quantitative review is not an independent epidemiologist's sign-off or clinical approval.",
             ],
         },

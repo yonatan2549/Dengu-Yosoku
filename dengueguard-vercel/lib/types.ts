@@ -18,6 +18,8 @@ export interface ModelMapRow {
   prediction: number;
   actual_cases: number | null;
   persistence: number | null;
+  watch_threshold?: number | null;
+  alert_threshold?: number | null;
 }
 
 export interface ModelHistoryRow {
@@ -37,6 +39,33 @@ export interface ModelForecastRow {
   week_start: string;
   year: number;
   prediction: number;
+}
+
+export interface ProvinceHistoryRow {
+  province: string;
+  week_start: string;
+  year: number;
+  actual_cases: number;
+}
+
+export interface ProvinceHistoryCoverage {
+  week_start: string;
+  year: number;
+  province_count: number;
+  complete: boolean;
+}
+
+export interface ProvinceHistorySnapshot {
+  schema_version: number;
+  status: "ready" | "unavailable";
+  source_file: string;
+  generated_at_utc: string;
+  province_count: number;
+  row_count: number;
+  years: number[];
+  week_coverage: ProvinceHistoryCoverage[];
+  rows: ProvinceHistoryRow[];
+  message?: string;
 }
 
 export interface ModelPredictionsPayload {

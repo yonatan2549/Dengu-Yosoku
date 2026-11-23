@@ -109,7 +109,7 @@ export default function SymptomCheckerPage() {
     <div className="page-stack symptom-page">
       <section className="page-heading-row">
         <div><div className="eyebrow">DENGUE SYMPTOM CHECKER</div><h1>ประเมินอาการเบื้องต้น</h1><p>คัดกรองอาการ ข้อมูลความเสี่ยง และผลตรวจทางห้องปฏิบัติการ</p></div>
-        <div className="heading-icon-card"><ClipboardCheck size={26} /><span>SCREENING</span></div>
+        <div className="heading-icon-card"><ClipboardCheck size={58} strokeWidth={1.35} /><span>SCREENING</span></div>
       </section>
       <div className="screening-disclaimer"><ShieldAlert size={19} /><span>แบบประเมินนี้ให้ข้อมูลเบื้องต้น ไม่ใช่เครื่องมือวินิจฉัย หากมีอาการฉุกเฉินควรไปโรงพยาบาลทันทีโดยไม่ต้องรอกรอกแบบสอบถาม</span></div>
 

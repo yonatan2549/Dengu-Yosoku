@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/build_province_history_77.mjs",
+    "prebuild": "node scripts/build_province_history_77.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -41,9 +43,12 @@
     "test:model-release-guard": "python -m unittest scripts.test_model_release_guard -v",
     "check:model-release": "python scripts/inspect_model_release.py",
     "test:model-release-inspection": "python -m unittest scripts.test_model_release_inspection -v",
-    "test:dashboard-view": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/dashboard-view-tests lib/dashboard-view.ts && node --test scripts/test-dashboard-view.mjs",
+    "test:dashboard-view": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/dashboard-view-tests lib/dashboard-view.ts lib/epi-week.ts && node --test scripts/test-dashboard-view.mjs scripts/test-epi-week.mjs",
     "test:built-app-smoke": "node scripts/smoke-test-built-app.mjs",
-    "test:health-assistant-request-body": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/health-assistant-request-body-tests lib/health-assistant/request-body.ts && node --test scripts/test-health-assistant-request-body.mjs"
+    "test:health-assistant-request-body": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/health-assistant-request-body-tests lib/health-assistant/request-body.ts && node --test scripts/test-health-assistant-request-body.mjs",
+    "test:province-history": "node --test scripts/test_build_province_history_77.mjs",
+    "test:alert-presentation-demo": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/alert-presentation-demo-tests lib/alerting/presentation-demo.ts && node --test scripts/test-alert-presentation-demo.mjs",
+    "test:model-history-chart": "tsc --target ES2022 --module commonjs --moduleResolution node --strict --skipLibCheck --rootDir . --outDir .next/model-history-chart-tests lib/model/history-chart.ts && node --test scripts/test-model-history-chart.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

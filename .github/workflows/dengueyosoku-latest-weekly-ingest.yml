@@ -5,8 +5,10 @@ on:
   push:
     branches:
       - integration/phase9-12-final-review
+      - review/national-alerts-independent-audit-2026-11-21
     paths:
       - ".github/workflows/dengueyosoku-latest-weekly-ingest.yml"
+      - "week_44-45_NOV-2026.zip"
       - "dengueguard-vercel/scripts/experimental_case_only_nowcast.py"
       - "dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py"
       - "dengueguard-vercel/scripts/prepare_current_model_snapshot.py"
@@ -14,6 +16,9 @@ on:
       - "dengueguard-vercel/scripts/convert_model_outputs.py"
       - "dengueguard-vercel/scripts/build_tanrabad_current_model_inputs.py"
       - "dengueguard-vercel/scripts/test_build_tanrabad_current_model_inputs.py"
+      - "dengueguard-vercel/scripts/merge_model_snapshot_history.py"
+      - "dengueguard-vercel/scripts/test_merge_model_snapshot_history.py"
+      - "dengueguard-vercel/scripts/test_experimental_case_only_nowcast.py"
 
 permissions:
   contents: write
@@ -32,18 +37,23 @@ jobs:
       - name: Check out DengueYosoku
         uses: actions/checkout@v4
 
-      - name: Check whether the Drive file ID is configured
+      - name: Check whether a repository ZIP or Drive source is available
         id: drive_secret
         shell: bash
         env:
           DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
         run: |
-          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "Drive secret is not configured. Intake will safely skip without accessing any file."
-          else
+          if [[ -s "week_44-45_NOV-2026.zip" ]]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "Drive source is configured."
+            echo "source=repository_zip" >> "$GITHUB_OUTPUT"
+            echo "Repository-local week 44-45 ZIP found; Google Drive is not required."
+          elif [[ -n "${DRIVE_FILE_ID:-}" ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "source=google_drive" >> "$GITHUB_OUTPUT"
+            echo "Google Drive source is configured."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No repository ZIP or Drive source is configured. Intake will safely skip."
           fi
 
       - name: Set up Python
@@ -52,37 +62,43 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download latest-week TanRabad workbook or CSV to ephemeral runner storage
+      - name: Stage latest-week TanRabad ZIP, workbook or CSV in ephemeral runner storage
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
         env:
           DRIVE_FILE_ID: ${{ secrets.DENGUE_TANRABAD_LATEST_FILE_ID }}
         run: |
           set -euo pipefail
-
-          if [[ -z "${DRIVE_FILE_ID:-}" ]]; then
-            echo "::error::Missing repository Actions secret DENGUE_TANRABAD_LATEST_FILE_ID."
-            exit 1
-          fi
-
-          python -m pip install --disable-pip-version-check "gdown==6.5.2" "openpyxl==3.1.5"
           source_path="${RUNNER_TEMP}/tanrabad-latest-week-source"
 
-          gdown --quiet --no-cookies --continue \
-            "$DRIVE_FILE_ID" \
-            -O "$source_path"
+          if [[ -s "week_44-45_NOV-2026.zip" ]]; then
+            cp "week_44-45_NOV-2026.zip" "$source_path"
+            echo "Staged repository ZIP in ephemeral runner storage; raw records will not be printed or exported."
+          elif [[ -n "${DRIVE_FILE_ID:-}" ]]; then
+            python -m pip install --disable-pip-version-check "gdown==6.5.2" "openpyxl==3.1.5"
+            gdown --quiet --no-cookies --continue \
+              "$DRIVE_FILE_ID" \
+              -O "$source_path"
+
+            if [[ ! -s "$source_path" ]]; then
+              echo "::error::Google Drive download produced an empty or missing file."
+              exit 1
+            fi
+
+            if head -c 1024 "$source_path" | grep -Eiq '<!doctype html|<html'; then
+              echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
+              exit 1
+            fi
+            echo "Downloaded Drive source to temporary runner storage."
+          else
+            echo "::error::No TanRabad weekly source is available."
+            exit 1
+          fi
 
           if [[ ! -s "$source_path" ]]; then
-            echo "::error::Google Drive download produced an empty or missing file."
+            echo "::error::Staged weekly source is empty or missing."
             exit 1
           fi
-
-          if head -c 1024 "$source_path" | grep -Eiq '<!doctype html|<html'; then
-            echo "::error::Google Drive returned an HTML page, not a CSV. Check the sharing permission and file ID."
-            exit 1
-          fi
-
-          echo "Downloaded CSV to temporary runner storage. Raw data will not be printed or uploaded."
 
       - name: Inspect schema without printing patient records
         if: steps.drive_secret.outputs.available == 'true'
@@ -721,6 +737,16 @@ jobs:
           def norm(value):
               return re.sub(r"\s+", "", str(value or "").strip()).casefold()
 
+          def mmwr_sunday_start(year, week):
+              jan1 = dt.date(year, 1, 1)
+              first_sunday = jan1 + dt.timedelta(days=(6 - jan1.weekday()) % 7)
+              next_jan1 = dt.date(year + 1, 1, 1)
+              next_first_sunday = next_jan1 + dt.timedelta(days=(6 - next_jan1.weekday()) % 7)
+              max_week = (next_first_sunday - first_sunday).days // 7
+              if not 1 <= week <= max_week:
+                  raise ValueError(f"Invalid MMWR week {year}-W{week}; expected 1..{max_week}.")
+              return first_sunday + dt.timedelta(weeks=week - 1)
+
           with incoming_path.open("r", encoding="utf-8-sig", newline="") as handle:
               incoming = list(csv.DictReader(handle))
           incoming_provinces = {norm(row.get("province")) for row in incoming if row.get("province")}
@@ -772,10 +798,9 @@ jobs:
                       if max_week is None or week_date > max_week:
                           max_week = week_date
                       for year, week in incoming_weeks:
-                          if year == 2026 and week in (44, 45):
-                              expected_start = dt.date(2026, 11, 1) + dt.timedelta(days=7 * (week - 44))
-                              if week_date == expected_start and row.get(weather_col) not in (None, ""):
-                                  weather_coverage.setdefault((year, week), set()).add(province)
+                          expected_start = mmwr_sunday_start(year, week)
+                          if week_date == expected_start and row.get(weather_col) not in (None, ""):
+                              weather_coverage.setdefault((year, week), set()).add(province)
 
                   matched = incoming_provinces & historical_provinces
                   unmatched = incoming_provinces - historical_provinces
@@ -819,6 +844,22 @@ jobs:
               print(f"Model-input blocker: {blocker}")
           PY
 
+      - name: Bridge verified Model Snapshot actuals to the incoming TanRabad weeks
+        if: steps.drive_secret.outputs.available == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dengueguard-vercel
+          python -m py_compile scripts/merge_model_snapshot_history.py scripts/test_merge_model_snapshot_history.py
+          python -m unittest scripts.test_merge_model_snapshot_history -v
+          python scripts/merge_model_snapshot_history.py \
+            --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
+            --snapshot-json "public/data/model_predictions.json" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --output-panel-csv "$RUNNER_TEMP/tanrabad-extended-province-week.csv" \
+            --output-report-json "$RUNNER_TEMP/model-snapshot-history-bridge.json"
+          cd ..
+
       - name: Fetch Open-Meteo apparent-temperature candidates and compare to training source
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
@@ -834,7 +875,7 @@ jobs:
 
           python dengueguard-vercel/scripts/validate_open_meteo_weather_bridge.py \
             --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
-            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-extended-province-week.csv" \
             --source-commit "$SOURCE_SHA" \
             --output-dir "$RUNNER_TEMP/openmeteo-weather" \
             --validation-weeks 52
@@ -972,7 +1013,7 @@ jobs:
           python -m unittest scripts.test_build_tanrabad_current_model_inputs -v
           python scripts/build_tanrabad_current_model_inputs.py \
             --historical-full-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
-            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-extended-province-week.csv" \
             --weather-candidates-csv "$RUNNER_TEMP/openmeteo-weather/openmeteo_weekly_weather_candidates.csv" \
             --weather-compatibility-json "$RUNNER_TEMP/openmeteo-weather/openmeteo_weather_compatibility.json" \
             --output-dir "$RUNNER_TEMP/phase13-current-inputs"
@@ -1004,9 +1045,10 @@ jobs:
           PY
           )"
 
+          (cd dengueguard-vercel && python -m py_compile scripts/experimental_case_only_nowcast.py scripts/test_experimental_case_only_nowcast.py && python -m unittest scripts.test_experimental_case_only_nowcast -v)
           python dengueguard-vercel/scripts/experimental_case_only_nowcast.py \
             --historical-csv "$RUNNER_TEMP/dengue-upstream-full.csv" \
-            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-province-week.csv" \
+            --incoming-panel-csv "$RUNNER_TEMP/tanrabad-extended-province-week.csv" \
             --source-commit "$SOURCE_SHA" \
             --output-dir "$RUNNER_TEMP/case-only-experiment" \
             --holdout-weeks 26 \
@@ -1015,7 +1057,7 @@ jobs:
             --gap-weeks 4 \
             --round-grid 400,600,800
 
-      - name: Train original Phase 13 12-feature model for week 46 review
+      - name: Train original Phase 13 12-feature model for the current epidemiological week
         if: steps.drive_secret.outputs.available == 'true'
         shell: bash
         run: |
@@ -1066,6 +1108,7 @@ jobs:
             ${{ runner.temp }}/tanrabad-weekly-structure-audit.json
             ${{ runner.temp }}/tanrabad-weekly-validation.json
             ${{ runner.temp }}/model-input-compatibility.json
+            ${{ runner.temp }}/model-snapshot-history-bridge.json
             ${{ runner.temp }}/phase13-source-inspection/pipeline-source-inspection.json
             ${{ runner.temp }}/phase13-source-inspection/historical-schema.json
             ${{ runner.temp }}/phase13-source-inspection/national_model_pipeline.py
@@ -1091,12 +1134,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Commit review-only Dashboard snapshot to integration branch
+      - name: Commit review-only Dashboard snapshot to the triggering branch
         if: ${{ success() && steps.drive_secret.outputs.available == 'true' }}
         uses: actions/github-script@v7
         env:
           SNAPSHOT_DIRECTORY: ${{ runner.temp }}/dashboard-model-snapshot/public/data
-          EXPECTED_BRANCH: integration/phase9-12-final-review
+          EXPECTED_BRANCH: ${{ github.ref_name }}
         with:
           script: |
             const fs = require("fs");

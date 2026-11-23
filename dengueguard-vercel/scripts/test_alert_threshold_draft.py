@@ -8,6 +8,7 @@ from scripts.build_alert_threshold_draft import (
     quantile_type7_independent,
     nearest_rank,
     _threshold_pair,
+    _snapshot_freshness_limitation,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -134,6 +135,21 @@ class AlertThresholdDraftTests(unittest.TestCase):
         self.assertFalse(governance["may_create_alert_candidates"])
         self.assertFalse(governance["may_classify_national_risk"])
         self.assertFalse(governance["external_notifications_enabled"])
+
+
+    def test_snapshot_freshness_uses_the_recorded_epidemiological_week(self):
+        limitation = _snapshot_freshness_limitation(SNAPSHOT)
+        self.assertIn("targets 2026-11-15", limitation)
+        self.assertIn("was the current epidemiological week", limitation)
+        self.assertIn("beginning 2026-11-22", limitation)
+
+        stale_snapshot = {
+            **SNAPSHOT,
+            "coverage": {**SNAPSHOT["coverage"], "forecast_week": "2026-11-08"},
+        }
+        stale_limitation = _snapshot_freshness_limitation(stale_snapshot)
+        self.assertIn("already 1 epidemiological week(s) behind", stale_limitation)
+
 
 
 if __name__ == "__main__":
