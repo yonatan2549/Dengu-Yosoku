@@ -18,8 +18,8 @@ export function HealthAssistantMoreTools() {
       >
         <span className="ha-more-tools-icon"><SlidersHorizontal size={17} /></span>
         <span className="ha-more-tools-copy">
-          <strong>เครื่องมือและรายละเอียดเพิ่มเติม</strong>
-          <small>ค้นเอกสารอ้างอิงและดูสถานะการทบทวนคลังความรู้</small>
+          <strong>คลังความรู้และหลักฐาน (Evidence-only)</strong>
+          <small>ค้นคืนแหล่งอ้างอิง ดูหลักฐาน และสถานะการทบทวน</small>
         </span>
         {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
       </button>
