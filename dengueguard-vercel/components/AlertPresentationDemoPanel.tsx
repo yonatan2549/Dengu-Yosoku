@@ -352,6 +352,42 @@ export function AlertPresentationDemoPanel() {
           </div>
           {visibleEvents.length > 18 && <p className="alert-demo-footnote">แสดง 18 จาก {visibleEvents.length} เหตุการณ์ที่ตรงกับตัวกรอง</p>}
 
+          <details className="alert-demo-province-audit">
+            <summary>ตารางผลจำลองรายจังหวัด ({run.evaluatedProvinceCount}/{run.requestedProvinceCount} จังหวัด)</summary>
+            <div className="alert-demo-province-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>จังหวัด</th>
+                    <th>ค่าพยากรณ์จำลอง</th>
+                    <th>WATCH ตัวอย่าง</th>
+                    <th>ALERT ตัวอย่าง</th>
+                    <th>ระดับตัวอย่าง</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {run.rows.filter((row) => !query.trim() || row.province.toLocaleLowerCase("th").includes(query.trim().toLocaleLowerCase("th"))).map((row) => (
+                    <tr key={row.province}>
+                      <td>{row.province}</td>
+                      <td>{row.prediction.toLocaleString("th-TH", { maximumFractionDigits: 1 })}</td>
+                      <td>{row.watchThreshold.toLocaleString("th-TH")}</td>
+                      <td>{row.alertThreshold.toLocaleString("th-TH")}</td>
+                      <td>
+                        <span className={row.level === "ALERT" ? "alert-demo-level alert-demo-level--alert" : row.level === "WATCH" ? "alert-demo-level alert-demo-level--watch" : "alert-demo-level alert-demo-level--normal"}>
+                          {row.level === "NORMAL" ? "ปกติ" : row.level}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!run.rows.filter((row) => !query.trim() || row.province.toLocaleLowerCase("th").includes(query.trim().toLocaleLowerCase("th"))).length && (
+                <div className="alert-demo-empty">ไม่พบจังหวัดตามคำค้น</div>
+              )}
+            </div>
+            <p className="alert-demo-footnote">ค่าทุกช่องในตารางนี้เป็นข้อมูลสังเคราะห์เพื่อสาธิต ไม่ใช่ค่าพยากรณ์หรือ Threshold ที่รับรอง</p>
+          </details>
+
           <div className="alert-demo-footer">
             <div><CheckCircle2 size={16} /><span>การแจ้งเตือนภายนอกถูกปิด · ไม่มี LINE, Email หรือ SMS</span></div>
             <div className="alert-demo-footer-actions">
