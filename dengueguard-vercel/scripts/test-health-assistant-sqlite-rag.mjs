@@ -1,8 +1,15 @@
 import test from "node:test";
-import assert from "node:assert/strict";
+import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";
 import { validatePublicRagPayload } from "../.next/health-assistant-sqlite-rag-tests/lib/health-assistant/sqlite-rag-contract.js";
 
-function makePayload(overrides = {}) {
+
+const sqliteRouteSource = await readFile(new URL("../app/api/health-assistant/sqlite-search/route.ts", import.meta.url), "utf8");
+
+test("pins SQLite AI drafts to the catalog-verified zero-priced model", () => {
+  assert.match(sqliteRouteSource, /HEALTH_ASSISTANT_MODEL:\\s*DEFAULT_HEALTH_ASSISTANT_MODEL/);
+  assert.doesNotMatch(sqliteRouteSource, /SQLITE_HEALTH_ASSISTANT_MODEL/);
+});
+\nfunction makePayload(overrides = {}) {
   return {
     schema_version: "1.0",
     status: "ok",
