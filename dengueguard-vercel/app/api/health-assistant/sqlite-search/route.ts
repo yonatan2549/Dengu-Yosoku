@@ -4,7 +4,7 @@ import { containsPersonalLabValue } from "@/lib/health-assistant/chat-contract";
 import { readBoundedJson } from "@/lib/health-assistant/request-body";
 import { getLocalSqliteRagStatus, searchLocalSqliteRagEvidence } from "@/lib/health-assistant/sqlite-rag";
 import { isDraftAnswersEnabled } from "@/lib/health-assistant/runtime-policy";
-import { readChatProviderConfig, requestChatCompletion } from "@/lib/health-assistant/chat-provider";
+import { DEFAULT_AI_GATEWAY_ENDPOINT, DEFAULT_HEALTH_ASSISTANT_MODEL, readChatProviderConfig, requestChatCompletion } from "@/lib/health-assistant/chat-provider";
 import { buildSqliteCitations, buildSqliteGroundedMessages, validateSqliteCitedAnswer } from "@/lib/health-assistant/sqlite-answer";
 
 export const runtime = "nodejs";
@@ -15,6 +15,18 @@ const noStore = { "Cache-Control": "no-store, max-age=0" };
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS_PER_WINDOW = 12;
 const requests = new Map<string, { startedAt: number; count: number }>();
+
+function sqliteAiProviderConfig(request: Request) {
+  // Keep SQLite generation on Vercel AI Gateway. Do not accidentally route through
+  // an old Ollama endpoint/model configured for the separate local-vector prototype.
+  const env = {
+    ...process.env,
+    HEALTH_ASSISTANT_CHAT_ENDPOINT: DEFAULT_AI_GATEWAY_ENDPOINT,
+    HEALTH_ASSISTANT_MODEL: process.env.SQLITE_HEALTH_ASSISTANT_MODEL?.trim() || DEFAULT_HEALTH_ASSISTANT_MODEL,
+    HEALTH_ASSISTANT_API_KEY: undefined,
+  };
+  return readChatProviderConfig(env, process.env.NODE_ENV, request.headers.get("x-vercel-oidc-token"));
+}
 
 function isLoopback(hostname: string): boolean {
   const value = hostname.toLowerCase();
@@ -87,11 +99,7 @@ function isSameLoopbackRequest(request: Request): boolean {
 export async function GET(request: Request) {
   const status = getLocalSqliteRagStatus();
   const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
-  const provider = readChatProviderConfig(
-    process.env,
-    process.env.NODE_ENV,
-    request.headers.get("x-vercel-oidc-token"),
-  );
+  const provider = sqliteAiProviderConfig(request);
   const generatedAnswersEnabled = status.available && draftAnswersEnabled && provider.ok;
   const message = !status.available
     ? status.message
@@ -215,11 +223,7 @@ export async function POST(request: Request) {
   }
 
   const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
-  const provider = readChatProviderConfig(
-    process.env,
-    process.env.NODE_ENV,
-    request.headers.get("x-vercel-oidc-token"),
-  );
+  const provider = sqliteAiProviderConfig(request);
   if (!draftAnswersEnabled) {
     return evidenceOnlyResponse("AI draft ถูกปิดไว้ในสภาพแวดล้อมนี้");
   }
