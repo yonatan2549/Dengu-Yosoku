@@ -88,7 +88,7 @@ export default function AboutPage() {
               โดยให้ความสำคัญกับที่มาของข้อมูล ข้อจำกัดของโมเดล และการใช้ AI อย่างรับผิดชอบ
             </p>
           </div>
-          <div className="dg-hero-art"><ShieldCheck size={82} strokeWidth={1.2} /></div>
+          <div className="dg-hero-art"><ShieldCheck size={58} strokeWidth={1.35} /></div>
         </div>
       </section>
 
