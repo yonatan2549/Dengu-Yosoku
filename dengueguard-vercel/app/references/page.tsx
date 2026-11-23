@@ -66,7 +66,7 @@ export default function ReferencesPage() {
               เพื่อให้ผู้ใช้งานตรวจสอบเอกสารต้นทางและบริบทของข้อมูลได้ด้วยตนเอง
             </p>
           </div>
-          <div className="dg-hero-art"><ShieldCheck size={82} strokeWidth={1.2} /></div>
+          <div className="dg-hero-art"><ShieldCheck size={58} strokeWidth={1.35} /></div>
         </div>
       </section>
 
