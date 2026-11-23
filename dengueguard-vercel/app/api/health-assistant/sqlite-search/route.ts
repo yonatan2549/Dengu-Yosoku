@@ -3,6 +3,9 @@ import { classifyHealthQuery } from "@/lib/health-assistant/evidence";
 import { containsPersonalLabValue } from "@/lib/health-assistant/chat-contract";
 import { readBoundedJson } from "@/lib/health-assistant/request-body";
 import { getLocalSqliteRagStatus, searchLocalSqliteRagEvidence } from "@/lib/health-assistant/sqlite-rag";
+import { isDraftAnswersEnabled } from "@/lib/health-assistant/runtime-policy";
+import { readChatProviderConfig, requestChatCompletion } from "@/lib/health-assistant/chat-provider";
+import { buildSqliteCitations, buildSqliteGroundedMessages, validateSqliteCitedAnswer } from "@/lib/health-assistant/sqlite-answer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,19 +84,36 @@ function isSameLoopbackRequest(request: Request): boolean {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const status = getLocalSqliteRagStatus();
+  const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
+  const provider = readChatProviderConfig(
+    process.env,
+    process.env.NODE_ENV,
+    request.headers.get("x-vercel-oidc-token"),
+  );
+  const generatedAnswersEnabled = status.available && draftAnswersEnabled && provider.ok;
+  const message = !status.available
+    ? status.message
+    : generatedAnswersEnabled
+      ? "เชื่อมต่อ SQLite Local แล้ว พร้อมสร้างร่างคำตอบด้วย AI Gateway จากหลักฐานสาธารณะที่ค้นพบ โดยไม่ส่งประวัติแชต"
+      : !draftAnswersEnabled
+        ? "เชื่อมต่อ SQLite Local แล้ว ขณะนี้แสดงหลักฐานเท่านั้น หากเปิด HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true และตั้งค่า AI Gateway credential ระบบจะสร้างร่างคำตอบได้"
+        : provider.error;
+
   return NextResponse.json({
-    mode: "sqlite-evidence-only",
-    generatedAnswersEnabled: false,
+    mode: generatedAnswersEnabled ? "sqlite-grounded-ai-preview" : "sqlite-evidence-only",
+    generatedAnswersEnabled,
     provider: status.configured ? "SQLite Local" : null,
+    aiProvider: provider.ok ? "Vercel AI Gateway" : null,
+    model: provider.ok ? provider.config.model : null,
     configured: status.configured,
     available: status.available,
-    message: status.message,
-    productionPolicy: "local-development-only; no generated medical answers",
+    message,
+    reviewStatus: "awaiting_clinical_review",
+    productionPolicy: "local-development-only; generated answers are educational drafts; production remains evidence-only",
   }, { headers: noStore });
 }
-
 export async function POST(request: Request) {
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "Local SQLite RAG ใช้ได้เฉพาะ Local Development" }, { status: 503, headers: noStore });
@@ -147,44 +167,7 @@ export async function POST(request: Request) {
       payload.safety.message || "ระบบงดค้นคำถามนี้เพื่อความปลอดภัย");
   }
 
-  const citationsBySource = new Map<string, {
-    marker: string; id: string; title: string; publisher: string; publishedAt: string;
-    sourceUrl: string; reviewStatus: string;
-  }>();
-  const evidencePassages = payload.results.map((item) => {
-    if (!citationsBySource.has(item.sourceId)) {
-      citationsBySource.set(item.sourceId, {
-        marker: "[S" + (citationsBySource.size + 1) + "]",
-        id: item.sourceId,
-        title: item.title,
-        publisher: item.authority,
-        publishedAt: "ไม่ระบุวันที่เผยแพร่ใน Metadata ของ chunk",
-        sourceUrl: item.sourceUrl,
-        reviewStatus: "Public general · ยังไม่ผ่านการทบทวนทางคลินิก",
-      });
-    }
-    return {
-      chunkId: item.sourceId + "-" + item.rank,
-      documentId: item.sourceId,
-      title: item.title,
-      sectionLabel: item.pageLabel,
-      text: item.text,
-      publisher: item.authority,
-      publishedAt: "สกัดข้อมูลเมื่อ " + (item.retrievedAt || "ไม่ระบุ"),
-      sourceUrl: item.sourceUrl,
-      reviewStatus: item.extractionMethod === "legacy_unknown"
-        ? "วิธีสกัดเดิมไม่ทราบแน่ชัด · รอทบทวนทางคลินิก"
-        : "Public general · รอทบทวนทางคลินิก",
-      similarity: item.scores.combined,
-    };
-  });
-
-  const citations = Array.from(citationsBySource.values());
-  const answer = payload.status === "no_evidence"
-    ? "ยังไม่พบหลักฐานจากคลัง SQLite ที่ผ่าน Public Allow-list ตรงกับคำถามนี้ ระบบจึงงดสรุปคำตอบ"
-    : "ค้นพบหลักฐานจาก SQLite ในเครื่อง " + payload.results.length +
-      " รายการ ด้านล่างเป็นข้อความจากเอกสารต้นทางที่ผ่านตัวกรองสาธารณะ ระบบไม่ได้สร้างหรือสังเคราะห์คำตอบด้วย AI";
-
+  const citations = buildSqliteCitations(payload);
   const retrievalSummary = "Indexed " + payload.retrieval.indexedChunks +
     " · Eligible public " + payload.retrieval.eligibleChunks +
     " · Retrieved " + payload.retrieval.resultCount +
@@ -193,19 +176,90 @@ export async function POST(request: Request) {
     ", quality " + payload.retrieval.withheld.textQuality +
     ". คะแนนจัดอันดับไม่ใช่คะแนนความถูกต้องทางการแพทย์";
 
-  return NextResponse.json({
+  const evidencePassages = payload.results.map((item) => ({
+    chunkId: item.sourceId + "-" + item.rank,
+    documentId: item.sourceId,
+    title: item.title,
+    sectionLabel: item.pageLabel,
+    text: item.text,
+    publisher: item.authority,
+    publishedAt: "สกัดข้อมูลเมื่อ " + (item.retrievedAt || "ไม่ระบุ"),
+    sourceUrl: item.sourceUrl,
+    reviewStatus: item.extractionMethod === "legacy_unknown"
+      ? "วิธีสกัดเดิมไม่ทราบแน่ชัด · รอทบทวนทางคลินิก"
+      : "Public general · รอทบทวนทางคลินิก",
+    similarity: item.scores.combined,
+  }));
+
+  const evidenceOnlyResponse = (reason: string) => NextResponse.json({
     mode: "evidence-only",
     generatedAnswer: false,
     generatedAnswersEnabled: false,
-    abstained: false,
-    answer,
+    abstained: payload.status === "no_evidence",
+    answer: payload.status === "no_evidence"
+      ? "ยังไม่พบหลักฐานจากคลัง SQLite ที่ผ่าน Public Allow-list ตรงกับคำถามนี้ ระบบจึงงดสรุปคำตอบ"
+      : "ค้นพบหลักฐานจาก SQLite ในเครื่อง " + payload.results.length +
+        " รายการ ด้านล่างเป็นข้อความจากเอกสารต้นทางที่ผ่านตัวกรองสาธารณะ ระบบไม่ได้สร้างคำตอบด้วย AI",
     citations,
     evidencePassages,
     retrievalMethod: payload.retrieval.engine + " v" + payload.retrieval.version,
     fullDocumentRag: false,
-    disclaimer: retrievalSummary + ". " +
-      "ผลลัพธ์เป็น excerpt จาก chunk ที่ผ่าน Public Allow-list เท่านั้น; extraction quality ok ไม่ได้หมายถึงผ่านการทบทวนทางคลินิก",
+    disclaimer: retrievalSummary + ". " + reason +
+      " ผลลัพธ์เป็น excerpt จาก chunk ที่ผ่าน Public Allow-list เท่านั้น; extraction quality ok ไม่ได้หมายถึงผ่านการทบทวนทางคลินิก",
     sqliteRetrieval: payload.retrieval,
     warnings: payload.warnings,
   }, { headers: noStore });
+
+  if (payload.status === "no_evidence") {
+    return evidenceOnlyResponse("ไม่พบหลักฐานเพียงพอ จึงงดใช้ AI สรุป");
+  }
+
+  const draftAnswersEnabled = isDraftAnswersEnabled(process.env);
+  const provider = readChatProviderConfig(
+    process.env,
+    process.env.NODE_ENV,
+    request.headers.get("x-vercel-oidc-token"),
+  );
+  if (!draftAnswersEnabled) {
+    return evidenceOnlyResponse("AI draft ถูกปิดไว้ในสภาพแวดล้อมนี้");
+  }
+  if (!provider.ok) {
+    return evidenceOnlyResponse(provider.error);
+  }
+
+  // Only the current public question and the retrieved allow-listed excerpts are sent.
+  // No conversation history, personal data, review-only material, or Ollama model is sent.
+  const completion = await requestChatCompletion(
+    provider.config,
+    buildSqliteGroundedMessages(query, payload),
+  );
+  if (!completion.ok) {
+    return evidenceOnlyResponse("AI Gateway ยังสร้างคำตอบไม่ได้: " + completion.error);
+  }
+
+  const checked = validateSqliteCitedAnswer(completion.answer, payload);
+  if (!checked.ok) {
+    return evidenceOnlyResponse("ระบบปฏิเสธคำตอบจาก AI เพราะตรวจ citation/safety ไม่ผ่าน (" + checked.error + ")");
+  }
+
+  return NextResponse.json({
+    mode: "sqlite-grounded-draft-answer",
+    generatedAnswer: true,
+    generatedAnswersEnabled: true,
+    draftOnly: true,
+    abstained: false,
+    intent: "general-education",
+    safetyLevel: "education",
+    answer: checked.answer,
+    citations: checked.citations,
+    evidencePassages,
+    retrievalMethod: payload.retrieval.engine + " v" + payload.retrieval.version,
+    fullDocumentRag: false,
+    reviewStatus: "awaiting_clinical_review",
+    disclaimer: retrievalSummary +
+      ". คำตอบนี้เป็นร่างเพื่อการศึกษา สร้างจาก excerpt ที่ผ่าน Public Allow-list เท่านั้น ไม่ใช่เอกสารฉบับเต็มและยังไม่ผ่านการทบทวนทางคลินิก",
+    sqliteRetrieval: payload.retrieval,
+    warnings: payload.warnings,
+  }, { headers: noStore });
+}
 }
