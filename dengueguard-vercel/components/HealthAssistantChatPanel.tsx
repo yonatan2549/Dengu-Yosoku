@@ -241,7 +241,9 @@ export function HealthAssistantChatPanel() {
             ? "· โหมด Local AI ส่งคำถามความรู้ทั่วไปที่ผ่าน Safety Gate ไปยัง Ollama บนเครื่องนี้ โดยไม่เรียก Vercel AI Gateway"
             : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
         · ห้ามใส่ชื่อ เลขบัตรประชาชน HN/AN เบอร์โทร วันเกิด อาการเฉพาะบุคคล หรือผลตรวจของผู้ป่วย
-        {runtime?.provider === "SQLite Local" || runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
+        {isSqliteRuntime
+          ? runtime?.generatedAnswersEnabled ? "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของ Vercel AI Gateway" : ""
+          : runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
         {isSqliteRuntime
           ? runtime?.generatedAnswersEnabled
             ? "· คำตอบ AI เป็นร่างเพื่อการศึกษา อ้างอิงเฉพาะหลักฐานที่ค้นได้ และยังไม่ผ่านการทบทวนทางคลินิก"
