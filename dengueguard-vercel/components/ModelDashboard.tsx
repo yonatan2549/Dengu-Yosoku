@@ -19,6 +19,7 @@ import { ModelMapLoader } from "@/components/ModelMapLoader";
 import type { ModelForecastRow, ModelHistoryRow, ProvinceHistorySnapshot } from "@/lib/types";
 import thresholdDraft from "../public/data/alert_threshold_candidates_77.json";
 import { formatEpiWeekLabel } from "@/lib/epi-week";
+import { buildModelTrendRows } from "@/lib/model/history-chart";
 
 const THRESHOLD_BY_PROVINCE = new Map(
   thresholdDraft.thresholds.map((row) => [row.province, row] as const),
@@ -216,33 +217,21 @@ export default function ModelDashboard() {
 
   const trendRows = useMemo(() => {
     if (!model) return [];
-    if (isHistoricalActualOnly) {
-      const rows = (historicalSnapshot?.rows ?? []).filter((row) => (
-        row.year === activeYear &&
-        (selectedProvince === ALL_PROVINCES || row.province === selectedProvince)
-      ));
-      const groups = new Map<string, number[]>();
-      rows.forEach((row) => groups.set(row.week_start, [...(groups.get(row.week_start) ?? []), row.actual_cases]));
-      return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, values]) => ({
-        date: new Date(week + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
-        actual: sum(values),
-        prediction: null,
-        persistence: null,
-      }));
-    }
-    const rows = model.history.filter((row) => (
-      row.year === activeYear &&
-      (selectedProvince === ALL_PROVINCES || row.province === selectedProvince)
-    ));
-    const groups = new Map<string, ModelHistoryRow[]>();
-    rows.forEach((row) => groups.set(row.week_start, [...(groups.get(row.week_start) ?? []), row]));
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, group]) => ({
-      date: new Date(week + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
-      actual: sum(group.map((row) => row.actual_cases)),
-      prediction: sum(group.map((row) => row.prediction)),
-      persistence: sum(group.map((row) => row.persistence)),
+    return buildModelTrendRows(
+      model.history,
+      historicalSnapshot?.rows ?? [],
+      model.forecast,
+      activeYear,
+      selectedProvince === ALL_PROVINCES ? null : selectedProvince,
+    ).map((row) => ({
+      date: new Date(row.weekStart + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short" }),
+      actual: row.actual,
+      prediction: row.prediction,
+      persistence: row.persistence,
     }));
-  }, [model, activeYear, selectedProvince, isHistoricalActualOnly, historicalSnapshot]);
+  }, [model, activeYear, selectedProvince, historicalSnapshot]);
+  const hasTrendPrediction = trendRows.some((row) => row.prediction !== null);
+  const hasTrendPersistence = trendRows.some((row) => row.persistence !== null);
 
   const metric = (key: string) => {
     const value = metrics[key];
@@ -434,8 +423,8 @@ export default function ModelDashboard() {
       <section className="panel chart-panel">
         <div className="panel-heading">
           <div>
-            <h2>{isHistoricalActualOnly ? "แนวโน้มผู้ป่วยจริงย้อนหลัง · " + activeYear : "ผลย้อนหลังเทียบค่าพยากรณ์ · " + activeYear}</h2>
-            <p>{selectedProvince === ALL_PROVINCES ? "ผลรวมประเทศจากข้อมูลจังหวัดที่มี" : "จังหวัด" + selectedProvince} · {isHistoricalActualOnly ? "ข้อมูลจริงย้อนหลัง ไม่ใช่ผลพยากรณ์" : "ใช้ข้อมูล Holdout เท่านั้น"}</p>
+            <h2>{hasTrendPrediction ? "ผลย้อนหลังเทียบค่าพยากรณ์ · " + activeYear : "แนวโน้มผู้ป่วยจริงย้อนหลัง · " + activeYear}</h2>
+            <p>{selectedProvince === ALL_PROVINCES ? "ผลรวมประเทศจากข้อมูลจังหวัดที่มี" : "จังหวัด" + selectedProvince} · {hasTrendPrediction ? "แสดงค่าพยากรณ์เฉพาะสัปดาห์ที่มีผล Holdout/Forecast" : "ปีที่เลือกไม่มีผลพยากรณ์จากโมเดล จึงแสดงเฉพาะผู้ป่วยจริง"}</p>
           </div>
         </div>
         {trendRows.length ? (
@@ -451,11 +440,11 @@ export default function ModelDashboard() {
                 />
                 <Legend />
                 <Line type="monotone" dataKey="actual" name="ผู้ป่วยจริง" stroke="#26374a" strokeWidth={2.2} dot={false} />
-                {!isHistoricalActualOnly && (
-                  <>
-                    <Line type="monotone" dataKey="prediction" name="AI ทำนาย" stroke="#2e73d2" strokeWidth={2.5} dot={false} />
-                    <Line type="monotone" dataKey="persistence" name="Persistence (สัปดาห์ก่อน)" stroke="#9aa5b3" strokeWidth={2} strokeDasharray="4 4" dot={false} />
-                  </>
+                {hasTrendPrediction && (
+                  <Line type="monotone" dataKey="prediction" name="ค่าพยากรณ์โมเดล (Holdout/Forecast)" stroke="#2e73d2" strokeWidth={2.5} dot={false} connectNulls={false} />
+                )}
+                {hasTrendPersistence && (
+                  <Line type="monotone" dataKey="persistence" name="Persistence (สัปดาห์ก่อน)" stroke="#9aa5b3" strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls={false} />
                 )}
               </LineChart>
             </ResponsiveContainer>
