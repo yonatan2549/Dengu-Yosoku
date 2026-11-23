@@ -6,6 +6,7 @@ import { AlertReadinessPanel } from "@/components/AlertReadinessPanel";
 import { AlertRuleDraftManager } from "@/components/AlertRuleDraftManager";
 import { AlertExpertReviewPanel } from "@/components/AlertExpertReviewPanel";
 import { AlertThresholdAuditPanel } from "@/components/AlertThresholdAuditPanel";
+import { AlertPresentationDemoPanel } from "@/components/AlertPresentationDemoPanel";
 import { useDengueData } from "@/components/DataProvider";
 import { ProductHero } from "@/components/ProductHero";
 import { NationalSurveillancePanel } from "@/components/NationalSurveillancePanel";
@@ -43,6 +44,8 @@ export default function AlertCenterPage() {
           ระบบยังปิดการส่ง LINE, Email, SMS และข้อความภายนอกทั้งหมด
         </span>
       </div>
+
+      <AlertPresentationDemoPanel />
 
       {loading ? <div className="loading-card"><div className="spinner" /><strong>กำลังโหลดข้อมูลโมเดล</strong></div> : null}
       {error ? <div className="global-error"><strong>โหลดข้อมูลโมเดลไม่สำเร็จ</strong><span>{error}</span></div> : null}
