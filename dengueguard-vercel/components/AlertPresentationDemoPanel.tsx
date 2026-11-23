@@ -99,6 +99,11 @@ export function AlertPresentationDemoPanel() {
       const stored = raw ? JSON.parse(raw) as StoredDemo : null;
       if (stored?.run && isStoredRun(stored.run)) {
         setRun(stored.run);
+        setScenario(stored.run.scenario);
+        if (stored.run.rows[0]) {
+          setWatchThreshold(String(stored.run.rows[0].watchThreshold));
+          setAlertThreshold(String(stored.run.rows[0].alertThreshold));
+        }
         setReviewStatus(stored.reviewStatus ?? "not_submitted");
         setHistory(Array.isArray(stored.history) ? stored.history.slice(0, 12) : []);
         return;
