@@ -7,7 +7,7 @@ import { validatePublicRagPayload } from "../.next/health-assistant-sqlite-rag-t
 const sqliteRouteSource = await readFile(new URL("../app/api/health-assistant/sqlite-search/route.ts", import.meta.url), "utf8");
 
 test("pins SQLite AI drafts to the catalog-verified zero-priced model", () => {
-  assert.match(sqliteRouteSource, /HEALTH_ASSISTANT_MODEL:\\s*DEFAULT_HEALTH_ASSISTANT_MODEL/);
+  assert.match(sqliteRouteSource, /HEALTH_ASSISTANT_MODEL:\s*DEFAULT_HEALTH_ASSISTANT_MODEL/);
   assert.doesNotMatch(sqliteRouteSource, /SQLITE_HEALTH_ASSISTANT_MODEL/);
 });
 
