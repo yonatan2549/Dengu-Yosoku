@@ -107,7 +107,7 @@ export function validateSqliteCitedAnswer(
   const paragraphs = normalized.split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean);
   const unsupportedParagraph = paragraphs.some((paragraph) =>
     !/^#{1,6}\s/.test(paragraph) &&
-    !/^(?:คำเตือน|หมายเหตุ|ข้อจำกัด|disclaimer)\b/i.test(paragraph) &&
+    !/^(?:คำตอบนี้เป็นร่าง|คำเตือน|หมายเหตุ|ข้อจำกัด|disclaimer)/i.test(paragraph) &&
     !/\[S\d+\]/.test(paragraph)
   );
   if (unsupportedParagraph) {
