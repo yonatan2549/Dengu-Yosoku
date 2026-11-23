@@ -203,7 +203,8 @@ export async function POST(request: Request) {
     mode: "evidence-only",
     generatedAnswer: false,
     generatedAnswersEnabled: false,
-    abstained: payload.status === "no_evidence",
+    abstained: false,
+    noEvidence: payload.status === "no_evidence",
     answer: payload.status === "no_evidence"
       ? "ยังไม่พบหลักฐานจากคลัง SQLite ที่ผ่าน Public Allow-list ตรงกับคำถามนี้ ระบบจึงงดสรุปคำตอบ"
       : "ค้นพบหลักฐานจาก SQLite ในเครื่อง " + payload.results.length +
