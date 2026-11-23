@@ -30,14 +30,14 @@
 
 ## หลักฐานการตรวจสอบโค้ด
 
-- GitHub Actions run [#231](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/44865828911)
-- Commit: `6effe2b5f0facfc16c1a70b01459cbb07f08cd13`
-- ผล: passed, รวม TypeScript, regression tests และ Next.js Production build
-- มี Preview deployment จาก commit ก่อนหน้าแล้ว แต่ต้องตรวจว่า SHA ตรงกับ commit ล่าสุด และต้อง smoke test deployment ก่อนใช้อ้างอิง
-- PR #4 ยัง Draft/Open และไม่ถูก merge ในเวลาจัดทำเอกสารนี้
-- PR #4 head ณ 21 พ.ย. 2026: `c9b7ec1a6bc5bfdff334dabcdf3fd660c9688b78` (Dashboard week-46 labelling, actuals separation, epi-week tests และ Alert governance copy)
-- GitHub Actions run [#44897980257](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/44897980257): TypeScript, regression, production build และ smoke tests ผ่าน
-- GitHub Actions run 44894610035: weekly ZIP intake, model input build, case-only experiment และ Phase 13 12-feature review snapshot ผ่าน; run 44895114319: threshold technical review ผ่าน
+- GitHub Actions run [#545](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/45204470351)
+- Commit: `1f847f80ce5a1a09e328d15d16ee0611e532b8b5`
+- ผล: **completed / success**, 42 ขั้นตอน
+- ครอบคลุม TypeScript, Prevention header/icons, Alert Presentation Demo, Alert lifecycle/workflow, Symptom Checker, model/release checks, Health Assistant runtime pause/evidence gates, Python classic parity, Production build และ built-app smoke suite
+- Submission source ZIP workflow [#66](https://github.com/yonatan2549/Dengu-Yosoku/actions/runs/45204452218) สำเร็จและสร้าง ZIP ทั้งแบบ standalone app และ full repository จาก Commit เดียวกัน
+- Artifact SHA-256: `3a9d00d9b205456eb2d6fc8bf235a73826cca408a13fed86fef474e84455239f`
+- Vercel Checks ของ Commit ล่าสุดถูกปฏิเสธด้วย Build Rate Limit ของทีม ไม่ใช่ผล Build Error; Preview READY ล่าสุดเป็น Commit เก่ากว่าและไม่ถือเป็นการทดสอบ UI รุ่นล่าสุด
+- PR #5 ยัง Draft/Open, ไม่ Merge และไม่มีการ Deploy Production
 
 ## ผลการคำนวณ Threshold 77 จังหวัด (Draft)
 
