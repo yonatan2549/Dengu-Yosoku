@@ -946,3 +946,41 @@ html[data-theme="dark"] .ha-safety-note { color: #e0c68f; background: #382f20; b
   .ha-page-heading .dg-pill { margin-left: auto; }
   .ha-safety-links { flex-direction: column; gap: 5px; }
 }
+
+
+/* Paused AI state: retain the evidence library without invoking the chat provider */
+.ha-paused-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #dceae6;
+  border-radius: 18px;
+  background: linear-gradient(115deg, #f0f8f5 0%, #ffffff 64%, #edf6f2 100%);
+}
+.ha-paused-icon {
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 104px;
+  border: 1px solid #d5e9e2;
+  border-radius: 25px;
+  color: #168374;
+  background: rgba(255,255,255,.8);
+}
+.ha-paused-copy h2 { margin: 5px 0 7px; color: #173f43; font-size: clamp(18px, 2.2vw, 23px); }
+.ha-paused-copy p { max-width: 760px; margin: 0; color: #69817e; font-size: 11px; line-height: 1.8; }
+.ha-paused-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ha-paused-tags span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 1px solid #dceae5; border-radius: 999px; color: #47776e; background: #fff; font-size: 9px; font-weight: 700; }
+@media (max-width: 640px) {
+  .ha-paused-card { grid-template-columns: 82px minmax(0, 1fr); gap: 12px; padding: 14px; }
+  .ha-paused-icon { width: 82px; height: 82px; border-radius: 19px; }
+  .ha-paused-icon svg { width: 48px; height: 48px; }
+  .ha-paused-copy h2 { font-size: 16px; }
+}
+html[data-theme="dark"] .ha-paused-card { background: var(--card-bg); border-color: var(--border-soft); }
+html[data-theme="dark"] .ha-paused-copy h2 { color: var(--text-main); }
+html[data-theme="dark"] .ha-paused-copy p { color: var(--text-muted); }
+html[data-theme="dark"] .ha-paused-icon,
+html[data-theme="dark"] .ha-paused-tags span { color: #91ddcf; background: var(--surface-soft); border-color: var(--border-soft); }
