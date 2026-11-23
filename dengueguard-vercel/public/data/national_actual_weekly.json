@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "country": "Thailand",
+  "week_start": "2026-11-15",
+  "epi_week": "2026-W46",
+  "actual_cases": 694,
+  "deaths": 0,
+  "case_definition": "suspected_dengue_cases",
+  "granularity": "national_weekly",
+  "published_at": "2026-11-18",
+  "situation_as_of": "2026-11-16",
+  "note": "Weekly national reported suspected dengue cases. No province-level breakdown is supplied in this record; do not allocate this total to provinces.",
+  "source": {
+    "organization": "World Health Organization",
+    "title": "WHO South-East Asia Region Epidemiological Bulletin, 23rd (2026)",
+    "url": "https://cdn.who.int/media/docs/default-source/searo/whe/wherepib/2026_23_searo_epi_bulletin.pdf",
+    "page": 14
+  }
+}

@@ -155,12 +155,12 @@ export function evaluateAlertDryRun(
     {
       id: "forecast-freshness",
       label: "ความใหม่ของข้อมูล",
-      status: freshness === "stale" ? "warning" : freshness === "unknown" ? "blocked" : "pass",
+      status: freshness === "current_or_future" ? "pass" : "blocked",
       detail: freshness === "stale"
-        ? `Snapshot เก่ากว่าสัปดาห์ปัจจุบัน ${lag} สัปดาห์ ใช้ตรวจระบบ/ประเมินย้อนหลังได้ แต่ไม่ใช่ข้อมูลปัจจุบัน`
+        ? `Snapshot เก่ากว่าสัปดาห์ปัจจุบัน ${lag} สัปดาห์ จึงไม่สร้าง Candidate และไม่ใช้สื่อสารเป็นสถานการณ์ปัจจุบัน`
         : freshness === "current_or_future"
           ? "สัปดาห์เป้าหมายไม่เก่ากว่าสัปดาห์ระบาดวิทยาปัจจุบัน"
-          : "ไม่สามารถคำนวณความใหม่ของข้อมูลได้",
+          : "ไม่สามารถยืนยันสัปดาห์เป้าหมายหรือสัปดาห์ปัจจุบันได้ จึงไม่สร้าง Candidate",
     },
     {
       id: "rule-approval",
@@ -190,10 +190,13 @@ export function evaluateAlertDryRun(
     ...forecast.reasons,
     ...(approvalValid ? [] : ["ยังไม่มี Rule Profile ที่ผ่านการรับรอง"]),
     ...thresholds.reasons,
+    ...(freshness === "stale" ? [`Forecast Snapshot เก่ากว่าสัปดาห์ปัจจุบัน ${lag} สัปดาห์ จึงไม่สร้าง Candidate`] : []),
+    ...(freshness === "unknown" ? ["ไม่สามารถยืนยันความใหม่ของ Forecast Snapshot จึงไม่สร้าง Candidate"] : []),
     ...(!profileShapeValid ? ["รูปแบบ Profile ไม่ปลอดภัยสำหรับ Dry-run"] : []),
   ];
 
   const canEvaluate = forecast.valid &&
+    freshness === "current_or_future" &&
     approvalValid &&
     thresholds.valid &&
     profileShapeValid;
@@ -228,7 +231,7 @@ export function evaluateAlertDryRun(
         threshold: triggerThreshold,
         ruleProfileId: profile.profileId,
         ruleProfileVersion: profile.version,
-        snapshotIsStale: freshness === "stale",
+        snapshotIsStale: false, // Stale snapshots are blocked before candidates are created.
         delivery: "not_sent_dry_run_only",
       });
     }

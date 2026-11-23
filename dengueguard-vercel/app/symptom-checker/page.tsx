@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Info, RotateCcw, ShieldAlert } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
-import type { QuestionRow, RecommendationRow } from "@/lib/types";
+import { evaluateAssessmentRules } from "@/lib/assessment/engine";
+import type { QuestionRow, RecommendationRow, RuleRow } from "@/lib/types";
 
 const PAGE_CONFIG = [
   { label: "1", title: "สถานะไข้และระยะเวลาป่วย", sections: ["fever"] },
@@ -67,6 +68,24 @@ export default function SymptomCheckerPage() {
         return;
       }
     }
+    if (pageIndex === PAGE_CONFIG.length - 1) {
+      const numericSpecs: Array<[string, number, number, string]> = [
+        ["temperature_c", 30, 45, "อุณหภูมิร่างกาย"],
+        ["platelet_current", 0, 2000000, "Platelet ปัจจุบัน"],
+        ["platelet_previous", 0, 2000000, "Platelet ครั้งก่อน"],
+        ["hct_current", 0, 100, "Hct ปัจจุบัน"],
+        ["hct_previous", 0, 100, "Hct ครั้งก่อน"],
+        ["wbc_current", 0, 200000, "WBC ปัจจุบัน"],
+      ];
+      const numericErrors = numericSpecs
+        .map(([key, minimum, maximum, label]) => parseOptionalNumber(answers[key], label, minimum, maximum).error)
+        .filter((error): error is string => Boolean(error));
+      if (numericErrors.length) {
+        setNavigationError(numericErrors.join(" · "));
+        return;
+      }
+    }
+
     if (pageIndex < PAGE_CONFIG.length - 1) setPageIndex((value) => value + 1);
     else setShowResults(true);
   }
@@ -83,14 +102,14 @@ export default function SymptomCheckerPage() {
     setNavigationError("");
   }
 
-  const result = showResults ? buildAssessment(answers, data.recommendations) : null;
+  const result = showResults ? buildAssessment(answers, data.rules) : null;
   const step = showResults ? 3 : pageIndex;
 
   return (
     <div className="page-stack symptom-page">
       <section className="page-heading-row">
         <div><div className="eyebrow">DENGUE SYMPTOM CHECKER</div><h1>ประเมินอาการเบื้องต้น</h1><p>คัดกรองอาการ ข้อมูลความเสี่ยง และผลตรวจทางห้องปฏิบัติการ</p></div>
-        <div className="heading-icon-card"><ClipboardCheck size={26} /><span>SCREENING</span></div>
+        <div className="heading-icon-card"><ClipboardCheck size={58} strokeWidth={1.35} /><span>SCREENING</span></div>
       </section>
       <div className="screening-disclaimer"><ShieldAlert size={19} /><span>แบบประเมินนี้ให้ข้อมูลเบื้องต้น ไม่ใช่เครื่องมือวินิจฉัย หากมีอาการฉุกเฉินควรไปโรงพยาบาลทันทีโดยไม่ต้องรอกรอกแบบสอบถาม</span></div>
 
@@ -187,9 +206,14 @@ type AssessmentResult = {
   igmPositive: boolean;
   iggPositive: boolean;
   hasGeneralSymptoms: boolean;
+  matchedUrgencyRules: RuleRow[];
+  matchedEvidenceRules: RuleRow[];
+  unsupportedConditions: string[];
+  configurationIssues: string[];
+  cbcTrend: boolean;
 };
 
-function buildAssessment(answers: Record<string, string | boolean>, recommendations: RecommendationRow[]): AssessmentResult {
+function buildAssessment(answers: Record<string, string | boolean>, rules: RuleRow[]): AssessmentResult {
   const numericSpecs: Record<string, [number, number, string]> = {
     temperature_c: [30, 45, "อุณหภูมิร่างกาย"],
     platelet_current: [0, 2000000, "Platelet ปัจจุบัน"],
@@ -218,53 +242,51 @@ function buildAssessment(answers: Record<string, string | boolean>, recommendati
     mucosal_bleeding: "มีเลือดออกตามเยื่อบุ",
     lethargy_restlessness: "ซึมลง อ่อนเพลียมากผิดปกติ หรือกระสับกระส่าย",
     fluid_accumulation: "ท้องโต/บวมใหม่ หรือได้รับแจ้งว่ามีของเหลวสะสม",
+    hepatomegaly: "ได้รับแจ้งจากบุคลากรทางการแพทย์ว่าตับโต",
+    hct_increase_reported: "ได้รับแจ้งว่า Hematocrit เพิ่มขึ้นต่อเนื่องจากผลตรวจอย่างน้อย 2 ครั้ง ห่างกันประมาณ 6 ชั่วโมง",
   };
-  const emergency = Object.entries(emergencyLabels).filter(([key]) => Boolean(answers[key])).map(([, label]) => label);
-  const warning = Object.entries(warningLabels).filter(([key]) => Boolean(answers[key])).map(([, label]) => label);
+  const checked = (value: string | boolean | undefined) => value === true || value === "true";
+  const emergency = Object.entries(emergencyLabels).filter(([key]) => checked(answers[key])).map(([, label]) => label);
+  const warning = Object.entries(warningLabels).filter(([key]) => checked(answers[key])).map(([, label]) => label);
   const hydration = [
     ["unable_to_drink", "ไม่สามารถดื่มน้ำหรือรับประทานอาหารได้ตามปกติ"],
     ["reduced_urine", "ปัสสาวะน้อยลงอย่างชัดเจน"],
     ["excessive_thirst", "กระหายน้ำมากผิดปกติ"],
-  ].filter(([key]) => Boolean(answers[String(key)])).map(([, label]) => String(label));
+  ].filter(([key]) => checked(answers[String(key)])).map(([, label]) => String(label));
   const personal = [
     ["pregnancy", "กำลังตั้งครรภ์"],
     ["chronic_disease", "มีโรคประจำตัว"],
     ["bleeding_disorder", "มีความผิดปกติของการแข็งตัวของเลือด/เลือดออกง่าย"],
     ["age_risk", "เป็นเด็กอายุต่ำกว่า 1 ปีหรือผู้สูงอายุตั้งแต่ 65 ปีขึ้นไป"],
-  ].filter(([key]) => Boolean(answers[String(key)])).map(([, label]) => String(label));
+  ].filter(([key]) => checked(answers[String(key)])).map(([, label]) => String(label));
 
-  const manifestationGroups = [
-    Boolean(answers.headache || answers.eye_pain),
-    Boolean(answers.myalgia),
-    Boolean(answers.nausea_vomiting),
-    Boolean(answers.rash),
-    Boolean(answers.petechiae),
-    Boolean(answers.leukopenia_reported),
-  ];
-  const manifestations = manifestationGroups.filter(Boolean).length;
+  const evaluation = evaluateAssessmentRules(answers, rules);
   const fever = ["fever_now", "fever_reduced"].includes(String(answers.fever_status));
-  const onset2to7 = ["day2_3", "day4_5", "day6_7"].includes(String(answers.illness_onset));
-  const clinicalPattern = fever && onset2to7 && Boolean(answers.endemic_area) && manifestations >= 2;
-  const naatPositive = answers.naat_result === "positive";
-  const ns1Positive = answers.ns1_result === "positive";
-  const igmPositive = answers.igm_result === "positive";
-  const iggPositive = answers.igg_result === "positive";
-  let evidenceCode = "INSUFFICIENT";
-  if (naatPositive) evidenceCode = "LAB_SUPPORT_NAAT";
-  else if (ns1Positive) evidenceCode = "LAB_SUPPORT_NS1";
-  else if (igmPositive) evidenceCode = "PRESUMPTIVE_RECENT";
-  else if (clinicalPattern) evidenceCode = "CLINICAL_SUSPICION";
-  else if (iggPositive) evidenceCode = "IGG_ONLY";
+  const generalKeys = ["headache", "eye_pain", "myalgia", "nausea_vomiting", "rash", "fatigue", "poor_appetite", "petechiae", "abdominal_discomfort", "tourniquet_positive"];
+  const hasGeneralSymptoms = generalKeys.some((key) => checked(answers[key]));
 
-  let urgencyCode = "NO_URGENT_FLAG";
-  if (emergency.length) urgencyCode = "EMERGENCY";
-  else if (warning.length) urgencyCode = "DENGUE_WARNING";
-  else if (answers.unable_to_drink || answers.reduced_urine) urgencyCode = "HYDRATION_REVIEW";
-  else if (fever) urgencyCode = "FEVER_REVIEW";
-
-  const generalKeys = ["headache", "eye_pain", "myalgia", "nausea_vomiting", "rash", "fatigue", "poor_appetite", "petechiae", "abdominal_discomfort"];
-  const hasGeneralSymptoms = generalKeys.some((key) => Boolean(answers[key]));
-  return { emergency, warning, hydration, personal, evidenceCode, urgencyCode, manifestations, numericValues, numericErrors, clinicalPattern, naatPositive, ns1Positive, igmPositive, iggPositive, hasGeneralSymptoms };
+  return {
+    emergency,
+    warning,
+    hydration,
+    personal,
+    evidenceCode: evaluation.evidenceCode,
+    urgencyCode: evaluation.urgencyCode,
+    manifestations: evaluation.manifestations,
+    numericValues,
+    numericErrors,
+    clinicalPattern: evaluation.clinicalPattern,
+    naatPositive: evaluation.naatPositive,
+    ns1Positive: evaluation.ns1Positive,
+    igmPositive: evaluation.igmPositive,
+    iggPositive: evaluation.iggPositive,
+    hasGeneralSymptoms,
+    matchedUrgencyRules: evaluation.matchedUrgencyRules as RuleRow[],
+    matchedEvidenceRules: evaluation.matchedEvidenceRules as RuleRow[],
+    unsupportedConditions: evaluation.unsupportedConditions,
+    configurationIssues: evaluation.configurationIssues,
+    cbcTrend: evaluation.cbcTrend,
+  };
 }
 
 function AssessmentResults({ result, answers, data, onReset }: {
@@ -286,6 +308,16 @@ function AssessmentResults({ result, answers, data, onReset }: {
     <div className="assessment-results">
       <div className="results-heading"><div className="result-check-icon"><CheckCircle2 size={24} /></div><div><div className="eyebrow">ASSESSMENT COMPLETE</div><h2>ผลการประเมินเบื้องต้น</h2><p>แสดงผลแยกตามความเร่งด่วนและข้อมูลที่สนับสนุนไข้เลือดออก</p></div></div>
 
+      {(result.unsupportedConditions.length > 0 || result.configurationIssues.length > 0) && (
+        <div className="inline-callout warning">
+          <Info size={16} />
+          <span>
+            {result.configurationIssues.length > 0 && <>กฎประเมินที่จำเป็นยังไม่ครบ: {result.configurationIssues.join(", ")}. </>}
+            {result.unsupportedConditions.length > 0 && <>พบเงื่อนไขที่ระบบยังไม่รองรับ: {result.unsupportedConditions.join(", ")}</>}
+          </span>
+        </div>
+      )}
+
       <section className="result-section"><div className="result-section-title"><span>A</span><h3>ความเร่งด่วนในการรับการประเมิน</h3></div><RecommendationCard item={urgency} tone={tone} />
         {result.emergency.length > 0 && <ResultList title="อาการฉุกเฉินที่เลือก" items={result.emergency} tone="danger" />}
         {result.warning.length > 0 && <ResultList title="สัญญาณเตือนที่เลือก" items={result.warning} tone="warning" />}
@@ -294,6 +326,12 @@ function AssessmentResults({ result, answers, data, onReset }: {
       </section>
 
       <section className="result-section"><div className="result-section-title"><span>B</span><h3>ระดับข้อมูลที่สนับสนุนความสงสัยไข้เลือดออก</h3></div><RecommendationCard item={evidence} tone={result.evidenceCode.startsWith("LAB_SUPPORT") ? "success" : result.evidenceCode === "PRESUMPTIVE_RECENT" || result.evidenceCode === "CLINICAL_SUSPICION" ? "warning" : "info"} />
+        {result.matchedEvidenceRules.filter((rule) => rule.output_code !== result.evidenceCode).map((rule) => (
+          <div className="inline-callout info" key={rule.rule_id}>
+            <Info size={16} />
+            <span><strong>{rule.output_code}</strong> · {rule.logic_summary_th}</span>
+          </div>
+        ))}
         {positiveTests.length > 0 && <div className="result-detail-box"><strong>รายการตรวจที่เป็นบวก</strong><p>{positiveTests.join(" · ")}</p>{result.naatPositive && <small>NAAT/RT-PCR Positive เป็นหลักฐานตรวจพบสารพันธุกรรมของไวรัสเดงกีในตัวอย่างที่ตรวจ</small>}{result.ns1Positive && <small>NS1 Positive สนับสนุนการติดเชื้อเดงกีระยะเฉียบพลัน ควรตรวจสอบวิธีตรวจและชุดตรวจ</small>}{result.ns1Positive && (!answers.ns1_method || answers.ns1_method === "unknown") && <small>ยังไม่ระบุวิธีตรวจ NS1: ควรตรวจสอบชื่อชุดตรวจและวิธีตรวจจากใบรายงาน</small>}{result.igmPositive && <small>IgM Positive เป็นหลักฐานแบบ presumptive recent infection และอาจเกิดปฏิกิริยาข้ามกับ flavivirus อื่น</small>}{result.iggPositive && <small>IgG จากตัวอย่างเดียวไม่ยืนยันการติดเชื้อเฉียบพลัน</small>}</div>}
         {answers.lab_timing === "day1_3" && answers.igm_result === "negative" && <div className="inline-callout info"><Info size={16} /><span>IgM อาจยังตรวจไม่พบในช่วงต้นของการป่วย ผล IgM ลบในช่วงนี้จึงไม่สามารถตัดไข้เลือดออกได้</span></div>}
         {["day1_3", "day4_7"].includes(String(answers.lab_timing)) && answers.ns1_result === "negative" && answers.naat_result === "negative" && <div className="inline-callout info"><Info size={16} /><span>ผล NS1/NAAT ลบไม่สามารถตัดไข้เลือดออกได้ทั้งหมด ควรให้แพทย์พิจารณาระยะเวลาป่วยและการตรวจเพิ่มเติม</span></div>}
@@ -301,6 +339,12 @@ function AssessmentResults({ result, answers, data, onReset }: {
 
       <section className="result-section"><div className="result-section-title"><span>C</span><h3>ข้อมูล CBC ประกอบการประเมิน</h3></div>
         <div className="cbc-grid">{[["Platelet ปัจจุบัน", value("platelet_current"), "cells/µL"], ["Hct ปัจจุบัน", value("hct_current"), "%"], ["WBC ปัจจุบัน", value("wbc_current"), "cells/µL"]].map(([label, number, unit]) => <div className="cbc-value" key={String(label)}><span>{label}</span><strong>{number === null ? "ไม่ได้ระบุ" : `${Number(number).toLocaleString("th-TH")} ${unit}`}</strong></div>)}</div>
+        {result.cbcTrend && result.evidenceCode !== "CBC_CONTEXT" && (
+          <RecommendationCard
+            item={getRec(data.recommendations, "dengue_evidence", "CBC_CONTEXT")}
+            tone="info"
+          />
+        )}
         {result.numericErrors.map((error) => <div className="form-error" key={error}><AlertCircle size={16}/>{error}</div>)}
         {value("platelet_current") !== null && value("platelet_previous") !== null && <p className="cbc-note">Platelet {Number(value("platelet_current")) < Number(value("platelet_previous")) ? "ลดลง" : Number(value("platelet_current")) > Number(value("platelet_previous")) ? "เพิ่มขึ้น" : "เท่าเดิม"} เมื่อเทียบกับครั้งก่อน ควรประเมินร่วมกับช่วงอ้างอิงและอาการ</p>}
         {value("hct_current") !== null && value("hct_previous") !== null && <p className="cbc-note">Hct {Number(value("hct_current")) > Number(value("hct_previous")) ? "เพิ่มขึ้น" : Number(value("hct_current")) < Number(value("hct_previous")) ? "ลดลง" : "เท่าเดิม"} เมื่อเทียบกับครั้งก่อน ควรให้แพทย์แปลผลร่วมกับภาวะสารน้ำและผล CBC อื่น</p>}
@@ -318,6 +362,23 @@ function AssessmentResults({ result, answers, data, onReset }: {
 
       <section className="result-section"><div className="result-section-title"><span>E</span><h3>สรุปข้อมูลที่ได้รับ</h3></div>
         <div className="summary-list"><div><span>สถานะไข้</span><strong>{feverLabels[String(answers.fever_status)] ?? "ไม่ได้ระบุ"}</strong></div><div><span>ระยะเวลาตั้งแต่เริ่มป่วย</span><strong>{onsetLabels[String(answers.illness_onset)] ?? "ไม่ได้ระบุ"}</strong></div><div><span>จำนวนกลุ่มอาการที่เข้าได้กับเกณฑ์ช่วยคัดกรอง</span><strong>{result.manifestations} กลุ่ม</strong></div><div><span>ประวัติอยู่/เดินทางในพื้นที่แพร่เชื้อภายใน 14 วัน</span><strong>{answers.endemic_area ? "มี" : "ไม่ได้เลือก"}</strong></div></div>
+      </section>
+
+      <section className="result-section">
+        <div className="result-section-title"><span>F</span><h3>คำแนะนำทั่วไปหลังการประเมิน</h3></div>
+        {result.emergency.length > 0 || result.warning.length > 0 ? (
+          <div className="inline-callout danger">
+            <ShieldAlert size={17} />
+            <span>ให้ปฏิบัติตามคำแนะนำให้ไปโรงพยาบาลข้างต้นก่อน ไม่ควรใช้การดูแลตนเองแทนการรักษา หากมีอาการฉุกเฉินและเดินทางเองไม่ปลอดภัย โทร 1669</span>
+          </div>
+        ) : (
+          <div className="result-detail-box">
+            <p>• พักผ่อนและดื่มน้ำตามความเหมาะสม หากไม่มีข้อจำกัดน้ำจากแพทย์</p>
+            <p>• หากมีไข้และสงสัยไข้เลือดออก ให้ปรึกษาแพทย์หรือเภสัชกรเรื่องยาลดไข้ และหลีกเลี่ยง aspirin กับยา NSAIDs เช่น ibuprofen จนกว่าจะได้รับคำแนะนำทางการแพทย์</p>
+            <p>• ป้องกันไม่ให้ยุงกัด เพื่อลดการแพร่เชื้อหากเป็นไข้เลือดออก</p>
+            <p>• หากมีสัญญาณเตือนหรืออาการรุนแรงขึ้น ให้ไปโรงพยาบาลทันที</p>
+          </div>
+        )}
       </section>
 
       <details className="rules-details">
