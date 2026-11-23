@@ -269,4 +269,3 @@ export async function POST(request: Request) {
     warnings: payload.warnings,
   }, { headers: noStore });
 }
-}
