@@ -84,7 +84,9 @@ test("uses Vercel AI Gateway defaults and accepts server-side credentials", () =
     assert.equal(gateway.config.endpoint, "https://ai-gateway.vercel.sh/v1/chat/completions");
     assert.equal(gateway.config.model, "nvidia/nemotron-3.5-lightning-free");
   }
-  const noPaidOverride = readChatProviderConfig({ AI_GATEWAY_API_KEY: "gateway-secret", HEALTH_ASSISTANT_MODEL: "google/gemini-4-neon" }, "development");\n  assert.equal(noPaidOverride.ok, true);\n  if (noPaidOverride.ok) assert.equal(noPaidOverride.config.model, "nvidia/nemotron-3.5-lightning-free");\n  assert.equal(readChatProviderConfig({ VERCEL_OIDC_TOKEN: "vercel-oidc-token" }, "production").ok, true);
+  const noPaidOverride = readChatProviderConfig({ AI_GATEWAY_API_KEY: "gateway-secret", HEALTH_ASSISTANT_MODEL: "google/gemini-4-neon" }, "development");
+  assert.equal(noPaidOverride.ok, true);
+  if (noPaidOverride.ok) assert.equal(noPaidOverride.config.model, "nvidia/nemotron-3.5-lightning-free");\n  assert.equal(readChatProviderConfig({ VERCEL_OIDC_TOKEN: "vercel-oidc-token" }, "production").ok, true);
   assert.equal(readChatProviderConfig({}, "production", "platform-injected-oidc-token").ok, true);
   assert.equal(readChatProviderConfig({ HEALTH_ASSISTANT_CHAT_ENDPOINT: "https://api.example.test/v1/chat/completions", HEALTH_ASSISTANT_API_KEY: "legacy-secret", HEALTH_ASSISTANT_MODEL: "model-a" }, "development").ok, true);
 });
