@@ -115,6 +115,7 @@ function LegacyPreventionPage() {
         status={`ข้อมูลย้อนหลัง · สัปดาห์เป้าหมาย ${week ? new Date(`${week}T00:00:00`).toLocaleDateString("th-TH") : "ไม่มีข้อมูล"}`}
         statusTone="warning"
         icon={ShieldCheck}
+        iconPosition="top"
         stats={[
           { label: "พื้นที่ติดตาม", value: "8 จังหวัด", detail: "สคร.4 · ไม่ใช่ข้อมูลทั่วประเทศ" },
           { label: "เตือนระบาด", value: `${regional.alertCount} จังหวัด`, detail: "ตามเกณฑ์ในชุดข้อมูลที่เลือก" },
