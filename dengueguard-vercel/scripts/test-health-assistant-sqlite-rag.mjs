@@ -1,5 +1,6 @@
 import test from "node:test";
-import assert from "node:assert/strict";\nimport { readFile } from "node:fs/promises";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { validatePublicRagPayload } from "../.next/health-assistant-sqlite-rag-tests/lib/health-assistant/sqlite-rag-contract.js";
 
 
