@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/phase9-12-final-review
+      - review/national-alerts-independent-audit-2026-11-21
   workflow_dispatch:
 
 permissions:
@@ -50,4 +51,4 @@ jobs:
             dist/SHA256SUMS.txt
             dist/SOURCE_COMMIT.txt
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 30
