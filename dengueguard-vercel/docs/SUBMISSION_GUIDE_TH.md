@@ -1,8 +1,8 @@
 # คู่มือส่งมอบโครงงาน DengueYosoku
 
-**วันที่จัดทำ:** 21 พฤศจิกายน 2026  
+**วันที่จัดทำ:** 23 พฤศจิกายน 2026  
 **Repository:** `yonatan2549/Dengu-Yosoku`  
-**Branch อ้างอิง:** `integration/phase9-12-final-review`
+**Branch อ้างอิง:** `review/national-alerts-independent-audit-2026-11-21`
 
 ## 1. บทคัดย่อของระบบ
 
@@ -22,12 +22,12 @@ DengueYosoku เป็นแพลตฟอร์มเว็บเพื่อ�
 
 | โมดูล | ความสามารถ | ขอบเขต |
 |---|---|---|
-| Dashboard | ดูข้อมูลภาพรวม สถิติที่อ้างอิงแหล่งข้อมูล และแนวโน้ม | สถิติรายงานระดับประเทศไม่ใช่ผลโมเดลรายจังหวัด; แผนที่/แนวโน้ม ODPC4 เป็นข้อมูลประวัติศาสตร์ |
-| Prevention | อ่านคำแนะนำและทำ checklist การป้องกันตามหลัก 3 เก็บ/ป้องกันยุงกัด | เป็นคำแนะนำทั่วไป ไม่ใช่คำสั่งจากการประเมินความเสี่ยงเฉพาะบ้าน |
+| Dashboard | ดูข้อมูลภาพรวม สถิติที่อ้างอิงแหล่งข้อมูล แนวโน้ม และ Popup สรุปผลพยากรณ์ | สถิติรายงานระดับประเทศไม่ใช่ผลโมเดลรายจังหวัด; แผนที่/แนวโน้ม ODPC4 เป็นข้อมูลประวัติศาสตร์; Snapshot ใหม่ยังเป็น Review-only |
+| Prevention | แถบหัวข้ออยู่บนสุด, อ่านคำแนะนำและทำ checklist 3 เก็บ/ป้องกันยุงกัด | เป็นคำแนะนำทั่วไป ไม่ใช่คำสั่งจากการประเมินความเสี่ยงเฉพาะบ้าน |
 | Symptom Checker | กรอกข้อมูลอาการและตรวจสัญญาณเตือน/ฉุกเฉิน | ไม่ใช่การวินิจฉัย; เมื่อมีสัญญาณอันตรายต้องพบแพทย์ทันที |
-| Health Assistant | ค้นคืนคำตอบความรู้พร้อมแหล่งอ้างอิง; Preview อาจแสดง AI draft เมื่อผ่านเงื่อนไข | Production เป็น evidence-only; ห้ามใช้ข้อมูลผู้ป่วยจริง; เนื้อหายังรอ clinical review |
+| Health Assistant | พักการสร้างคำตอบ AI; เปิดเครื่องมือค้นคืนหลักฐานแบบ Evidence-only ได้จากส่วนพับเก็บ | ไม่มีการส่งคำถามไป AI Provider ในชุดสาธิตนี้; ห้ามใช้ข้อมูลผู้ป่วยจริง; เนื้อหายังรอ clinical review |
 | Knowledge / References | อ่านองค์ความรู้และดูแหล่งอ้างอิง | Registry มี 6 ระเบียนและยังรอการทบทวนทางคลินิก |
-| Alert Center | จัดการ Rule Profile แบบ Draft, ทดลองประเมิน, workflow เหตุการณ์และการทบทวน | ไม่มี threshold ครบ 77 จังหวัดที่ผ่าน independent review; ไม่ส่ง LINE/SMS/Email |
+| Alert Center | สนามจำลอง 5 สถานการณ์ แสดงผลสังเคราะห์ 77 จังหวัด ตารางผล การค้นหา Event Lifecycle, Workflow ทบทวนจำลอง และ CSV export; พร้อมหน้าจอ Rule Profile Draft / Readiness เดิม | ข้อมูลสังเคราะห์ใช้สาธิตเท่านั้น; ไม่มี threshold ที่ผ่าน independent review; ไม่บันทึกอนุมัติจริงและไม่ส่ง LINE/SMS/Email |
 | Model Operations | ตรวจ freshness, validation, integrity, readiness และสถานะ artifacts | ปิดกั้นเมื่อ artifacts ที่จำเป็นขาด/เก่า/ไม่ผ่าน; ไม่สร้าง forecast ทดแทนขึ้นเอง |
 
 ## 4. ภาพรวมสถาปัตยกรรม
@@ -36,7 +36,7 @@ DengueYosoku เป็นแพลตฟอร์มเว็บเพื่อ�
 - **Business logic:** แยกใน `lib/` เช่น model, alerting, assessment และ health-assistant
 - **API:** Next.js route handlers สำหรับ readiness, evidence/chat, model diagnostics และ alert workflows
 - **Database/Auth:** มี Supabase integration และ SQL migrations ใน repository; การนำ migration ไปใช้กับฐานข้อมูลที่มีอยู่ต้องตรวจ schema และ migration ledger ก่อน ห้ามรันซ้ำโดยไม่ reconcile
-- **AI provider:** Vercel AI Gateway ผ่าน server-side provider; credential ไม่ส่งไป browser
+- **AI provider:** มี source code เชื่อม Vercel AI Gateway แต่ชุดส่งมอบนี้พักการสร้างคำตอบ AI ด้วย UI และ server-side pause gate; ค่าเริ่มต้นปิดการเรียก provider
 - **CI:** GitHub Actions ตรวจ TypeScript, regression suites และ Next.js production build
 - **Deployment:** Vercel Preview/Production แยก environment และ branch; ห้ามนำ Preview configuration ไปตั้ง Production โดยไม่ review
 
@@ -63,8 +63,8 @@ Dashboard มีข้อมูลอ้างอิงระดับประ�
 
 ## 6. AI Health Assistant และการคุ้มครองข้อมูล
 
-- AI-generated educational draft ทำงานได้เฉพาะ local development หรือ Preview ที่เปิด feature flag อย่างชัดเจนและผ่าน runtime/safety/evidence/source policy
-- Production คงเป็น evidence-only ขณะที่ clinical review ยังไม่เสร็จ
+- ชุดนำเสนอปัจจุบันปิดการสร้างคำตอบ AI ทั้งที่หน้า UI และ server-side runtime policy โดย `HEALTH_ASSISTANT_PAUSED` จะถือว่าพัก AI ไว้ เว้นแต่มีการเปลี่ยนเป็น `false` อย่างชัดเจนภายหลัง
+- หน้า Health Assistant ยังคงเข้าถึง Evidence Retrieval และแหล่งอ้างอิงได้ผ่านส่วนเครื่องมือแบบพับเก็บ โดยไม่มีการเรียก AI Gateway จากหน้าเว็บ
 - ระบบค้นคืนแบบ lexical จาก summaries/key points ของ Knowledge Registry ยังไม่ใช่ full-document หรือ vector RAG
 - คำถามฉุกเฉิน อาการเฉพาะบุคคล คำถามยา และข้อมูลผลแล็บส่วนบุคคลถูกกันออกจาก AI provider
 - คำตอบที่เป็นข้อเท็จจริงต้องมี source markers ที่ตรวจสอบกับหลักฐานที่ค้นคืนได้; หากไม่ผ่านให้ abstain
@@ -73,7 +73,9 @@ Dashboard มีข้อมูลอ้างอิงระดับประ�
 
 ## 7. ความปลอดภัยของ Alert Center
 
-Alert Rules ต้องผ่านการทบทวนโดยผู้มีอำนาจอย่างเป็นอิสระ และมี threshold ที่สมบูรณ์สำหรับ 77 จังหวัด พร้อมหลักฐานที่ตรวจสอบได้ ก่อนมีผลต่อการจัดระดับความเสี่ยงหรือแจ้งเตือนจริง ปัจจุบัน Rule Profile ยังเป็น Draft และไม่มี threshold ที่อนุมัติครบ จึงไม่ควรเปิดใช้ national risk classification หรือ external notification
+Alert Center มี Presentation Sandbox แยกจาก Workflow จริงในฐานข้อมูล จำลองสถานการณ์ 5 แบบ สร้างตารางผลสังเคราะห์ 77 จังหวัด ปรับ threshold ตัวอย่าง ค้นหาและเปลี่ยนสถานะเหตุการณ์ ส่งเข้าขั้นตอนทบทวนตัวอย่าง และส่งออก CSV โดยข้อมูลใน Sandbox เก็บใน browser-local storage และระบุ DEMO ONLY
+
+Workflow จริงยังคงใช้ Rule Profile แบบ Draft และต้องผ่านการทบทวนโดยผู้มีอำนาจอย่างเป็นอิสระ พร้อม threshold ที่สมบูรณ์สำหรับ 77 จังหวัดและหลักฐานที่ตรวจสอบได้ ก่อนมีผลต่อการจัดระดับความเสี่ยงหรือแจ้งเตือนจริง ไม่มีการอนุมัติจริงหรือส่งข้อความภายนอกจาก Presentation Sandbox
 
 SQL migrations เป็นไฟล์ source ใน repository เท่านั้น การเชื่อมฐานข้อมูลจริงต้องตรวจ remote schema, RLS, trigger และ migration history ก่อนทำการเปลี่ยนแปลง
 
@@ -99,7 +101,7 @@ SQL migrations เป็นไฟล์ source ใน repository เท่าน
 
 ## 10. แนวทางนำเสนอ
 
-ลำดับสาธิตและ checklist แยกอยู่ใน [DEMO_CHECKLIST_TH.md](DEMO_CHECKLIST_TH.md) ส่วนความพร้อมแต่ละโมดูลอยู่ใน [PROJECT_STATUS_MATRIX_TH.md](PROJECT_STATUS_MATRIX_TH.md)
+เริ่มจาก Dashboard และ Popup พยากรณ์ → Prevention (แถบหัวข้ออยู่บนสุด) → Symptom Checker → Knowledge / Health Assistant (Evidence-only; AI paused) → Model Operations → Alert Center Presentation Sandbox (ทดลองสถานการณ์และ Workflow จำลอง) รายละเอียดขั้นตอนและคำถามที่อาจถูกถามอยู่ใน [DEMO_CHECKLIST_TH.md](DEMO_CHECKLIST_TH.md) ส่วนความพร้อมแต่ละโมดูลอยู่ใน [PROJECT_STATUS_MATRIX_TH.md](PROJECT_STATUS_MATRIX_TH.md)
 
 ## 11. ข้อจำกัดและแผนพัฒนาต่อ
 
@@ -107,7 +109,7 @@ SQL migrations เป็นไฟล์ source ใน repository เท่าน
 2. ทำ blind/forward temporal evaluation ที่ไม่ใช้ข้อมูลคำตอบซึ่งถูกเปิดเผยแล้ว
 3. ให้ผู้เชี่ยวชาญทบทวน Knowledge Registry, clinical safety และข้อความ Symptom Checker
 4. ทำ clinical validation และ independent review ของ threshold ก่อนปลดล็อก Alert
-5. ทำ rate limit, abuse controls และ monitoring สำหรับ AI Preview ก่อนขยายผู้ใช้
+5. หากจะนำ AI กลับมาใช้ ต้องทบทวน provider access, privacy, rate limit, abuse controls, monitoring และ approval แยกก่อนปลด pause
 6. ทำ Supabase schema baseline/migration reconciliation ก่อน apply migration ใด ๆ
 7. ทดสอบ smoke test บน deployment ที่ตรงกับ commit ก่อนส่งลิงก์เว็บเป็นหลักฐาน
 
