@@ -242,7 +242,7 @@ export function HealthAssistantChatPanel() {
             : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
         · ห้ามใส่ชื่อ เลขบัตรประชาชน HN/AN เบอร์โทร วันเกิด อาการเฉพาะบุคคล หรือผลตรวจของผู้ป่วย
         {isSqliteRuntime
-          ? runtime?.generatedAnswersEnabled ? "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของ Vercel AI Gateway" : ""
+          ? runtime?.generatedAnswersEnabled ? "· ใช้ NVIDIA Nemotron 3.5 Lightning Free ผ่าน Vercel AI Gateway (ราคา input/output $0 ใน catalog ปัจจุบัน); NVIDIA อาจเก็บ prompt/response เพื่อปรับปรุงโมเดล" : ""
           : runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
         {isSqliteRuntime
           ? runtime?.generatedAnswersEnabled
