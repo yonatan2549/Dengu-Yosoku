@@ -58,7 +58,7 @@ export function ModelOperationsPanel() {
             <h1>ความพร้อมของระบบพยากรณ์</h1>
             <p className="dg-lede">ตรวจสอบ Forecast freshness, Model revision และความครอบคลุมของข้อมูลก่อนนำไปใช้ประเมินสถานการณ์ปัจจุบัน</p>
           </div>
-          <div className="dg-hero-art"><Activity size={76} strokeWidth={1.2} /></div>
+          <div className="dg-hero-art"><Activity size={58} strokeWidth={1.35} /></div>
         </div>
       </section>
 
