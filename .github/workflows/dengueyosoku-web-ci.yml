@@ -105,6 +105,9 @@ jobs:
       - name: Model performance tests
         run: npm run test:model-performance
 
+      - name: Model history actual-vs-prediction chart tests
+        run: npm run test:model-history-chart
+
       - name: Model operations tests
         run: npm run test:model-operations
 
