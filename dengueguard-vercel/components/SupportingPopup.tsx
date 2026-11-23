@@ -212,7 +212,7 @@ export function SupportingPopup() {
                       เป้าหมาย {formatWeek(forecastWeek)} · ข้อมูลผู้ป่วยจริงย้อนหลังถึง {formatWeek(model?.coverage.history_end_week)}.
                       {hasActualForTargetWeek
                         ? " พบข้อมูล actual ในประวัติของสัปดาห์เป้าหมาย โปรดตรวจสอบแหล่งที่มาก่อนนำไปใช้"
-                        : " ยังไม่มี actuals สำหรับสัปดาห์เป้าหมายใน Snapshot นี้"}
+                        : " ยังไม่มีข้อมูลผู้ป่วยจริงรายจังหวัดสำหรับสัปดาห์เป้าหมายใน Snapshot นี้"}
                     </p>
                   </div>
                 </div>
