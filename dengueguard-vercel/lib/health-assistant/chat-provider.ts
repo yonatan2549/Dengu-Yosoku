@@ -30,7 +30,9 @@ export function readChatProviderConfig(
     // Backward compatibility for an existing OpenAI-compatible provider setup.
     env.HEALTH_ASSISTANT_API_KEY?.trim() ||
     "";
-  // Keep Health Assistant on the currently catalog-listed zero-priced model.\n  // Ignore stale .env.local paid-model overrides to prevent accidental charges.\n  const model = DEFAULT_HEALTH_ASSISTANT_MODEL;
+  // Keep Health Assistant on the currently catalog-listed zero-priced model.
+  // Ignore stale .env.local paid-model overrides to prevent accidental charges.
+  const model = DEFAULT_HEALTH_ASSISTANT_MODEL;
 
   if (!apiKey) {
     return { ok: false, error: "ยังไม่พบ AI Gateway credential ฝั่ง Server (ตั้งค่า AI_GATEWAY_API_KEY หรือเปิด Vercel OIDC)" };
