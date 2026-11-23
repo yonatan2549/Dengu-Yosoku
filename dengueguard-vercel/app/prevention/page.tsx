@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, BellRing, ChevronLeft, ChevronRight, Info, Search, ShieldCheck, Wind } from "lucide-react";
 import { useDengueData } from "@/components/DataProvider";
 import { ProductHero } from "@/components/ProductHero";
@@ -251,6 +252,7 @@ function ModelPreventionPage() {
         status={stale ? `Snapshot ล้าหลัง ${forecastLagWeeks} สัปดาห์` : "ตรวจพบ Snapshot · โปรดตรวจสอบช่วงเวลาข้อมูล"}
         statusTone={stale ? "warning" : "ready"}
         icon={ShieldCheck}
+        iconPosition="top"
         stats={[
           { label: "จังหวัดใน Snapshot", value: `${rows.length}/77`, detail: "ต้องมีครบทุกจังหวัดก่อนใช้งานระดับประเทศ" },
           { label: "ยอดพยากรณ์รวม", value: total.toLocaleString("th-TH", { maximumFractionDigits: 1 }), detail: "จำนวนผู้ป่วยคาดการณ์ ไม่ใช่ระดับความเสี่ยง" },
@@ -270,68 +272,40 @@ function ModelPreventionPage() {
       <section className="panel alert-performance-panel">
         <div className="panel-heading">
           <div>
-            <h2>ระบบแจ้งเตือนการระบาด</h2>
-            <p>ฟีเจอร์หลักที่อยู่ในแผนพัฒนาระยะถัดไปของ DengueYosoku</p>
+            <h2>ศูนย์จัดการเหตุการณ์แจ้งเตือนระดับประเทศ</h2>
+            <p>เปิดสนามจำลองและ Workflow ของศูนย์แจ้งเตือนได้จากหน้านี้</p>
           </div>
           <BellRing size={20} />
         </div>
         <div className="inline-callout warning">
           <Info size={17} />
           <span>
-            <strong>สถานะ: เตรียมพัฒนา · ยังไม่เปิดแจ้งเตือนอัตโนมัติ</strong>
+            <strong>ระบบสาธิตพร้อมใช้งาน · การแจ้งเตือนจริงยังปิดอยู่</strong>
             <br />
-            ระบบแจ้งเตือนไม่ได้ถูกตัดออก แต่ยังไม่เปิดใช้กับโมเดล 77 จังหวัด
-            จนกว่าจะมีเกณฑ์ที่ผ่านการทบทวนและทดสอบย้อนหลัง
+            ศูนย์แจ้งเตือนมีสนามจำลอง การจัดการเหตุการณ์ และขั้นตอนทบทวนให้ทดลองได้
+            ส่วนการจัดระดับความเสี่ยงจริงและการส่งข้อความภายนอกยังต้องรอข้อมูลและการรับรองตามกระบวนการ
           </span>
         </div>
         <div className="performance-grid">
           <div>
-            <span>ข้อมูลพยากรณ์</span>
-            <strong>77 จังหวัด</strong>
+            <span>สนามจำลองการประเมิน</span>
+            <strong>พร้อมสาธิต</strong>
           </div>
           <div>
-            <span>เกณฑ์ Watch / Alert</span>
-            <strong>รอทบทวน</strong>
+            <span>Nationwide Rule Profile</span>
+            <strong>Draft / รอรับรอง</strong>
           </div>
           <div>
-            <span>การส่ง Notification</span>
-            <strong>ยังไม่เปิดใช้</strong>
+            <span>LINE · Email · SMS</span>
+            <strong>ปิดใช้งาน</strong>
           </div>
         </div>
-        <div className="action-list">
-          <article className="action-item">
-            <div className="action-number">1</div>
-            <div className="action-copy">
-              <strong>กำหนดแหล่งข้อมูลและรอบเวลาตัดข้อมูล</strong>
-              <p>แยกผลพยากรณ์ออกจากจำนวนผู้ป่วยที่รายงานจริง พร้อมตรวจสอบความครบถ้วนและความล่าช้าของข้อมูล</p>
-            </div>
-          </article>
-          <article className="action-item">
-            <div className="action-number">2</div>
-            <div className="action-copy">
-              <strong>ทบทวนเกณฑ์แจ้งเตือนรายจังหวัด</strong>
-              <p>กำหนดนิยามระดับเฝ้าระวังและเตือนภัยร่วมกับผู้เชี่ยวชาญ โดยไม่คัดลอกเกณฑ์เดิมของ สคร.4 มาใช้กับทั้งประเทศโดยอัตโนมัติ</p>
-            </div>
-          </article>
-          <article className="action-item">
-            <div className="action-number">3</div>
-            <div className="action-copy">
-              <strong>ทดสอบย้อนหลังและประเมินผลการเตือน</strong>
-              <p>ประเมิน Precision, Recall, False Alarm Rate, Lead Time และผลแยกตามจังหวัดก่อนเปิดใช้งาน</p>
-            </div>
-          </article>
-          <article className="action-item">
-            <div className="action-number">4</div>
-            <div className="action-copy">
-              <strong>พัฒนาศูนย์แจ้งเตือนและช่องทางส่งข่าว</strong>
-              <p>แสดงเหตุผล วันที่ ข้อมูลที่กระตุ้นการเตือน ผู้รับผิดชอบ และประวัติการแจ้งเตือน ก่อนเชื่อม Email, LINE หรือช่องทางอื่น</p>
-            </div>
-          </article>
+        <div className="alert-demo-navigation">
+          <Link href="/alerts" className="button button-primary">
+            เปิดศูนย์จัดการแจ้งเตือน <ChevronRight size={16} />
+          </Link>
+          <span>ผลการจำลองไม่ถูกบันทึกเป็นการอนุมัติจริง และไม่ถูกส่งออกนอกระบบ</span>
         </div>
-        <p className="panel-note">
-          เกณฑ์และระดับเตือนจากระบบข้อมูลเดิมของ สคร.4 ยังคงอยู่ในชุดข้อมูลเดิมสำหรับพื้นที่และช่วงเวลาที่เกี่ยวข้อง
-          แต่ยังไม่นำมาใช้ตัดสินระดับแจ้งเตือนของโมเดลใหม่ที่ครอบคลุม 77 จังหวัด
-        </p>
       </section>
 
       <AlertDryRunPanel model={model} />
