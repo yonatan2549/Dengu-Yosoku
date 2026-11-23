@@ -109,20 +109,6 @@ function LegacyPreventionPage() {
 
   return (
     <div className="page-stack dy-prevention-page">
-      <ProductHero
-        eyebrow="PROACTIVE PREVENTION · ODPC 4"
-        title="ป้องกันโรคเชิงรุก"
-        description="ใช้ข้อมูลเฝ้าระวังรายจังหวัดเพื่อจัดลำดับการป้องกัน พร้อมคำแนะนำที่นำไปใช้ได้จริงในบ้าน โรงเรียน และชุมชน"
-        status={`ข้อมูลย้อนหลัง · สัปดาห์เป้าหมาย ${week ? new Date(`${week}T00:00:00`).toLocaleDateString("th-TH") : "ไม่มีข้อมูล"}`}
-        statusTone="warning"
-        icon={ShieldCheck}
-        iconPosition="top"
-        stats={[
-          { label: "พื้นที่ติดตาม", value: "8 จังหวัด", detail: "สคร.4 · ไม่ใช่ข้อมูลทั่วประเทศ" },
-          { label: "เตือนระบาด", value: `${regional.alertCount} จังหวัด`, detail: "ตามเกณฑ์ในชุดข้อมูลที่เลือก" },
-          { label: "เฝ้าระวัง", value: `${regional.watchCount} จังหวัด`, detail: "ควรติดตามและเพิ่มมาตรการป้องกัน" },
-        ]}
-      />
 
       <div className="historical-notice">
         <Info size={17} /><span>ข้อมูลพยากรณ์ในชุดที่แนบเป็นข้อมูลย้อนหลังถึง 25 ธันวาคม 2022 ส่วนข้อมูลอากาศเป็นข้อมูลตรวจวัดย้อนหลัง ไม่ใช่พยากรณ์อากาศปัจจุบัน</span></div>
@@ -245,20 +231,6 @@ function ModelPreventionPage() {
   return (
     <div className="page-stack dy-prevention-page">
       <ModelValidationPanel compact />
-      <ProductHero
-        eyebrow="PROACTIVE PREVENTION · 77 PROVINCES"
-        title="ป้องกันโรคเชิงรุกทั่วประเทศไทย"
-        description="สำรวจจำนวนผู้ป่วยที่โมเดลคาดการณ์รายจังหวัด เพื่อประกอบการวางแผนป้องกัน โดยไม่แปลงค่าพยากรณ์เป็นระดับเตือนภัยที่ยังไม่ได้รับอนุมัติ"
-        status={stale ? `Snapshot ล้าหลัง ${forecastLagWeeks} สัปดาห์` : "ตรวจพบ Snapshot · โปรดตรวจสอบช่วงเวลาข้อมูล"}
-        statusTone={stale ? "warning" : "ready"}
-        icon={ShieldCheck}
-        iconPosition="top"
-        stats={[
-          { label: "จังหวัดใน Snapshot", value: `${rows.length}/77`, detail: "ต้องมีครบทุกจังหวัดก่อนใช้งานระดับประเทศ" },
-          { label: "ยอดพยากรณ์รวม", value: total.toLocaleString("th-TH", { maximumFractionDigits: 1 }), detail: "จำนวนผู้ป่วยคาดการณ์ ไม่ใช่ระดับความเสี่ยง" },
-          { label: "สัปดาห์เป้าหมาย", value: new Date(`${forecastWeek}T00:00:00`).toLocaleDateString("th-TH"), detail: "เทียบกับสัปดาห์ระบาดวิทยาปัจจุบัน" },
-        ]}
-      />
 
       <div className="inline-callout warning">
         <Info size={17} />
@@ -477,8 +449,51 @@ export default function PreventionPage() {
   // Users may explicitly open it to inspect the experimental forecast.
   const view = resolvePreventionDatasetView(viewPreference, hasModel, isCurrentModelWeek, isApprovedModel);
 
+  const latestLegacyYear = getUniqueYears(data.predictions).at(-1) ?? 2022;
+  const latestLegacyWeek = getWeeksForYear(data.predictions, latestLegacyYear).at(-1) ?? "";
+  const latestLegacyRows = getCurrentRows(data.predictions, latestLegacyWeek);
+  const legacyProvinceCount = new Set(latestLegacyRows.map((row) => row.province)).size;
+  const legacyAlertCount = latestLegacyRows.filter((row) => row.level === "เตือนระบาด").length;
+  const legacyWatchCount = latestLegacyRows.filter((row) => row.level === "เฝ้าระวัง").length;
+
+  const model = data.modelPredictions;
+  const modelForecastRows = model?.forecast ?? [];
+  const modelForecastTotal = modelForecastRows.reduce((sum, row) => sum + row.prediction, 0);
+  const currentEpiWeek = getCurrentEpiWeekStart();
+  const modelIsStale = Boolean(modelWeek && modelWeek < currentEpiWeek);
+  const modelLagWeeks = modelWeek ? getEpiWeekLagWeeks(modelWeek, currentEpiWeek) : null;
+
   return (
     <div className="page-stack dy-prevention-selector">
+      {view === "model" && model ? (
+        <ProductHero
+          eyebrow="PROACTIVE PREVENTION · 77 PROVINCES"
+          title="ป้องกันโรคเชิงรุกทั่วประเทศไทย"
+          description="สำรวจจำนวนผู้ป่วยที่โมเดลคาดการณ์รายจังหวัด เพื่อประกอบการวางแผนป้องกัน โดยไม่แปลงค่าพยากรณ์เป็นระดับเตือนภัยที่ยังไม่ได้รับอนุมัติ"
+          status={modelIsStale ? `Snapshot ล้าหลัง ${modelLagWeeks ?? 0} สัปดาห์` : "พบ Snapshot · โปรดตรวจสอบช่วงเวลาข้อมูล"}
+          statusTone={modelIsStale ? "warning" : "ready"}
+          icon={ShieldCheck}
+          stats={[
+            { label: "จังหวัดใน Snapshot", value: `${modelForecastRows.length}/77`, detail: "ต้องมีครบทุกจังหวัดก่อนใช้งานระดับประเทศ" },
+            { label: "ยอดพยากรณ์รวม", value: modelForecastTotal.toLocaleString("th-TH", { maximumFractionDigits: 1 }), detail: "จำนวนผู้ป่วยคาดการณ์ ไม่ใช่ระดับความเสี่ยง" },
+            { label: "สัปดาห์เป้าหมาย", value: modelWeek ? new Date(`${modelWeek}T00:00:00`).toLocaleDateString("th-TH") : "ไม่มีข้อมูล", detail: "เทียบกับสัปดาห์ระบาดวิทยาปัจจุบัน" },
+          ]}
+        />
+      ) : (
+        <ProductHero
+          eyebrow="PROACTIVE PREVENTION · ODPC 4"
+          title="ป้องกันโรคเชิงรุก"
+          description="ใช้ข้อมูลเฝ้าระวังรายจังหวัดเพื่อจัดลำดับการป้องกัน พร้อมคำแนะนำที่นำไปใช้ได้จริงในบ้าน โรงเรียน และชุมชน"
+          status={`ข้อมูลย้อนหลัง · สัปดาห์เป้าหมาย ${latestLegacyWeek ? new Date(`${latestLegacyWeek}T00:00:00`).toLocaleDateString("th-TH") : "ไม่มีข้อมูล"}`}
+          statusTone="warning"
+          icon={ShieldCheck}
+          stats={[
+            { label: "พื้นที่ติดตาม", value: `${legacyProvinceCount} จังหวัด`, detail: "สคร.4 · ไม่ใช่ข้อมูลทั่วประเทศ" },
+            { label: "เตือนระบาด", value: `${legacyAlertCount} จังหวัด`, detail: "ตามเกณฑ์ในชุดข้อมูลที่เลือก" },
+            { label: "เฝ้าระวัง", value: `${legacyWatchCount} จังหวัด`, detail: "ควรติดตามและเพิ่มมาตรการป้องกัน" },
+          ]}
+        />
+      )}
       <section className="panel dy-mode-switcher">
         <div className="panel-heading">
           <div>
