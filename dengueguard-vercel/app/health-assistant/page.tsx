@@ -6,7 +6,7 @@ export default function HealthAssistantPage() {
   return (
     <div className="dg-page health-assistant-page">
       <header className="ha-page-heading">
-        <div className="ha-page-heading-icon"><Bot size={25} /></div>
+        <div className="ha-page-heading-icon"><Bot size={58} strokeWidth={1.35} /></div>
         <div className="ha-page-heading-copy">
           <span className="dg-eyebrow">AI HEALTH ASSISTANT</span>
           <h1>ผู้ช่วยความรู้ไข้เลือดออก</h1>
