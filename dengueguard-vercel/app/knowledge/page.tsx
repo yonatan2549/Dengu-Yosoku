@@ -108,7 +108,7 @@ export default function KnowledgePage() {
             </p>
             <div className="dg-pill" style={{ marginTop: 17 }}>9 หมวดความรู้ · เรียนรู้ได้ตามหัวข้อที่สนใจ</div>
           </div>
-          <div className="dg-hero-art"><BookOpen size={82} strokeWidth={1.2} /></div>
+          <div className="dg-hero-art"><BookOpen size={58} strokeWidth={1.35} /></div>
         </div>
       </section>
 
