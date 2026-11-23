@@ -17,6 +17,14 @@ class ClassicFunctionParityTests(unittest.TestCase):
         cls.symptom = (ROOT / "app/symptom-checker/page.tsx").read_text(encoding="utf-8")
         cls.popup = (ROOT / "components/SupportingPopup.tsx").read_text(encoding="utf-8")
         cls.product_hero = (ROOT / "components/ProductHero.tsx").read_text(encoding="utf-8")
+        cls.health_assistant = (ROOT / "app/health-assistant/page.tsx").read_text(encoding="utf-8")
+        cls.health_runtime = (ROOT / "lib/health-assistant/runtime-policy.ts").read_text(encoding="utf-8")
+        cls.symptom_css = (ROOT / "app/globals.css").read_text(encoding="utf-8")
+        cls.platform_css = (ROOT / "app/platform.css").read_text(encoding="utf-8")
+        cls.knowledge = (ROOT / "app/knowledge/page.tsx").read_text(encoding="utf-8")
+        cls.about = (ROOT / "app/about/page.tsx").read_text(encoding="utf-8")
+        cls.references = (ROOT / "app/references/page.tsx").read_text(encoding="utf-8")
+        cls.model_operations = (ROOT / "components/ModelOperationsPanel.tsx").read_text(encoding="utf-8")
 
     def test_dashboard_exposes_both_legacy_and_model_views(self):
         self.assertIn("ระบบเดิม · สคร.4 (8 จังหวัด)", self.dashboard)
@@ -58,6 +66,28 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertNotIn('iconPosition="top"', self.prevention)
         self.assertIn('<Icon size={58} strokeWidth={1.35} />', self.product_hero)
         self.assertNotIn("dy-product-hero-brand-lockup", self.product_hero)
+
+    def test_all_module_hero_icons_match_dashboard_scale(self):
+        self.assertIn('<Icon size={58} strokeWidth={1.35} />', self.product_hero)
+        self.assertIn('<ClipboardCheck size={58} strokeWidth={1.35} />', self.symptom)
+        self.assertIn('<Bot size={58} strokeWidth={1.35} />', self.health_assistant)
+        self.assertIn('<BookOpen size={58} strokeWidth={1.35} />', self.knowledge)
+        self.assertIn('<ShieldCheck size={58} strokeWidth={1.35} />', self.about)
+        self.assertIn('<ShieldCheck size={58} strokeWidth={1.35} />', self.references)
+        self.assertIn('<Activity size={58} strokeWidth={1.35} />', self.model_operations)
+        self.assertIn('.heading-icon-card svg { width: 58px; height: 58px;', self.symptom_css)
+        self.assertIn('.ha-page-heading-icon svg { width: 48px; height: 48px;', self.platform_css)
+        self.assertIn('.dg-hero-art svg { width: 58px; height: 58px;', self.platform_css)
+
+    def test_health_assistant_ai_is_paused_and_evidence_tools_remain_available(self):
+        self.assertNotIn("HealthAssistantChatPanel", self.health_assistant)
+        self.assertIn("AI พักการพัฒนา", self.health_assistant)
+        self.assertIn("<HealthAssistantMoreTools />", self.health_assistant)
+        self.assertIn("HEALTH_ASSISTANT_PAUSED", self.health_runtime)
+        self.assertIn('env.HEALTH_ASSISTANT_PAUSED !== "false"', self.health_runtime)
+        env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertIn("HEALTH_ASSISTANT_PAUSED=true", env_example)
+        self.assertIn("HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=false", env_example)
 
     def test_legacy_prevention_shows_selected_province_weather(self):
         self.assertIn("สภาพอากาศจังหวัดที่เลือก", self.prevention)
