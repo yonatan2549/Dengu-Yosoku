@@ -17,12 +17,13 @@ const MAX_REQUESTS_PER_WINDOW = 12;
 const requests = new Map<string, { startedAt: number; count: number }>();
 
 function sqliteAiProviderConfig(request: Request) {
-  // Keep SQLite generation on Vercel AI Gateway. Do not accidentally route through
-  // an old Ollama endpoint/model configured for the separate local-vector prototype.
+  // Keep SQLite generation on the current zero-priced catalog model.
+  // Ignore old .env.local model overrides so this path cannot accidentally select a paid model.
+  // The provider may retain prompts/responses for model improvement; the UI discloses this.
   const env = {
     ...process.env,
     HEALTH_ASSISTANT_CHAT_ENDPOINT: DEFAULT_AI_GATEWAY_ENDPOINT,
-    HEALTH_ASSISTANT_MODEL: process.env.SQLITE_HEALTH_ASSISTANT_MODEL?.trim() || DEFAULT_HEALTH_ASSISTANT_MODEL,
+    HEALTH_ASSISTANT_MODEL: DEFAULT_HEALTH_ASSISTANT_MODEL,
     HEALTH_ASSISTANT_API_KEY: undefined,
   };
   return readChatProviderConfig(env, process.env.NODE_ENV, request.headers.get("x-vercel-oidc-token"));
@@ -104,7 +105,7 @@ export async function GET(request: Request) {
   const message = !status.available
     ? status.message
     : generatedAnswersEnabled
-      ? "เชื่อมต่อ SQLite Local แล้ว พร้อมสร้างร่างคำตอบด้วย AI Gateway จากหลักฐานสาธารณะที่ค้นพบ โดยไม่ส่งประวัติแชต"
+      ? "เชื่อมต่อ SQLite Local แล้ว พร้อมใช้ NVIDIA Nemotron 3.5 Lightning Free (ราคา input/output $0 ใน catalog ปัจจุบัน) สร้างร่างจากหลักฐานสาธารณะ โดยไม่ส่งประวัติแชต; ผู้ให้บริการอาจเก็บ prompt/response เพื่อปรับปรุงโมเดล"
       : !draftAnswersEnabled
         ? "เชื่อมต่อ SQLite Local แล้ว ขณะนี้แสดงหลักฐานเท่านั้น หากเปิด HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true และตั้งค่า AI Gateway credential ระบบจะสร้างร่างคำตอบได้"
         : provider.ok
@@ -264,7 +265,7 @@ export async function POST(request: Request) {
     fullDocumentRag: false,
     reviewStatus: "awaiting_clinical_review",
     disclaimer: retrievalSummary +
-      ". คำตอบนี้เป็นร่างเพื่อการศึกษา สร้างจาก excerpt ที่ผ่าน Public Allow-list เท่านั้น ไม่ใช่เอกสารฉบับเต็มและยังไม่ผ่านการทบทวนทางคลินิก",
+      ". คำตอบนี้เป็นร่างเพื่อการศึกษา สร้างจาก excerpt ที่ผ่าน Public Allow-list เท่านั้น ไม่ใช่เอกสารฉบับเต็มและยังไม่ผ่านการทบทวนทางคลินิก ผู้ให้บริการ NVIDIA อาจเก็บ prompt/response เพื่อปรับปรุงโมเดล จึงห้ามใส่ข้อมูลระบุตัวบุคคลหรือข้อมูลผู้ป่วย",
     sqliteRetrieval: payload.retrieval,
     warnings: payload.warnings,
   }, { headers: noStore });
