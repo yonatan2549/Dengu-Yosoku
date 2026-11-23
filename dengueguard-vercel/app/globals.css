@@ -880,3 +880,10 @@ html[data-theme="dark"] .alert-demo-event-main > div > span { color: var(--text-
 html[data-theme="dark"] .alert-demo-event,
 html[data-theme="dark"] .alert-demo-kpis article { background: var(--card-bg); border-color: var(--border-soft); }
 html[data-theme="dark"] .alert-demo-workflow { background: var(--surface-soft); border-color: var(--border-soft); }
+
+.alert-demo-navigation { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 12px; }
+.alert-demo-navigation > span { color: #8797a4; font-size: 8px; line-height: 1.6; }
+@media (max-width: 620px) {
+  .alert-demo-navigation { align-items: stretch; flex-direction: column; }
+  .alert-demo-navigation .button { width: 100%; justify-content: center; }
+}
