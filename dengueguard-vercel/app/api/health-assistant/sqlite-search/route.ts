@@ -236,7 +236,8 @@ export async function POST(request: Request) {
   }
 
   // Only the current public question and the retrieved allow-listed excerpts are sent.
-  // No conversation history, personal data, review-only material, or Ollama model is sent.
+  // No conversation history or review-only material is sent.
+  // Safety preflight blocks recognized personal-medical queries, but cannot guarantee detection of all identifying data.
   const completion = await requestChatCompletion(
     provider.config,
     buildSqliteGroundedMessages(query, payload),
