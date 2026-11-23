@@ -18,7 +18,7 @@ type EvidencePassage = {
   publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string; similarity?: number;
 };
 type ChatTurn = { role: "user" | "assistant"; content: string };
-type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; evidenceOnly?: boolean; draftOnly?: boolean };
+type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; noEvidence?: boolean; evidenceOnly?: boolean; draftOnly?: boolean };
 
 const suggestions = [
   "ไข้เลือดออกติดต่อได้อย่างไร?",
@@ -36,30 +36,49 @@ export function HealthAssistantChatPanel() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/health-assistant/chat", { cache: "no-store" })
-      .then(async (response) => {
+    async function loadRuntime() {
+      try {
+        const sqliteResponse = await fetch("/api/health-assistant/sqlite-search", { cache: "no-store" });
+        const sqliteStatus = await sqliteResponse.json();
+        if (active && sqliteStatus?.configured === true) {
+          setRuntime({
+            generatedAnswersEnabled: sqliteStatus?.generatedAnswersEnabled === true,
+            model: typeof sqliteStatus?.model === "string" ? sqliteStatus.model : null,
+            provider: "SQLite Local",
+            message: typeof sqliteStatus?.message === "string"
+              ? sqliteStatus.message
+              : "พร้อมค้นหลักฐานจาก SQLite ในเครื่อง",
+          });
+          return;
+        }
+      } catch {
+        // Keep the existing AI/evidence runtime as a fallback when local SQLite is not configured.
+      }
+
+      try {
+        const response = await fetch("/api/health-assistant/chat", { cache: "no-store" });
         if (!response.ok) throw new Error("status unavailable");
-        return response.json();
-      })
-      .then((payload) => {
+        const payload = await response.json();
         if (active) setRuntime({
           generatedAnswersEnabled: payload?.generatedAnswersEnabled === true,
           model: typeof payload?.model === "string" ? payload.model : null,
           provider: typeof payload?.provider === "string" ? payload.provider : undefined,
           message: typeof payload?.message === "string" ? payload.message : "ยังไม่สามารถตรวจสอบสถานะ AI ได้",
         });
-      })
-      .catch(() => {
+      } catch {
         if (active) setRuntime({
           generatedAnswersEnabled: false,
           model: null,
           message: "ไม่สามารถตรวจสถานะ AI ได้ในขณะนี้ ระบบยังให้ค้นคืนหลักฐานได้",
         });
-      });
+      }
+    }
+    void loadRuntime();
     return () => { active = false; };
   }, []);
 
   const lastMessages = turns.slice(-8).map(({ role, content }) => ({ role, content }));
+  const isSqliteRuntime = runtime?.provider?.startsWith("SQLite Local") === true;
 
   function startNewConversation() {
     if (busy) return;
@@ -77,22 +96,26 @@ export function HealthAssistantChatPanel() {
     setTurns((current) => [...current, { role: "user", content: question }]);
     setQuery("");
     try {
-      const response = await fetch("/api/health-assistant/chat", {
+      const sqliteMode = isSqliteRuntime;
+      const response = await fetch(sqliteMode ? "/api/health-assistant/sqlite-search" : "/api/health-assistant/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: question, history: lastMessages }),
+        body: JSON.stringify(sqliteMode ? { query: question } : { query: question, history: lastMessages }),
         cache: "no-store",
       });
       const payload = await response.json();
       if (!response.ok) {
-        setError(typeof payload?.error === "string" ? payload.error : "ระบบถามตอบยังไม่พร้อมใช้งาน");
+        setError(typeof payload?.error === "string" ? payload.error : "ระบบค้นความรู้ยังไม่พร้อมใช้งาน");
         return;
       }
+
       const answer = typeof payload?.answer === "string"
         ? payload.answer
         : typeof payload?.safetyMessage === "string"
           ? payload.safetyMessage
-          : typeof payload?.message === "string" ? payload.message : "ระบบงดตอบคำถามนี้เพื่อความปลอดภัย";
+          : typeof payload?.safety?.message === "string"
+            ? payload.safety.message
+            : typeof payload?.message === "string" ? payload.message : "ระบบงดตอบคำถามนี้เพื่อความปลอดภัย";
       setTurns((current) => [...current, {
         role: "assistant",
         content: answer,
@@ -100,7 +123,8 @@ export function HealthAssistantChatPanel() {
         evidencePassages: Array.isArray(payload?.evidencePassages) ? payload.evidencePassages : [],
         disclaimer: typeof payload?.disclaimer === "string" ? payload.disclaimer : undefined,
         abstained: payload?.abstained === true,
-        evidenceOnly: payload?.mode === "evidence-only" && payload?.abstained !== true,
+        noEvidence: payload?.noEvidence === true || payload?.status === "no_evidence",
+        evidenceOnly: payload?.mode === "evidence-only" && payload?.abstained !== true && payload?.noEvidence !== true,
         draftOnly: payload?.draftOnly === true,
       }]);
     } catch {
@@ -115,11 +139,11 @@ export function HealthAssistantChatPanel() {
       <div className="dg-section-head">
         <div>
           <span className="dg-eyebrow"><MessageCircle size={14} /> AI HEALTH ASSISTANT</span>
-          <h2 id="health-assistant-chat-title">ถาม–ตอบความรู้ไข้เลือดออก</h2>
+          <h2 id="health-assistant-chat-title">{isSqliteRuntime ? (runtime?.generatedAnswersEnabled ? "ถาม–ตอบความรู้ไข้เลือดออก" : "ค้นหลักฐานความรู้ไข้เลือดออก") : "ถาม–ตอบความรู้ไข้เลือดออก"}</h2>
           <p>ถามเรื่องไข้เลือดออกได้ทันที ระบบจะแสดงแหล่งอ้างอิงเมื่อมีหลักฐานรองรับ</p>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบ AI…" : runtime.generatedAnswersEnabled ? `${runtime.provider === "Ollama (local)" ? "Local AI" : "AI Preview"} · ${runtime.model ?? "Draft only"}` : "Evidence-only · Production"}</span>
+          <span className="dg-pill dg-pill-muted">{runtime === null ? "กำลังตรวจสอบระบบ…" : isSqliteRuntime ? (runtime.generatedAnswersEnabled ? "SQLite Local · AI Draft" : "SQLite Local · Evidence only") : runtime.generatedAnswersEnabled ? `${runtime.provider === "Ollama (local)" ? "Local AI" : "AI Preview"} · ${runtime.model ?? "Draft only"}` : "Evidence-only"}</span>
           <button type="button" className="dg-chip" onClick={startNewConversation} disabled={busy || turns.length === 0} aria-label="เริ่มบทสนทนาใหม่">
             <Trash2 size={14} /> เริ่มบทสนทนาใหม่
           </button>
@@ -128,7 +152,7 @@ export function HealthAssistantChatPanel() {
 
       <div className="dg-note" style={{ marginTop: 14 }}>
         <ShieldAlert size={18} />
-        <div><strong>{runtime?.generatedAnswersEnabled ? (runtime.provider === "Ollama (local)" ? "Local AI · คำตอบร่างเพื่อการศึกษา" : "AI Preview · คำตอบร่างเพื่อการศึกษา") : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
+        <div><strong>{isSqliteRuntime ? (runtime?.generatedAnswersEnabled ? "SQLite Local RAG · AI draft จากหลักฐาน" : "SQLite Local RAG · แสดงหลักฐานเท่านั้น") : runtime?.generatedAnswersEnabled ? (runtime.provider === "Ollama (local)" ? "Local AI · คำตอบร่างเพื่อการศึกษา" : "AI Preview · คำตอบร่างเพื่อการศึกษา") : "โหมดค้นคืนหลักฐาน"}</strong><div>{runtime?.message ?? "กำลังตรวจสอบการเชื่อมต่อ AI Gateway"} ให้ข้อมูลความรู้ทั่วไปเท่านั้น ไม่วินิจฉัย ไม่แปลผลตรวจเฉพาะบุคคล และไม่ใช้แทนบุคลากรทางการแพทย์ หากมีอาการรุนแรงให้ไปโรงพยาบาลทันที</div></div>
       </div>
 
       <div aria-live="polite" style={{ display: "grid", gap: 12, marginTop: 18 }}>
@@ -139,6 +163,7 @@ export function HealthAssistantChatPanel() {
               {turn.role === "assistant" ? "DengueYosoku Assistant" : "คุณ"}
               {turn.evidenceOnly && <span className="dg-pill dg-pill-muted">แสดงหลักฐานเท่านั้น</span>}
               {turn.abstained && <span className="dg-pill dg-pill-muted">งดตอบเพื่อความปลอดภัย</span>}
+              {turn.noEvidence && <span className="dg-pill dg-pill-muted">ไม่พบหลักฐาน</span>}
               {turn.draftOnly && <span className="dg-pill dg-pill-muted">AI draft · รอทบทวนทางคลินิก</span>}
             </div>
             <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{turn.content}</div>
@@ -159,8 +184,8 @@ export function HealthAssistantChatPanel() {
             )}
             {turn.evidencePassages && turn.evidencePassages.length > 0 && (
               <div style={{ marginTop: 12, borderTop: "1px solid var(--border, #dce7e4)", paddingTop: 10 }}>
-                <strong style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}><BookOpen size={15} /> ข้อความจากทะเบียนความรู้ที่ใช้ประกอบคำตอบ</strong>
-                <p className="dg-source-meta">ข้อความต่อไปนี้เป็นสรุป/ประเด็นสำคัญในทะเบียน ไม่ใช่ข้อความคัดตรงจากต้นฉบับหรือเอกสารฉบับเต็ม</p>
+                <strong style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 13 }}><BookOpen size={15} /> {isSqliteRuntime ? "ข้อความหลักฐานจาก SQLite" : "ข้อความจากทะเบียนความรู้ที่ใช้ประกอบคำตอบ"}</strong>
+                <p className="dg-source-meta">ข้อความต่อไปนี้เป็น excerpt จาก chunk ที่ผ่านตัวกรอง ไม่ใช่เอกสารฉบับเต็มหรือการรับรองความถูกต้องทางคลินิก</p>
                 <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
                   {turn.evidencePassages.map((passage) => (
                     <article key={passage.chunkId} className="dg-card">
@@ -176,14 +201,14 @@ export function HealthAssistantChatPanel() {
             {turn.disclaimer && <p className="dg-source-meta" style={{ marginTop: 10 }}>{turn.disclaimer}</p>}
           </article>
         ))}
-        {busy && <div className="dg-note"><LoaderCircle size={17} /> กำลังค้นหลักฐานและเตรียมคำตอบ…</div>}
+        {busy && <div className="dg-note"><LoaderCircle size={17} /> {isSqliteRuntime ? (runtime?.generatedAnswersEnabled ? "กำลังค้นหลักฐานและสังเคราะห์ร่างคำตอบ…" : "กำลังค้นหลักฐานจาก SQLite…") : "กำลังค้นหลักฐานและเตรียมคำตอบ…"}</div>}
       </div>
 
       {turns.length === 0 && (
         <div style={{ marginTop: 16 }}>
           <p className="dg-source-meta">ลองถามคำถามความรู้ทั่วไป</p>
           <div className="dg-chip-row">
-            {suggestions.map((item) => <button key={item} type="button" className="dg-chip" disabled={busy} onClick={() => void send(undefined, item)}>{item}</button>)}
+            {suggestions.map((item) => <button key={item} type="button" className="dg-chip" disabled={busy || runtime === null} onClick={() => void send(undefined, item)}>{item}</button>)}
           </div>
         </div>
       )}
@@ -200,20 +225,30 @@ export function HealthAssistantChatPanel() {
           maxLength={500}
           minLength={2}
           placeholder="พิมพ์คำถามเกี่ยวกับไข้เลือดออก…"
-          disabled={busy}
+          disabled={busy || runtime === null}
         />
-        <button type="submit" disabled={busy || query.trim().length < 2} style={{ display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 12, padding: "0 16px", background: "#17685f", color: "white", fontWeight: 700 }}>
+        <button type="submit" disabled={busy || runtime === null || query.trim().length < 2} style={{ display: "inline-flex", alignItems: "center", gap: 7, border: 0, borderRadius: 12, padding: "0 16px", background: "#17685f", color: "white", fontWeight: 700 }}>
           <Send size={16} /> ส่ง
         </button>
       </form>
       <div className="dg-source-meta" style={{ marginTop: 9 }}>
         ประวัติแชตอยู่ในหน่วยความจำของหน้าเว็บเท่านั้น ไม่บันทึกลงฐานข้อมูลของ DengueYosoku และจะหายไปเมื่อปิดหรือโหลดหน้าใหม่
-        {runtime?.provider === "Ollama (local)"
-          ? "· โหมด Local AI ส่งคำถามความรู้ทั่วไปที่ผ่าน Safety Gate ไปยัง Ollama บนเครื่องนี้ โดยไม่เรียก Vercel AI Gateway"
-          : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
+        {isSqliteRuntime
+          ? runtime?.generatedAnswersEnabled
+            ? "· SQLite ค้นหลักฐานในเครื่องและส่งเฉพาะคำถามกับ excerpt สาธารณะที่ค้นพบไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ ไม่ส่งประวัติแชต"
+            : "· โหมด SQLite Local ส่งเฉพาะคำถามไปค้นฐานข้อมูลบนเครื่อง ผ่าน Public Allow-list; ไม่ส่งประวัติสนทนาไปยัง AI Provider"
+          : runtime?.provider === "Ollama (local)"
+            ? "· โหมด Local AI ส่งคำถามความรู้ทั่วไปที่ผ่าน Safety Gate ไปยัง Ollama บนเครื่องนี้ โดยไม่เรียก Vercel AI Gateway"
+            : "· ใน AI Preview เฉพาะคำถามความรู้ทั่วไปที่ผ่าน Safety Gate จะถูกส่งไปยัง Vercel AI Gateway เพื่อสร้างร่างคำตอบ"}
         · ห้ามใส่ชื่อ เลขบัตรประชาชน HN/AN เบอร์โทร วันเกิด อาการเฉพาะบุคคล หรือผลตรวจของผู้ป่วย
-        {runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
-        · คำตอบเป็นร่างเพื่อการศึกษา ไม่ใช่คำแนะนำทางการแพทย์ และ Production ยังคง Evidence-only
+        {isSqliteRuntime
+          ? runtime?.generatedAnswersEnabled ? "· ใช้ NVIDIA Nemotron 3.5 Lightning Free ผ่าน Vercel AI Gateway (ราคา input/output $0 ใน catalog ปัจจุบัน); NVIDIA อาจเก็บ prompt/response เพื่อปรับปรุงโมเดล" : ""
+          : runtime?.provider === "Ollama (local)" ? "" : "· การประมวลผลโดยผู้ให้บริการ AI เป็นไปตามนโยบายของผู้ให้บริการนั้น"}
+        {isSqliteRuntime
+          ? runtime?.generatedAnswersEnabled
+            ? "· คำตอบ AI เป็นร่างเพื่อการศึกษา อ้างอิงเฉพาะหลักฐานที่ค้นได้ และยังไม่ผ่านการทบทวนทางคลินิก"
+            : "· ข้อความที่แสดงเป็นหลักฐานจากเอกสาร ไม่ใช่ข้อสรุปที่ผ่านการทบทวนทางคลินิก"
+          : "· คำตอบเป็นร่างเพื่อการศึกษา ไม่ใช่คำแนะนำทางการแพทย์ และ Production ยังคง Evidence-only"}
       </div>
     </section>
   );

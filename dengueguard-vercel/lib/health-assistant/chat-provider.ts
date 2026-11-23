@@ -9,7 +9,7 @@ export interface ChatProviderConfig {
 export type ConfigEnvironment = Record<string, string | undefined>;
 
 export const DEFAULT_AI_GATEWAY_ENDPOINT = "https://ai-gateway.vercel.sh/v1/chat/completions";
-export const DEFAULT_HEALTH_ASSISTANT_MODEL = "google/gemini-4-neon";
+export const DEFAULT_HEALTH_ASSISTANT_MODEL = "nvidia/nemotron-3.5-lightning-free";
 
 /**
  * Reads credentials only from server-side environment or a Vercel-issued OIDC token.
@@ -30,7 +30,9 @@ export function readChatProviderConfig(
     // Backward compatibility for an existing OpenAI-compatible provider setup.
     env.HEALTH_ASSISTANT_API_KEY?.trim() ||
     "";
-  const model = env.HEALTH_ASSISTANT_MODEL?.trim() || DEFAULT_HEALTH_ASSISTANT_MODEL;
+  // Keep Health Assistant on the currently catalog-listed zero-priced model.
+  // Ignore stale .env.local paid-model overrides to prevent accidental charges.
+  const model = DEFAULT_HEALTH_ASSISTANT_MODEL;
 
   if (!apiKey) {
     return { ok: false, error: "ยังไม่พบ AI Gateway credential ฝั่ง Server (ตั้งค่า AI_GATEWAY_API_KEY หรือเปิด Vercel OIDC)" };
