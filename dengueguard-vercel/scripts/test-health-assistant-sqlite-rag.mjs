@@ -10,7 +10,8 @@ test("pins SQLite AI drafts to the catalog-verified zero-priced model", () => {
   assert.match(sqliteRouteSource, /HEALTH_ASSISTANT_MODEL:\\s*DEFAULT_HEALTH_ASSISTANT_MODEL/);
   assert.doesNotMatch(sqliteRouteSource, /SQLITE_HEALTH_ASSISTANT_MODEL/);
 });
-\nfunction makePayload(overrides = {}) {
+
+function makePayload(overrides = {}) {
   return {
     schema_version: "1.0",
     status: "ok",
