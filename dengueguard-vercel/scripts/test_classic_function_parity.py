@@ -16,6 +16,7 @@ class ClassicFunctionParityTests(unittest.TestCase):
         cls.prevention = (ROOT / "app/prevention/page.tsx").read_text(encoding="utf-8")
         cls.symptom = (ROOT / "app/symptom-checker/page.tsx").read_text(encoding="utf-8")
         cls.popup = (ROOT / "components/SupportingPopup.tsx").read_text(encoding="utf-8")
+        cls.product_hero = (ROOT / "components/ProductHero.tsx").read_text(encoding="utf-8")
 
     def test_dashboard_exposes_both_legacy_and_model_views(self):
         self.assertIn("ระบบเดิม · สคร.4 (8 จังหวัด)", self.dashboard)
@@ -48,6 +49,15 @@ class ClassicFunctionParityTests(unittest.TestCase):
         self.assertIn("Snapshot 77 จังหวัดนี้ยังเป็น Review-only", self.prevention)
         self.assertNotIn("useEffect(", self.prevention)
         self.assertIn("disabled={!hasModel}", self.prevention)
+
+    def test_prevention_hero_is_at_page_top_and_uses_dashboard_icon_scale(self):
+        hero_index = self.prevention.index("<ProductHero")
+        selector_index = self.prevention.index('<section className="panel dy-mode-switcher">')
+        self.assertLess(hero_index, selector_index)
+        self.assertIn('icon={ShieldCheck}', self.prevention)
+        self.assertNotIn('iconPosition="top"', self.prevention)
+        self.assertIn('<Icon size={58} strokeWidth={1.35} />', self.product_hero)
+        self.assertNotIn("dy-product-hero-brand-lockup", self.product_hero)
 
     def test_legacy_prevention_shows_selected_province_weather(self):
         self.assertIn("สภาพอากาศจังหวัดที่เลือก", self.prevention)
