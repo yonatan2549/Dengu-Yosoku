@@ -18,7 +18,7 @@ type EvidencePassage = {
   publisher: string; publishedAt: string; sourceUrl: string; reviewStatus: string; similarity?: number;
 };
 type ChatTurn = { role: "user" | "assistant"; content: string };
-type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; evidenceOnly?: boolean; draftOnly?: boolean };
+type DisplayTurn = ChatTurn & { citations?: Citation[]; evidencePassages?: EvidencePassage[]; disclaimer?: string; abstained?: boolean; noEvidence?: boolean; evidenceOnly?: boolean; draftOnly?: boolean };
 
 const suggestions = [
   "ไข้เลือดออกติดต่อได้อย่างไร?",
@@ -123,7 +123,8 @@ export function HealthAssistantChatPanel() {
         evidencePassages: Array.isArray(payload?.evidencePassages) ? payload.evidencePassages : [],
         disclaimer: typeof payload?.disclaimer === "string" ? payload.disclaimer : undefined,
         abstained: payload?.abstained === true,
-        evidenceOnly: payload?.mode === "evidence-only" && payload?.abstained !== true,
+        noEvidence: payload?.noEvidence === true || payload?.status === "no_evidence",
+        evidenceOnly: payload?.mode === "evidence-only" && payload?.abstained !== true && payload?.noEvidence !== true,
         draftOnly: payload?.draftOnly === true,
       }]);
     } catch {
@@ -162,6 +163,7 @@ export function HealthAssistantChatPanel() {
               {turn.role === "assistant" ? "DengueYosoku Assistant" : "คุณ"}
               {turn.evidenceOnly && <span className="dg-pill dg-pill-muted">แสดงหลักฐานเท่านั้น</span>}
               {turn.abstained && <span className="dg-pill dg-pill-muted">งดตอบเพื่อความปลอดภัย</span>}
+              {turn.noEvidence && <span className="dg-pill dg-pill-muted">ไม่พบหลักฐาน</span>}
               {turn.draftOnly && <span className="dg-pill dg-pill-muted">AI draft · รอทบทวนทางคลินิก</span>}
             </div>
             <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.75 }}>{turn.content}</div>
