@@ -151,6 +151,9 @@ jobs:
       - name: Local SQLite RAG public evidence contract tests
         run: npm run test:health-assistant-sqlite-rag
 
+      - name: SQLite grounded AI answer and citation safety tests
+        run: npm run test:health-assistant-sqlite-answer
+
 
       - name: Snapshot actual-history bridge and MMWR contract tests
         run: |
