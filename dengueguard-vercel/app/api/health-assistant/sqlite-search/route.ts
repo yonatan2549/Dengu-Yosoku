@@ -107,7 +107,9 @@ export async function GET(request: Request) {
       ? "เชื่อมต่อ SQLite Local แล้ว พร้อมสร้างร่างคำตอบด้วย AI Gateway จากหลักฐานสาธารณะที่ค้นพบ โดยไม่ส่งประวัติแชต"
       : !draftAnswersEnabled
         ? "เชื่อมต่อ SQLite Local แล้ว ขณะนี้แสดงหลักฐานเท่านั้น หากเปิด HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true และตั้งค่า AI Gateway credential ระบบจะสร้างร่างคำตอบได้"
-        : provider.error;
+        : provider.ok
+          ? "เชื่อมต่อ SQLite Local แล้ว แต่ AI draft ยังไม่เปิดใช้งาน"
+          : provider.error;
 
   return NextResponse.json({
     mode: generatedAnswersEnabled ? "sqlite-grounded-ai-preview" : "sqlite-evidence-only",
