@@ -7,7 +7,7 @@ Health Assistant รุ่นนี้ค้นหลักฐานจาก SQ
 - ใช้ `scripts/search.py` และ `knowledge-base/knowledge.db` จากโฟลเดอร์ในเครื่อง
 - บังคับ `--audience public`, `--top-k 5`, `--per-source 2`, `--output-format json`
 - ไม่เปิด review audience ผ่าน API
-- ไม่เรียกโมเดลสร้างคำตอบ; หน้าเว็บแสดง excerpts และแหล่งต้นทางเท่านั้น
+- โหมดพื้นฐานแสดง excerpts และแหล่งต้นทางเท่านั้น; สามารถเปิด AI draft แบบเลือกใช้ได้ผ่าน Vercel AI Gateway โดยใช้เฉพาะ excerpt ที่ผ่าน Public Evidence Policy
 - Production ปิด endpoint นี้ และ endpoint รับคำขอเฉพาะ loopback + same-origin ใน local development
 
 ## ตั้งค่าเครื่องพัฒนา
@@ -19,7 +19,17 @@ DENGUE_RAG_PROJECT_DIR=D:/AI/DengueYosoku
 DENGUE_RAG_PYTHON=py
 ```
 
-อย่า commit `.env.local`, SQLite database, backup, raw documents, หรือ Ollama model files
+ตั้งค่า AI draft เพิ่มเฉพาะเมื่อมี Vercel AI Gateway API key ของตนเอง:
+
+```env
+AI_GATEWAY_API_KEY=ใส่คีย์จริงในเครื่องเท่านั้น
+HEALTH_ASSISTANT_ENABLE_DRAFT_ANSWERS=true
+SQLITE_HEALTH_ASSISTANT_MODEL=google/gemini-4-neon
+```
+
+เก็บ API key ไว้ใน `.env.local` เท่านั้น ห้ามส่ง key ในแชตหรือ commit ลง GitHub หากไม่มี key ระบบยังค้นและแสดงหลักฐานได้ตามปกติ แต่จะไม่สร้างคำตอบด้วย AI
+
+อย่า commit `.env.local`, AI API key, SQLite database, backup, raw documents, หรือ Ollama model files
 
 ## วิธีทำงาน
 
@@ -28,7 +38,8 @@ DENGUE_RAG_PYTHON=py
 3. Node เรียก Python ด้วย `execFile` โดยไม่ผ่าน shell และส่ง query เป็น argv แยก
 4. Python ค้นด้วย Public audience เท่านั้น แล้วคืน JSON
 5. TypeScript ตรวจ schema, public audience, access policy, extraction quality, HTTPS domain allow-list และ excerpt limit ก่อนส่งไปยัง browser
-6. หน้าเว็บแสดงแหล่งอ้างอิงและข้อความต้นทาง โดยไม่มี generative answer
+6. เมื่อเปิด draft flag และมี AI Gateway credential, Node จะส่งเฉพาะคำถามปัจจุบันกับ public excerpts ไปยัง AI Gateway; ไม่ส่งประวัติสนทนา
+7. ตัวตรวจคำตอบบังคับ citation marker ที่ตรงกับผลค้น, ปฏิเสธ marker ที่ไม่มีจริง, ย่อหน้าที่ไม่มี citation และคำแนะนำเรื่องยา/ขนาดยา; เมื่อ AI ใช้งานไม่ได้หรือคำตอบไม่ผ่าน validation ระบบจะ fallback เป็น evidence-only
 
 ## ข้อจำกัด
 
@@ -36,7 +47,8 @@ DENGUE_RAG_PYTHON=py
 - Retrieval rank/similarity ไม่ใช่คะแนนความถูกต้องทางการแพทย์
 - Excerpt อาจเป็นส่วนหนึ่งของเอกสาร ไม่ใช่เอกสารฉบับเต็ม
 - ข้อความที่ไม่มีวันที่เผยแพร่ใน metadata จะแสดงว่าไม่ระบุ ไม่อนุมานวันที่จากเวลาค้นคืน
-- Local endpoint ใช้ได้เฉพาะบนเครื่องเดียวกับ SQLite และ Ollama; ไม่สามารถทำงานใน Vercel production
+- SQLite endpoint ใช้ได้เฉพาะบนเครื่องเดียวกับฐานข้อมูล; AI draft ใช้ Vercel AI Gateway ผ่าน server-side key และไม่ใช้ Qwen 0.8B ในเครื่อง
+- AI draft เป็นเพียงร่างเพื่อการศึกษา แม้ผ่าน citation validation ก็ไม่ได้ยืนยันความถูกต้องทางคลินิก
 - คำตอบฉุกเฉิน การวินิจฉัย อาการเฉพาะบุคคล การแปลผลตรวจ และการคำนวณขนาดยาไม่อยู่ในขอบเขตของระบบนี้
 
 การเปิดใช้เป็นคำตอบสุขภาพที่ผ่านการรับรองต้องผ่านการทบทวนโดยผู้เชี่ยวชาญและชุดประเมินความถูกต้องแยกต่างหาก
